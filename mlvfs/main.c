@@ -196,7 +196,6 @@ int main(int argc, char **argv)
     }
     
     umask(0);
-    mkdir(argv[1], ALLPERMS);
     res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
     
     fuse_opt_free_args(&args);
