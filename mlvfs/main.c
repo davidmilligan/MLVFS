@@ -31,7 +31,7 @@
 
 struct mlvfs
 {
-	char * mlv_path;
+    char * mlv_path;
 };
 
 static struct mlvfs mlvfs;
@@ -181,8 +181,8 @@ static struct fuse_operations mlvfs_filesystem_operations =
 
 static const struct fuse_opt mlvfs_opts[] =
 {
-	{ "--mlv_dir=%s", offsetof(struct mlvfs, mlv_path), 0 },
-	FUSE_OPT_END
+    { "--mlv_dir=%s", offsetof(struct mlvfs, mlv_path), 0 },
+    FUSE_OPT_END
 };
 
 int main(int argc, char **argv)
