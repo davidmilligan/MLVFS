@@ -192,7 +192,7 @@ int main(int argc, char **argv)
     
     if (fuse_opt_parse(&args, &mlvfs, mlvfs_opts, NULL) == -1)
     {
-		exit(1);
+        exit(1);
     }
     
     umask(0);
