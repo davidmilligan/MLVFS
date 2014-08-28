@@ -29,10 +29,6 @@
 #include "raw.h"
 #include "mlv.h"
 
-#define DNG_THUMBNAIL_WIDTH     128
-#define DNG_THUMBNAIL_HEIGHT    84
-#define DNG_THUMBNAIL_SIZE      (DNG_THUMBNAIL_WIDTH * DNG_THUMBNAIL_HEIGHT * 3)
-
 struct mlvfs
 {
     char * mlv_path;
@@ -62,47 +58,105 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
     return 0;
 }
 
-static int dng_get_header_size(struct raw_info * raw_info)
+static int get_mlv_frame_number(const char *path)
 {
+    char temp[1024];
+    strncpy(temp, path, 1024);
+    char * str_number = strrchr(temp, '/');
+    if(str_number)
+    {
+        str_number+=3;
+        char * dot = strrchr(str_number, '.');
+        *dot = 0x0;
+        return atoi(str_number);
+    }
     return 0;
 }
 
-static int dng_get_size(struct raw_info * raw_info)
+static int mlv_get_rawi(FILE * mlv_file, mlv_rawi_hdr_t * rawi_hdr)
 {
-    return dng_get_header_size(raw_info) + DNG_THUMBNAIL_SIZE + raw_info->frame_size;
+    mlv_hdr_t mlv_hdr;
+    unsigned int position = ftell(mlv_file);
+    int found = 0;
+    while(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, mlv_file))
+    {
+        fseek(mlv_file, position, SEEK_SET);
+        if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
+        {
+            uint32_t hdr_size = sizeof(mlv_rawi_hdr_t) < mlv_hdr.blockSize ? sizeof(mlv_rawi_hdr_t) : mlv_hdr.blockSize;
+            
+            if(fread(rawi_hdr, hdr_size, 1, mlv_file))
+            {
+                found = 1;
+                break;
+            }
+            else
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
+        
+        fseek(mlv_file, position + mlv_hdr.blockSize, SEEK_SET);
+        position = ftell(mlv_file);
+    }
+    return found;
 }
 
-static off_t mlv_get_dng_size(const char *path)
+static int mlv_get_vidf(FILE * mlv_file, mlv_vidf_hdr_t * vidf_hdr, int index)
 {
-    off_t result = 0;
     mlv_hdr_t mlv_hdr;
-    uint64_t position = 0;
-    FILE * mlv_file = fopen(path, "rb");
-    if(mlv_file)
+    unsigned int position = ftell(mlv_file);
+    int found = 0;
+    //TODO: use an index file rather than searching the whole file for a certain frame
+    while(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, mlv_file))
     {
-        position = ftell(mlv_file);
-        while(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, mlv_file))
+        fseek(mlv_file, position, SEEK_SET);
+        if(!memcmp(mlv_hdr.blockType, "VIDF", 4))
         {
-            fseek(mlv_file, position, SEEK_SET);
-            if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
+            uint32_t hdr_size = sizeof(mlv_vidf_hdr_t) < mlv_hdr.blockSize ? sizeof(mlv_vidf_hdr_t) : mlv_hdr.blockSize;
+            
+            if(fread(vidf_hdr, hdr_size, 1, mlv_file))
             {
-                mlv_rawi_hdr_t rawi_hdr;
-                uint32_t hdr_size = sizeof(mlv_rawi_hdr_t) < mlv_hdr.blockSize ? sizeof(mlv_rawi_hdr_t) : mlv_hdr.blockSize;
-                
-                if(fread(&rawi_hdr, hdr_size, 1, mlv_file))
+                if(vidf_hdr->frameNumber == index)
                 {
-                    result = dng_get_size(&rawi_hdr.raw_info);
-                    break;
-                }
-                else
-                {
-                    fprintf(stderr, "File ends in the middle of a block\n");
+                    found = 1;
+                    fseek(mlv_file, position , SEEK_SET);
                     break;
                 }
             }
-            
-            fseek(mlv_file, position + mlv_hdr.blockSize, SEEK_SET);
-            position = ftell(mlv_file);
+            else
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
+        
+        fseek(mlv_file, position + mlv_hdr.blockSize, SEEK_SET);
+        position = ftell(mlv_file);
+    }
+    return found;
+}
+
+//TODO: implement this function, right now it just returns the raw buffer not an actual converted DNG
+static int mlv_get_dng_buffer(char * frame_buffer, FILE * mlv_file, mlv_vidf_hdr_t vidf_hdr, size_t size, off_t offset)
+{
+    fseek(mlv_file, sizeof(mlv_vidf_hdr_t) + vidf_hdr.frameSpace + (long)offset, SEEK_CUR);
+    return fread(frame_buffer, size, 1, mlv_file);
+}
+
+//TODO: implement this function, right now it just returns the rawi frame size
+static off_t mlv_get_dng_size(const char *path)
+{
+    off_t result = 0;
+    mlv_rawi_hdr_t rawi_hdr;
+    FILE * mlv_file = fopen(path, "rb");
+    if(mlv_file)
+    {
+        memset(&rawi_hdr, 0, sizeof(mlv_rawi_hdr_t));
+        if(mlv_get_rawi(mlv_file, &rawi_hdr))
+        {
+            result = rawi_hdr.raw_info.frame_size;
         }
         fclose(mlv_file);
     }
@@ -113,11 +167,12 @@ static off_t mlv_get_dng_size(const char *path)
     return result;
 }
 
+//TODO: load chunks too
 static int mlv_get_frame_count(const char *path)
 {
     int result = 0;
     mlv_hdr_t mlv_hdr;
-    uint64_t position = 0;
+    unsigned int position = 0;
     FILE * mlv_file = fopen(path, "rb");
     if(mlv_file)
     {
@@ -250,10 +305,29 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 
 static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    if (!string_ends_with(path, ".DNG"))
-        return -ENOENT;
+    char mlv_filename[1024];
+    if(string_ends_with(path, ".DNG") && get_mlv_filename(path, mlv_filename))
+    {
+        int frame_number = get_mlv_frame_number(path);
+        mlv_vidf_hdr_t vidf_hdr;
+        FILE * mlv_file = fopen(mlv_filename, "rb");
+        if(mlv_file)
+        {
+            memset(&vidf_hdr, 0, sizeof(mlv_vidf_hdr_t));
+            if(mlv_get_vidf(mlv_file, &vidf_hdr, frame_number))
+            {
+                mlv_get_dng_buffer(buf, mlv_file, vidf_hdr, size, offset);
+            }
+            fclose(mlv_file);
+        }
+        else
+        {
+            fprintf(stderr, "Could not open file: '%s'\n", path);
+        }
+        return size;
+    }
     
-    return 0;
+    return -ENOENT;
 }
 
 static struct fuse_operations mlvfs_filesystem_operations =
