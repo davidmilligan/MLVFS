@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <fuse.h>
+#include <sys/param.h>
 #include "raw.h"
 #include "mlv.h"
 
@@ -73,48 +74,26 @@ static int get_mlv_frame_number(const char *path)
     return 0;
 }
 
-static int mlv_get_rawi(FILE * mlv_file, mlv_rawi_hdr_t * rawi_hdr)
+static int mlv_get_vidf(FILE * mlv_file, int index, mlv_vidf_hdr_t * vidf_hdr, mlv_file_hdr_t * file_hdr, mlv_rtci_hdr_t * rtci_hdr, mlv_rawi_hdr_t * rawi_hdr, mlv_expo_hdr_t * expo_hdr, mlv_lens_hdr_t * lens_hdr, mlv_wbal_hdr_t * wbal_hdr)
 {
     mlv_hdr_t mlv_hdr;
+    uint32_t hdr_size;
     unsigned int position = ftell(mlv_file);
     int found = 0;
-    while(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, mlv_file))
-    {
-        fseek(mlv_file, position, SEEK_SET);
-        if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
-        {
-            uint32_t hdr_size = sizeof(mlv_rawi_hdr_t) < mlv_hdr.blockSize ? sizeof(mlv_rawi_hdr_t) : mlv_hdr.blockSize;
-            
-            if(fread(rawi_hdr, hdr_size, 1, mlv_file))
-            {
-                found = 1;
-                break;
-            }
-            else
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
-                break;
-            }
-        }
-        
-        fseek(mlv_file, position + mlv_hdr.blockSize, SEEK_SET);
-        position = ftell(mlv_file);
-    }
-    return found;
-}
-
-static int mlv_get_vidf(FILE * mlv_file, mlv_vidf_hdr_t * vidf_hdr, int index)
-{
-    mlv_hdr_t mlv_hdr;
-    unsigned int position = ftell(mlv_file);
-    int found = 0;
+    memset(vidf_hdr, 0, sizeof(mlv_vidf_hdr_t));
+    if(file_hdr) memset(file_hdr, 0, sizeof(mlv_file_hdr_t));
+    if(rtci_hdr) memset(rtci_hdr, 0, sizeof(mlv_rtci_hdr_t));
+    if(rawi_hdr) memset(rawi_hdr, 0, sizeof(mlv_rawi_hdr_t));
+    if(expo_hdr) memset(expo_hdr, 0, sizeof(mlv_expo_hdr_t));
+    if(lens_hdr) memset(lens_hdr, 0, sizeof(mlv_lens_hdr_t));
+    if(wbal_hdr) memset(wbal_hdr, 0, sizeof(mlv_wbal_hdr_t));
     //TODO: use an index file rather than searching the whole file for a certain frame
     while(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, mlv_file))
     {
         fseek(mlv_file, position, SEEK_SET);
         if(!memcmp(mlv_hdr.blockType, "VIDF", 4))
         {
-            uint32_t hdr_size = sizeof(mlv_vidf_hdr_t) < mlv_hdr.blockSize ? sizeof(mlv_vidf_hdr_t) : mlv_hdr.blockSize;
+            hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
             
             if(fread(vidf_hdr, hdr_size, 1, mlv_file))
             {
@@ -131,6 +110,66 @@ static int mlv_get_vidf(FILE * mlv_file, mlv_vidf_hdr_t * vidf_hdr, int index)
                 break;
             }
         }
+        else if(file_hdr && !memcmp(mlv_hdr.blockType, "MLVI", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
+            
+            if(!fread(file_hdr, hdr_size, 1, mlv_file))
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
+        else if(rtci_hdr && !memcmp(mlv_hdr.blockType, "RTCI", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_rtci_hdr_t), mlv_hdr.blockSize);
+            
+            if(!fread(rtci_hdr, hdr_size, 1, mlv_file))
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
+        else if(rawi_hdr && !memcmp(mlv_hdr.blockType, "RAWI", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_rawi_hdr_t), mlv_hdr.blockSize);
+            
+            if(!fread(rawi_hdr, hdr_size, 1, mlv_file))
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
+        else if(expo_hdr && !memcmp(mlv_hdr.blockType, "EXPO", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_expo_hdr_t), mlv_hdr.blockSize);
+            
+            if(!fread(expo_hdr, hdr_size, 1, mlv_file))
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
+        else if(lens_hdr && !memcmp(mlv_hdr.blockType, "LENS", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_lens_hdr_t), mlv_hdr.blockSize);
+            
+            if(!fread(lens_hdr, hdr_size, 1, mlv_file))
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
+        else if(wbal_hdr && !memcmp(mlv_hdr.blockType, "WBAL", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_wbal_hdr_t), mlv_hdr.blockSize);
+            
+            if(!fread(wbal_hdr, hdr_size, 1, mlv_file))
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
         
         fseek(mlv_file, position + mlv_hdr.blockSize, SEEK_SET);
         position = ftell(mlv_file);
@@ -139,24 +178,24 @@ static int mlv_get_vidf(FILE * mlv_file, mlv_vidf_hdr_t * vidf_hdr, int index)
 }
 
 //TODO: implement this function, right now it just returns the raw buffer not an actual converted DNG
-static int mlv_get_dng_buffer(char * frame_buffer, FILE * mlv_file, mlv_vidf_hdr_t vidf_hdr, size_t size, off_t offset)
+static int mlv_get_dng_buffer(char * frame_buffer, FILE * mlv_file, size_t size, off_t offset, mlv_vidf_hdr_t * vidf_hdr, mlv_file_hdr_t * file_hdr, mlv_rtci_hdr_t * rtci_hdr, mlv_rawi_hdr_t * rawi_hdr, mlv_expo_hdr_t * expo_hdr, mlv_lens_hdr_t * lens_hdr, mlv_wbal_hdr_t * wbal_hdr)
 {
-    fseek(mlv_file, sizeof(mlv_vidf_hdr_t) + vidf_hdr.frameSpace + (long)offset, SEEK_CUR);
+    fseek(mlv_file, sizeof(mlv_vidf_hdr_t) + vidf_hdr->frameSpace + (long)offset, SEEK_CUR);
     return fread(frame_buffer, size, 1, mlv_file);
 }
 
-//TODO: implement this function, right now it just returns the rawi frame size
+//TODO: implement this function, right now it just returns the frame size
 static off_t mlv_get_dng_size(const char *path)
 {
     off_t result = 0;
-    mlv_rawi_hdr_t rawi_hdr;
+    mlv_vidf_hdr_t vidf_hdr;
     FILE * mlv_file = fopen(path, "rb");
     if(mlv_file)
     {
-        memset(&rawi_hdr, 0, sizeof(mlv_rawi_hdr_t));
-        if(mlv_get_rawi(mlv_file, &rawi_hdr))
+        int frame_number = get_mlv_frame_number(path);
+        if(mlv_get_vidf(mlv_file, frame_number, &vidf_hdr, NULL, NULL, NULL, NULL, NULL, NULL))
         {
-            result = rawi_hdr.raw_info.frame_size;
+            result = vidf_hdr.blockSize - sizeof(mlv_vidf_hdr_t) - vidf_hdr.frameSpace;
         }
         fclose(mlv_file);
     }
@@ -310,13 +349,18 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
     {
         int frame_number = get_mlv_frame_number(path);
         mlv_vidf_hdr_t vidf_hdr;
+        mlv_file_hdr_t file_hdr;
+        mlv_rtci_hdr_t rtci_hdr;
+        mlv_rawi_hdr_t rawi_hdr;
+        mlv_expo_hdr_t expo_hdr;
+        mlv_lens_hdr_t lens_hdr;
+        mlv_wbal_hdr_t wbal_hdr;
         FILE * mlv_file = fopen(mlv_filename, "rb");
         if(mlv_file)
         {
-            memset(&vidf_hdr, 0, sizeof(mlv_vidf_hdr_t));
-            if(mlv_get_vidf(mlv_file, &vidf_hdr, frame_number))
+            if(mlv_get_vidf(mlv_file, frame_number, &vidf_hdr, &file_hdr, &rtci_hdr, &rawi_hdr, &expo_hdr, &lens_hdr, &wbal_hdr))
             {
-                mlv_get_dng_buffer(buf, mlv_file, vidf_hdr, size, offset);
+                mlv_get_dng_buffer(buf, mlv_file, size, offset, &vidf_hdr, &file_hdr, &rtci_hdr, &rawi_hdr, &expo_hdr, &lens_hdr, &wbal_hdr);
             }
             fclose(mlv_file);
         }
