@@ -178,10 +178,10 @@ static int mlv_get_vidf(FILE * mlv_file, int index, mlv_vidf_hdr_t * vidf_hdr, m
 }
 
 //TODO: implement this function, right now it just returns the raw buffer not an actual converted DNG
-static int mlv_get_dng_buffer(char * frame_buffer, FILE * mlv_file, size_t size, off_t offset, mlv_vidf_hdr_t * vidf_hdr, mlv_file_hdr_t * file_hdr, mlv_rtci_hdr_t * rtci_hdr, mlv_rawi_hdr_t * rawi_hdr, mlv_expo_hdr_t * expo_hdr, mlv_lens_hdr_t * lens_hdr, mlv_wbal_hdr_t * wbal_hdr)
+static int mlv_get_dng_buffer(char * output_buffer, FILE * mlv_file, size_t size, off_t offset, mlv_vidf_hdr_t * vidf_hdr, mlv_file_hdr_t * file_hdr, mlv_rtci_hdr_t * rtci_hdr, mlv_rawi_hdr_t * rawi_hdr, mlv_expo_hdr_t * expo_hdr, mlv_lens_hdr_t * lens_hdr, mlv_wbal_hdr_t * wbal_hdr)
 {
     fseek(mlv_file, sizeof(mlv_vidf_hdr_t) + vidf_hdr->frameSpace + (long)offset, SEEK_CUR);
-    return fread(frame_buffer, size, 1, mlv_file);
+    return fread(output_buffer, size, 1, mlv_file);
 }
 
 //TODO: implement this function, right now it just returns the frame size
