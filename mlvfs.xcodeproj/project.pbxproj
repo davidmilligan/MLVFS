@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
 		63B6174219ACED9300F21CD0 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B6174119ACED9300F21CD0 /* main.c */; };
-		63B6174419ACED9300F21CD0 /* mlvfs.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = 63B6174319ACED9300F21CD0 /* mlvfs.1 */; };
+		63DA867819B113A80065788E /* dng.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA867719B113A80065788E /* dng.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -19,7 +19,6 @@
 			dstPath = /usr/share/man/man1/;
 			dstSubfolderSpec = 0;
 			files = (
-				63B6174419ACED9300F21CD0 /* mlvfs.1 in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
@@ -31,7 +30,8 @@
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
 		63B6173E19ACED9300F21CD0 /* mlvfs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mlvfs; sourceTree = BUILT_PRODUCTS_DIR; };
 		63B6174119ACED9300F21CD0 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
-		63B6174319ACED9300F21CD0 /* mlvfs.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = mlvfs.1; sourceTree = "<group>"; };
+		63DA867719B113A80065788E /* dng.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dng.c; sourceTree = "<group>"; };
+		63DA867919B113B70065788E /* dng.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dng.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,9 +67,10 @@
 			isa = PBXGroup;
 			children = (
 				63B6174119ACED9300F21CD0 /* main.c */,
-				63B6174319ACED9300F21CD0 /* mlvfs.1 */,
 				6319AB3A19AD3B1100032A1A /* mlv.h */,
 				6319AB3B19AD4EEA00032A1A /* raw.h */,
+				63DA867719B113A80065788E /* dng.c */,
+				63DA867919B113B70065788E /* dng.h */,
 			);
 			path = mlvfs;
 			sourceTree = "<group>";
@@ -126,6 +127,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				63B6174219ACED9300F21CD0 /* main.c in Sources */,
+				63DA867819B113A80065788E /* dng.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
