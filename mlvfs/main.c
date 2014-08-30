@@ -345,11 +345,11 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                 size_t header_size = dng_get_header_size(&frame_headers);
                 if(offset < header_size)
                 {
-                    dng_get_header_data(&frame_headers, buf, offset, size);
+                    dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, size);
                 }
                 if(offset + size > header_size)
                 {
-                    dng_get_image_data(&frame_headers, mlv_file, buf, offset - header_size, size);
+                    dng_get_image_data(&frame_headers, mlv_file, (uint8_t*)buf, offset - header_size, size);
                 }
             }
             fclose(mlv_file);

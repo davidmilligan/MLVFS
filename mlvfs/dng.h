@@ -36,9 +36,9 @@ struct frame_headers
     mlv_wbal_hdr_t wbal_hdr;
 };
 
-size_t dng_get_header_data(struct frame_headers * frame_headers, char * buffer, off_t offset, size_t max_size);
+size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size);
 size_t dng_get_header_size(struct frame_headers * frame_headers);
-size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, char * buffer, off_t offset, size_t max_size);
+size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size);
 size_t dng_get_image_size(struct frame_headers * frame_headers);
 size_t dng_get_size(struct frame_headers * frame_headers);
 
