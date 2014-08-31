@@ -1,2 +1,6 @@
+*.o
+
 mlvfs.xcodeproj/project.xcworkspace/xcshareddata
 mlvfs.xcodeproj/xcuserdata
+
+mlvfs/mlvfs
