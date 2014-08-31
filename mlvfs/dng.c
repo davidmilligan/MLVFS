@@ -72,23 +72,26 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uin
         {
             uint64_t pixel_address = (pixel_index + pixel_start_index) * 14 / 8 - pixel_start_address;
             uint64_t pixel_offset = (pixel_index + pixel_start_index) * 14 % 8;
+            uint64_t byte1_address = pixel_address + (pixel_address % 2 ? -1 : 1);
+            uint64_t byte2_address = pixel_address + (pixel_address % 2 ? 2 : 0);
+            uint64_t byte3_address = byte1_address + 2;
             switch(pixel_offset)
             {
                 case 0:
-                    buffer[pixel_index * 2 + 1] = (packed_bits[pixel_address] >> 2) & 0x3F;
-                    buffer[pixel_index * 2] = ((packed_bits[pixel_address] << 6) & 0xC0) | ((packed_bits[pixel_address + 1] >> 2) & 0x3F);
+                    buffer[pixel_index * 2 + 1] = (packed_bits[byte1_address] >> 2) & 0x3F;
+                    buffer[pixel_index * 2] = ((packed_bits[byte1_address] << 6) & 0xC0) | ((packed_bits[byte2_address] >> 2) & 0x3F);
                     break;
                 case 2:
-                    buffer[pixel_index * 2 + 1] = packed_bits[pixel_address] & 0x3F;
-                    buffer[pixel_index * 2] = packed_bits[pixel_address + 1];
+                    buffer[pixel_index * 2 + 1] = packed_bits[byte1_address] & 0x3F;
+                    buffer[pixel_index * 2] = packed_bits[byte2_address];
                     break;
                 case 4:
-                    buffer[pixel_index * 2 + 1] = (((packed_bits[pixel_address] << 2) & 0x3C) | ((packed_bits[pixel_address + 1] >> 6) & 0x03)) & 0x3F;
-                    buffer[pixel_index * 2] = ((packed_bits[pixel_address + 1] << 2) & 0xFC) | ((packed_bits[pixel_address + 2] >> 6) & 0x03);
+                    buffer[pixel_index * 2 + 1] = (((packed_bits[byte1_address] << 2) & 0x3C) | ((packed_bits[byte2_address] >> 6) & 0x03)) & 0x3F;
+                    buffer[pixel_index * 2] = ((packed_bits[byte2_address] << 2) & 0xFC) | ((packed_bits[byte3_address] >> 6) & 0x03);
                     break;
                 case 6:
-                    buffer[pixel_index * 2 + 1] = (((packed_bits[pixel_address] << 4) & 0x30) | ((packed_bits[pixel_address + 1] >> 4) & 0x0F)) & 0x3F;
-                    buffer[pixel_index * 2] = ((packed_bits[pixel_address + 1] << 4) & 0xF0) | ((packed_bits[pixel_address + 2] >> 4) & 0x0F);
+                    buffer[pixel_index * 2 + 1] = (((packed_bits[byte1_address] << 4) & 0x30) | ((packed_bits[byte2_address] >> 4) & 0x0F)) & 0x3F;
+                    buffer[pixel_index * 2] = ((packed_bits[byte2_address] << 4) & 0xF0) | ((packed_bits[byte3_address] >> 4) & 0x0F);
                     break;
             }
         }
