@@ -18,11 +18,14 @@
  * Boston, MA  02110-1301, USA.
  */
 
+#define FUSE_USE_VERSION 26
+
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <dirent.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <fuse.h>
@@ -260,10 +263,17 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             stbuf->st_size = mlv_get_dng_size(mlv_filename);
             if(stat(mlv_filename, &mlv_stat) == 0)
             {
+                // OS-specific timestamps
+                #if __DARWIN_UNIX03
                 memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
                 memcpy(&stbuf->st_birthtimespec, &mlv_stat.st_birthtimespec, sizeof(struct timespec));
                 memcpy(&stbuf->st_ctimespec, &mlv_stat.st_ctimespec, sizeof(struct timespec));
                 memcpy(&stbuf->st_mtimespec, &mlv_stat.st_mtimespec, sizeof(struct timespec));
+                #else
+                memcpy(&stbuf->st_atim, &mlv_stat.st_atim, sizeof(struct timespec));
+                memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
+                memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
+                #endif
             }
         }
         else
