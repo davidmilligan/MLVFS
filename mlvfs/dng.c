@@ -104,7 +104,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcFillOrder,                   ttShort,    1,      1},
             {tcMake,                        STRING_ENTRY(make, header, &data_offset)},
             {tcModel,                       STRING_ENTRY(model, header, &data_offset)},
-            {tcStripOffsets,                ttLong,     1,      0},
+            {tcStripOffsets,                ttLong,     1,      header_size},
             {tcOrientation,                 ttShort,    1,      1},
             {tcSamplesPerPixel,             ttShort,    1,      1},
             {tcRowsPerStrip,                ttShort,    1,      frame_headers->rawi_hdr.yRes},
