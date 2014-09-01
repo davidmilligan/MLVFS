@@ -27,7 +27,22 @@
 #include "mlv.h"
 #include "dng.h"
 
-static char tiff_header[] = {'I','I', 42, 0, 8, 0, 0, 0};
+#include "dng_tag_codes.h"
+#include "dng_tag_types.h"
+#include "dng_tag_values.h"
+
+#define IFD0_COUNT 28
+
+#define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
+
+static uint16_t tiff_header[] = { byteOrderII, magicTIFF, 8, 0};
+
+struct directory_entry {
+    uint16_t tag;
+    uint16_t type;
+    uint32_t count;
+    uint32_t value;
+};
 
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
@@ -41,11 +56,59 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
     */
     size_t header_size = dng_get_header_size(frame_headers);
     uint8_t * header = malloc(header_size);
+    int position = 0;
     if(header)
     {
-        memcpy(header, tiff_header, sizeof(tiff_header));
+        memcpy(header + position, tiff_header, sizeof(tiff_header));
+        position += sizeof(tiff_header);
         
-        //TODO: IFD0
+        struct directory_entry IFD0[IFD0_COUNT] =
+        {
+            {tcNewSubFileType,              ttLong,     1,      sfMainImage},
+            {tcImageWidth,                  ttLong,     1,      frame_headers->rawi_hdr.xRes},
+            {tcImageLength,                 ttLong,     1,      frame_headers->rawi_hdr.yRes},
+            {tcBitsPerSample,               ttShort,    1,      16},
+            {tcCompression,                 ttShort,    1,      ccUncompressed},
+            {tcPhotometricInterpretation,   ttShort,    1,      piCFA},
+            {tcFillOrder,                   ttShort,    1,      1},
+            {tcMake,                        ttAscii,    0,      0}, //TODO: implement
+            {tcModel,                       ttAscii,    0,      0}, //TODO: implement
+            {tcStripOffsets,                ttLong,     1,      0},
+            {tcOrientation,                 ttShort,    1,      1},
+            {tcSamplesPerPixel,             ttShort,    1,      1},
+            {tcRowsPerStrip,                ttShort,    1,      frame_headers->rawi_hdr.yRes},
+            {tcStripByteCounts,             ttShort,    1,      dng_get_image_size(frame_headers)},
+            {tcPlanarConfiguration,         ttShort,    1,      pcInterleaved},
+            {tcSoftware,                    ttAscii,    0,      0}, //TODO: implement
+            {tcDateTime,                    ttAscii,    0,      0}, //TODO: implement
+            {tcCFARepeatPatternDim,         ttShort,    2,      0x00020002}, //2x2
+            {tcCFAPattern,                  ttByte,     4,      0x02010100}, //RGGB
+            //TODO: EXIF
+            {tcDNGVersion,                  ttByte,     4,      0x00000401}, //1.4.0.0 in little endian
+            {tcUniqueCameraModel,           ttAscii,    0,      0}, //TODO: implement
+            {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
+            {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
+            {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},
+            {tcDefaultCropSize,             ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.size)},
+            {tcColorMatrix1,                ttSRational,0,      0}, //TODO: implement
+            {tcAsShotNeutral,               ttRational, 0,      0}, //TODO: implement
+            {tcBaselineExposure,            ttSRational,1,      PACK(frame_headers->rawi_hdr.raw_info.exposure_bias)},
+            //TODO: CDNG tags
+        };
+        
+        *(uint16_t*)(header + position) = IFD0_COUNT;
+        position += sizeof(uint16_t);
+        
+        memcpy(header + position, IFD0, IFD0_COUNT * sizeof(struct directory_entry));
+        position += IFD0_COUNT * sizeof(struct directory_entry);
+        
+        //next IFD offset = 0
+        *(uint32_t*)(header + position) = 0;
+        position += sizeof(uint32_t);
+        
+        //TODO: strings and matrix go here
+        
+        //TODO: EXIF IFD
         
         size_t output_size = MIN(max_size, header_size - (size_t)MIN(0, offset));
         if(output_size)
@@ -60,7 +123,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
 
 size_t dng_get_header_size(struct frame_headers * frame_headers)
 {
-    return sizeof(tiff_header);
+    return sizeof(tiff_header) + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
 }
 
 /**

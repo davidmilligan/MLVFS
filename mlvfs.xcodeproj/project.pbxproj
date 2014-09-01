@@ -32,6 +32,9 @@
 		63B6174119ACED9300F21CD0 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		63DA867719B113A80065788E /* dng.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dng.c; sourceTree = "<group>"; };
 		63DA867919B113B70065788E /* dng.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dng.h; sourceTree = "<group>"; };
+		63DA867D19B417290065788E /* dng_tag_codes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_codes.h; sourceTree = "<group>"; };
+		63DA867E19B417290065788E /* dng_tag_types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_types.h; sourceTree = "<group>"; };
+		63DA867F19B417290065788E /* dng_tag_values.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_values.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +69,9 @@
 		63B6174019ACED9300F21CD0 /* mlvfs */ = {
 			isa = PBXGroup;
 			children = (
+				63DA867D19B417290065788E /* dng_tag_codes.h */,
+				63DA867E19B417290065788E /* dng_tag_types.h */,
+				63DA867F19B417290065788E /* dng_tag_values.h */,
 				63B6174119ACED9300F21CD0 /* main.c */,
 				6319AB3A19AD3B1100032A1A /* mlv.h */,
 				6319AB3B19AD4EEA00032A1A /* raw.h */,
