@@ -209,38 +209,44 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uin
     uint64_t pixel_count = output_size / 2;
     uint64_t packed_size = (pixel_count + 1) * 16 / 14;
     uint8_t * packed_bits = malloc((size_t)packed_size);
-    uint8_t * buffer = output_buffer + (offset < 0 ? (size_t)(-offset) : 0);
+    uint8_t * buffer = output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2;
     memset(buffer, 0, output_size);
     if(packed_bits)
     {
         fseek(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + (size_t)pixel_start_address, SEEK_SET);
-        fread(packed_bits, (size_t)packed_size, 1, file);
-        for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
+        if(fread(packed_bits, (size_t)packed_size, 1, file))
         {
-            uint64_t pixel_address = (pixel_index + pixel_start_index) * 14 / 8 - pixel_start_address;
-            uint64_t pixel_offset = (pixel_index + pixel_start_index) * 14 % 8;
-            uint64_t byte1_address = pixel_address + (pixel_address % 2 ? -1 : 1);
-            uint64_t byte2_address = pixel_address + (pixel_address % 2 ? 2 : 0);
-            uint64_t byte3_address = byte1_address + 2;
-            switch(pixel_offset)
+            for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
             {
-                case 0:
-                    buffer[pixel_index * 2 + 1] = (packed_bits[byte1_address] >> 2) & 0x3F;
-                    buffer[pixel_index * 2] = ((packed_bits[byte1_address] << 6) & 0xC0) | ((packed_bits[byte2_address] >> 2) & 0x3F);
-                    break;
-                case 2:
-                    buffer[pixel_index * 2 + 1] = packed_bits[byte1_address] & 0x3F;
-                    buffer[pixel_index * 2] = packed_bits[byte2_address];
-                    break;
-                case 4:
-                    buffer[pixel_index * 2 + 1] = (((packed_bits[byte1_address] << 2) & 0x3C) | ((packed_bits[byte2_address] >> 6) & 0x03)) & 0x3F;
-                    buffer[pixel_index * 2] = ((packed_bits[byte2_address] << 2) & 0xFC) | ((packed_bits[byte3_address] >> 6) & 0x03);
-                    break;
-                case 6:
-                    buffer[pixel_index * 2 + 1] = (((packed_bits[byte1_address] << 4) & 0x30) | ((packed_bits[byte2_address] >> 4) & 0x0F)) & 0x3F;
-                    buffer[pixel_index * 2] = ((packed_bits[byte2_address] << 4) & 0xF0) | ((packed_bits[byte3_address] >> 4) & 0x0F);
-                    break;
+                uint64_t pixel_address = (pixel_index + pixel_start_index) * 14 / 8;
+                uint64_t pixel_offset = (pixel_index + pixel_start_index) * 14 % 8;
+                uint64_t byte1_address = pixel_address + (pixel_address % 2 ? -1 : 1) - pixel_start_address;
+                uint64_t byte2_address = pixel_address + (pixel_address % 2 ? 2 : 0) - pixel_start_address;
+                uint64_t byte3_address = byte1_address + 2;
+                switch(pixel_offset)
+                {
+                    case 0:
+                        buffer[pixel_index * 2 + 1] = (packed_bits[byte1_address] >> 2) & 0x3F;
+                        buffer[pixel_index * 2] = ((packed_bits[byte1_address] << 6) & 0xC0) | ((packed_bits[byte2_address] >> 2) & 0x3F);
+                        break;
+                    case 2:
+                        buffer[pixel_index * 2 + 1] = packed_bits[byte1_address] & 0x3F;
+                        buffer[pixel_index * 2] = packed_bits[byte2_address];
+                        break;
+                    case 4:
+                        buffer[pixel_index * 2 + 1] = (((packed_bits[byte1_address] << 2) & 0x3C) | ((packed_bits[byte2_address] >> 6) & 0x03)) & 0x3F;
+                        buffer[pixel_index * 2] = ((packed_bits[byte2_address] << 2) & 0xFC) | ((packed_bits[byte3_address] >> 6) & 0x03);
+                        break;
+                    case 6:
+                        buffer[pixel_index * 2 + 1] = (((packed_bits[byte1_address] << 4) & 0x30) | ((packed_bits[byte2_address] >> 4) & 0x0F)) & 0x3F;
+                        buffer[pixel_index * 2] = ((packed_bits[byte2_address] << 4) & 0xF0) | ((packed_bits[byte3_address] >> 4) & 0x0F);
+                        break;
+                }
             }
+        }
+        else
+        {
+            fprintf(stderr, "Error reading source data");
         }
         free(packed_bits);
     }
