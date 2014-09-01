@@ -27,19 +27,40 @@
 #include "mlv.h"
 #include "dng.h"
 
+static char tiff_header[] = {'I','I', 42, 0, 8, 0, 0, 0};
 
-//TODO: implement this function
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
+    /*
+    - build the tiff header in a buffer
+    - then copy the buffer to the output buffer according to offset and max_size
+    this shouldn't be a big performance hit and it's a lot easier than trying
+    to only generate the requested section of the header (most of the time the
+    entire header will be requested all at once anyway, since typically the 
+    requested size is at least 64kB)
+    */
     size_t header_size = dng_get_header_size(frame_headers);
-    memset(output_buffer, 0, header_size);
-    return header_size;
+    uint8_t * header = malloc(header_size);
+    if(header)
+    {
+        memcpy(header, tiff_header, sizeof(tiff_header));
+        
+        //TODO: IFD0
+        
+        size_t output_size = MIN(max_size, header_size - (size_t)MIN(0, offset));
+        if(output_size)
+        {
+            memcpy(output_buffer, header + offset, output_size);
+        }
+        free(header);
+        return output_size;
+    }
+    return 0;
 }
 
-//TODO: implement this function
 size_t dng_get_header_size(struct frame_headers * frame_headers)
 {
-    return 0;
+    return sizeof(tiff_header);
 }
 
 /**
