@@ -27,6 +27,7 @@
 #include "raw.h"
 #include "mlv.h"
 
-mlv_xref_hdr_t *get_index(char *base_filename);
+mlv_xref_hdr_t *get_index(const char *base_filename);
+mlv_xref_hdr_t *force_index(const char *base_filename);
 
 #endif

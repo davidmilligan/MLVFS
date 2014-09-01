@@ -33,6 +33,7 @@
 #include "raw.h"
 #include "mlv.h"
 #include "dng.h"
+#include "index.h"
 
 struct mlvfs
 {
@@ -207,55 +208,24 @@ static size_t mlv_get_dng_size(const char *path)
     return result;
 }
 
-//TODO: load chunks too
 static int mlv_get_frame_count(const char *path)
 {
-    int result = 0;
-    mlv_hdr_t mlv_hdr;
-    unsigned int position = 0;
-    FILE * mlv_file = fopen(path, "rb");
-    if(mlv_file)
+    uint32_t videoFrameCount = 0;
+
+    mlv_xref_hdr_t *block_xref = get_index(path);
+    mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
+
+    for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
     {
-        position = ftell(mlv_file);
-        while(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, mlv_file))
+        if(xrefs[block_xref_pos].frameType == MLV_FRAME_VIDF)
         {
-            fseek(mlv_file, position, SEEK_SET);
-            if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
-            {
-                mlv_file_hdr_t file_hdr;
-                uint32_t hdr_size = sizeof(mlv_file_hdr_t) < mlv_hdr.blockSize ? sizeof(mlv_file_hdr_t) : mlv_hdr.blockSize;
-                
-                //if there's a frame count provided just return that, otherwise we need to count VIDF blocks
-                if(fread(&file_hdr, hdr_size, 1, mlv_file))
-                {
-                    if(file_hdr.videoFrameCount)
-                    {
-                        result = file_hdr.videoFrameCount;
-                        break;
-                    }
-                }
-                else
-                {
-                    fprintf(stderr, "File ends in the middle of a block\n");
-                    break;
-                }
-            }
-            
-            if(!memcmp(mlv_hdr.blockType, "VIDF", 4))
-            {
-                result++;
-            }
-            
-            fseek(mlv_file, position + mlv_hdr.blockSize, SEEK_SET);
-            position = ftell(mlv_file);
+            videoFrameCount++;
         }
-        fclose(mlv_file);
     }
-    else
-    {
-        fprintf(stderr, "Could not open file: '%s'\n", path);
-    }
-    return result;
+
+    free(block_xref);
+
+    return videoFrameCount;
 }
 
 static int mlvfs_getattr(const char *path, struct stat *stbuf)

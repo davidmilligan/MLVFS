@@ -96,7 +96,7 @@ void xref_sort(frame_xref_t *table, uint32_t entries)
     } while (n > 1);
 }
 
-mlv_xref_hdr_t *load_index(char *base_filename)
+mlv_xref_hdr_t *load_index(const char *base_filename)
 {
     mlv_xref_hdr_t *block_hdr = NULL;
     char filename[128];
@@ -156,7 +156,7 @@ mlv_xref_hdr_t *load_index(char *base_filename)
     return block_hdr;
 }
 
-void save_index(char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fileCount, frame_xref_t *index, int entries)
+void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fileCount, frame_xref_t *index, int entries)
 {
     char filename[128];
     FILE *out_file = NULL;
@@ -218,7 +218,7 @@ void save_index(char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fileCount
     fclose(out_file);
 }
 
-void build_index(char *base_filename, FILE **chunk_files, uint32_t chunk_count)
+void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_count)
 {
     frame_xref_t *frame_xref_table = NULL;
     uint32_t frame_xref_entries = 0;
@@ -315,9 +315,11 @@ void build_index(char *base_filename, FILE **chunk_files, uint32_t chunk_count)
 
     xref_sort(frame_xref_table, frame_xref_entries);
     save_index(base_filename, &main_header, chunk_count, frame_xref_table, frame_xref_entries);
+
+    free(frame_xref_table);
 }
 
-FILE **load_chunks(char *base_filename, uint32_t *entries)
+FILE **load_chunks(const char *base_filename, uint32_t *entries)
 {
     uint32_t seq_number = 0;
     char filename[128];
@@ -375,7 +377,7 @@ void close_chunks(FILE **chunk_files, uint32_t chunk_count)
     }
 }
 
-mlv_xref_hdr_t *get_index(char *base_filename)
+mlv_xref_hdr_t *force_index(const char *base_filename)
 {
     FILE **chunk_files = NULL;
     uint32_t chunk_count = 0;
@@ -386,17 +388,22 @@ mlv_xref_hdr_t *get_index(char *base_filename)
         return NULL;
     }
 
+    build_index(base_filename, chunk_files, chunk_count);
+    close_chunks(chunk_files, chunk_count);
+
+    return load_index(base_filename);
+}
+
+mlv_xref_hdr_t *get_index(const char *base_filename)
+{
     mlv_xref_hdr_t *table = NULL;
 
     table = load_index(base_filename);
 
     if(!table)
     {
-        build_index(base_filename, chunk_files, chunk_count);
-        table = load_index(base_filename);
+        table = force_index(base_filename);
     }
-
-    close_chunks(chunk_files, chunk_count);
 
     return table;
 }
