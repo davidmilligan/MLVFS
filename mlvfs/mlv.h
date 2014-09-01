@@ -32,6 +32,10 @@
 
 #define MLV_AUDIO_CLASS_FLAG_LZMA    0x80
 
+#define MLV_FRAME_UNSPECIFIED 0
+#define MLV_FRAME_VIDF        1
+#define MLV_FRAME_AUDF        2
+
 #if defined(PACKED)
 #undef PACKED
 #endif
@@ -75,7 +79,7 @@ typedef struct {
     uint16_t    panPosX;    /* specifies the panning offset which is cropPos, but with higher resolution (1x1 blocks) */
     uint16_t    panPosY;    /* (it's the frame area from sensor the user wants to see) */
     uint32_t    frameSpace;    /* size of dummy data before frameData starts, necessary for EDMAC alignment */
-    /* uint8_t     frameData[variable] */;
+ /* uint8_t     frameData[variable] */;
 } PACKED mlv_vidf_hdr_t;
 
 typedef struct {
@@ -84,7 +88,7 @@ typedef struct {
     uint64_t    timestamp;    /* hardware counter timestamp for this frame (relative to recording start) */
     uint32_t    frameNumber;    /* unique audio frame number */
     uint32_t    frameSpace;    /* size of dummy data before frameData starts, necessary for EDMAC alignment */
-    /* uint8_t     frameData[variable] */;
+ /* uint8_t     frameData[variable] */;
 } PACKED mlv_audf_hdr_t;
 
 typedef struct {
@@ -162,7 +166,8 @@ typedef struct {
 
 typedef struct {
     uint16_t    fileNumber;    /* the logical file number as specified in header */
-    uint16_t    empty;    /* for future use. set to zero. */
+    uint8_t     empty;    /* for future use. set to zero. */
+    uint8_t     frameType;    /* MLV_FRAME_VIDF(1) for VIDF, MLV_FRAME_AUDF(2) for AUDF, MLV_FRAME_UNSPECIFIED(0) otherwise */
     uint64_t    frameOffset;    /* the file offset at which the frame is stored (VIDF/AUDF) */
 } PACKED mlv_xref_t;
 
@@ -179,7 +184,7 @@ typedef struct {
     uint8_t     blockType[4];    /* user definable info string. take number, location, etc. */
     uint32_t    blockSize;
     uint64_t    timestamp;
-    /* uint8_t     stringData[variable] */;
+ /* uint8_t     stringData[variable] */;
 } PACKED mlv_info_hdr_t;
 
 typedef struct {
@@ -253,8 +258,7 @@ void mlv_init_fileheader(mlv_file_hdr_t *hdr);
 void mlv_set_type(mlv_hdr_t *hdr, char *type);
 
 /* if hdr is non-null, set the timestamp field with the time since start (has to be passed as parameter).
- returns current time since start. */
+   returns current time since start. */
 uint64_t mlv_set_timestamp(mlv_hdr_t *hdr, uint64_t start);
 
 #endif
-
