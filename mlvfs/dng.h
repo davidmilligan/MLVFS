@@ -30,6 +30,7 @@ struct frame_headers
     mlv_vidf_hdr_t vidf_hdr;
     mlv_file_hdr_t file_hdr;
     mlv_rtci_hdr_t rtci_hdr;
+    mlv_idnt_hdr_t idnt_hdr;
     mlv_rawi_hdr_t rawi_hdr;
     mlv_expo_hdr_t expo_hdr;
     mlv_lens_hdr_t lens_hdr;

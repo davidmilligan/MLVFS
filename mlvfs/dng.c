@@ -32,8 +32,10 @@
 #include "dng_tag_values.h"
 
 #define IFD0_COUNT 28
-
+#define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
+#define STRING_ENTRY(a,b,c) ttAscii, (strlen(a) + 1), add_string(a, b, c)
+#define DATA_SPACE 4096
 
 static uint16_t tiff_header[] = { byteOrderII, magicTIFF, 8, 0};
 
@@ -43,6 +45,26 @@ struct directory_entry {
     uint32_t count;
     uint32_t value;
 };
+
+static uint32_t add_string(char * str, uint8_t * buffer, size_t * data_offset)
+{
+    uint32_t result = 0;
+    size_t length = strlen(str) + 1;
+    if(length <= 4)
+    {
+        //we can fit in 4 bytes, so just pack the string into result
+        memcpy(&result, str, length);
+    }
+    else
+    {
+        result = *data_offset;
+        memcpy(buffer + result, str, length);
+        *data_offset +=length;
+        //align to 2 bytes
+        if(*data_offset % 2) *data_offset += 1;
+    }
+    return result;
+}
 
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
@@ -56,12 +78,21 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
     */
     size_t header_size = dng_get_header_size(frame_headers);
     uint8_t * header = malloc(header_size);
-    int position = 0;
+    size_t position = 0;
     if(header)
     {
+        memset(header, 0 , header_size);
         memcpy(header + position, tiff_header, sizeof(tiff_header));
         position += sizeof(tiff_header);
+        char make[32];
+        char * model = (char*)frame_headers->idnt_hdr.cameraName;
+        if(!model) model = "???";
+        //make is usually the first word of cameraName
+        strncpy(make, model, 32);
+        char * space = strchr(make, ' ');
+        if(space) *space = 0x0;
         
+        size_t data_offset = position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
         struct directory_entry IFD0[IFD0_COUNT] =
         {
             {tcNewSubFileType,              ttLong,     1,      sfMainImage},
@@ -71,21 +102,21 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcCompression,                 ttShort,    1,      ccUncompressed},
             {tcPhotometricInterpretation,   ttShort,    1,      piCFA},
             {tcFillOrder,                   ttShort,    1,      1},
-            {tcMake,                        ttAscii,    0,      0}, //TODO: implement
-            {tcModel,                       ttAscii,    0,      0}, //TODO: implement
+            {tcMake,                        STRING_ENTRY(make, header, &data_offset)},
+            {tcModel,                       STRING_ENTRY(model, header, &data_offset)},
             {tcStripOffsets,                ttLong,     1,      0},
             {tcOrientation,                 ttShort,    1,      1},
             {tcSamplesPerPixel,             ttShort,    1,      1},
             {tcRowsPerStrip,                ttShort,    1,      frame_headers->rawi_hdr.yRes},
             {tcStripByteCounts,             ttShort,    1,      dng_get_image_size(frame_headers)},
             {tcPlanarConfiguration,         ttShort,    1,      pcInterleaved},
-            {tcSoftware,                    ttAscii,    0,      0}, //TODO: implement
-            {tcDateTime,                    ttAscii,    0,      0}, //TODO: implement
+            {tcSoftware,                    STRING_ENTRY(MLVFS_SOFTWARE_NAME, header, &data_offset)},
+            {tcDateTime,                    STRING_ENTRY("", header, &data_offset)}, //TODO: implement
             {tcCFARepeatPatternDim,         ttShort,    2,      0x00020002}, //2x2
             {tcCFAPattern,                  ttByte,     4,      0x02010100}, //RGGB
             //TODO: EXIF
             {tcDNGVersion,                  ttByte,     4,      0x00000401}, //1.4.0.0 in little endian
-            {tcUniqueCameraModel,           ttAscii,    0,      0}, //TODO: implement
+            {tcUniqueCameraModel,           STRING_ENTRY(model, header, &data_offset)},
             {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
             {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
             {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},
@@ -106,7 +137,8 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         *(uint32_t*)(header + position) = 0;
         position += sizeof(uint32_t);
         
-        //TODO: strings and matrix go here
+        //skip over all the strings we added
+        position = data_offset;
         
         //TODO: EXIF IFD
         
@@ -123,7 +155,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
 
 size_t dng_get_header_size(struct frame_headers * frame_headers)
 {
-    return sizeof(tiff_header) + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
+    return sizeof(tiff_header) + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t) + DATA_SPACE;
 }
 
 /**

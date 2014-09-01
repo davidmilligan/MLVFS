@@ -129,6 +129,16 @@ static int mlv_get_frame_headers(FILE * mlv_file, int index, struct frame_header
                 break;
             }
         }
+        else if(!memcmp(mlv_hdr.blockType, "IDNT", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_idnt_hdr_t), mlv_hdr.blockSize);
+            
+            if(!fread(&frame_headers->idnt_hdr, hdr_size, 1, mlv_file))
+            {
+                fprintf(stderr, "File ends in the middle of a block\n");
+                break;
+            }
+        }
         else if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
         {
             hdr_size = MIN(sizeof(mlv_rawi_hdr_t), mlv_hdr.blockSize);
