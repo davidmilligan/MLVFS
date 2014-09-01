@@ -223,6 +223,23 @@ static int mlv_get_frame_count(const char *path)
         }
     }
 
+    // If there are no VIDF frames at all, the IDX file is probably an old format, and needs to be re-built
+    // TODO: clean up the following repetition of code
+    if(videoFrameCount == 0)
+    {
+        free(block_xref);
+        block_xref = force_index(path);
+        xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
+
+        for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
+        {
+            if(xrefs[block_xref_pos].frameType == MLV_FRAME_VIDF)
+            {
+                videoFrameCount++;
+            }
+        }
+    }
+
     free(block_xref);
 
     return videoFrameCount;
