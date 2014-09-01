@@ -10,6 +10,7 @@
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
 		63B6174219ACED9300F21CD0 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B6174119ACED9300F21CD0 /* main.c */; };
 		63DA867819B113A80065788E /* dng.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA867719B113A80065788E /* dng.c */; };
+		63DA868219B51C080065788E /* index.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA868019B51C080065788E /* index.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -35,6 +36,8 @@
 		63DA867D19B417290065788E /* dng_tag_codes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_codes.h; sourceTree = "<group>"; };
 		63DA867E19B417290065788E /* dng_tag_types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_types.h; sourceTree = "<group>"; };
 		63DA867F19B417290065788E /* dng_tag_values.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_values.h; sourceTree = "<group>"; };
+		63DA868019B51C080065788E /* index.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = index.c; sourceTree = "<group>"; };
+		63DA868119B51C080065788E /* index.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = index.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -69,6 +72,8 @@
 		63B6174019ACED9300F21CD0 /* mlvfs */ = {
 			isa = PBXGroup;
 			children = (
+				63DA868019B51C080065788E /* index.c */,
+				63DA868119B51C080065788E /* index.h */,
 				63DA867D19B417290065788E /* dng_tag_codes.h */,
 				63DA867E19B417290065788E /* dng_tag_types.h */,
 				63DA867F19B417290065788E /* dng_tag_values.h */,
@@ -132,6 +137,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				63DA868219B51C080065788E /* index.c in Sources */,
 				63B6174219ACED9300F21CD0 /* main.c in Sources */,
 				63DA867819B113A80065788E /* dng.c in Sources */,
 			);
