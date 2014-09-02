@@ -31,7 +31,7 @@
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
-#define IFD0_COUNT 32
+#define IFD0_COUNT 33
 #define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
@@ -52,6 +52,15 @@ struct directory_entry {
     uint32_t value;
 };
 
+//CDNG tag codes
+enum
+{
+	tcTimeCodes				= 51043,
+    tcFrameRate             = 51044,
+    tcTStop                 = 51058,
+    tcReelName              = 51081,
+    tcCameraLabel           = 51105,
+};
 
 static uint32_t add_array(int32_t * array, uint8_t * buffer, size_t * data_offset, size_t length)
 {
@@ -119,6 +128,12 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_headers->rawi_hdr.raw_info.active_area.x2 = frame_headers->rawi_hdr.xRes;
             frame_headers->rawi_hdr.raw_info.active_area.y2 = frame_headers->rawi_hdr.yRes;
         }
+        int32_t frame_rate[2] = {frame_headers->file_hdr.sourceFpsNom, frame_headers->file_hdr.sourceFpsDenom};
+        if(frame_rate[0] % 1000 == 976 && frame_rate[1] == 1000)
+        {
+            frame_rate[0] += 24;
+            frame_rate[1]++;
+        }
         struct directory_entry IFD0[IFD0_COUNT] =
         {
             {tcNewSubFileType,              ttLong,     1,      sfMainImage},
@@ -154,7 +169,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcCalibrationIlluminant1,      ttShort,    1,      21},
             {tcCalibrationIlluminant2,      ttShort,    1,      21},
             {tcActiveArea,                  ttLong,     ARRAY_ENTRY(frame_headers->rawi_hdr.raw_info.dng_active_area, header, &data_offset, 4)},
-            //TODO: CDNG tags
+            {tcFrameRate,                   ttSRational,RATIONAL_ENTRY(frame_rate, header, &data_offset, 2)},
         };
         
         *(uint16_t*)(header + position) = IFD0_COUNT;
