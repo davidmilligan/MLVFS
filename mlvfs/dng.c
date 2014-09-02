@@ -232,12 +232,13 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uin
         fseek(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + (size_t)pixel_start_address * 2, SEEK_SET);
         if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
+            uint32_t mask = (1 << bpp) - 1;
             for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
             {
                 uint64_t pixel_address = (pixel_index + pixel_start_index) * bpp / 16 - pixel_start_address;
                 uint64_t pixel_offset = (pixel_index + pixel_start_index) * bpp % 16;
                 uint32_t data = ((packed_bits[pixel_address] << 16) & 0xFFFF0000) | (packed_bits[pixel_address + 1] & 0xFFFF);
-                *(uint16_t*)(buffer + pixel_index * 2) = (uint16_t)((data >> ((32 - bpp) - pixel_offset)) & 0x3FFF);
+                *(uint16_t*)(buffer + pixel_index * 2) = (uint16_t)((data >> ((32 - bpp) - pixel_offset)) & mask);
             }
         }
         else
