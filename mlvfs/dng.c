@@ -215,7 +215,7 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uin
     if(packed_bits)
     {
         fseek(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + (size_t)pixel_start_address * 2, SEEK_SET);
-        if(fread(packed_bits, (size_t)packed_size, 1, file))
+        if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
             for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
             {
