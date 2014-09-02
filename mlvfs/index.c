@@ -200,7 +200,6 @@ void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fil
     for(int entry = 0; entry < entries; entry++)
     {
         mlv_xref_t field;
-        //uint32_t pct = (entry*100)/entries;
 
         memset(&field, 0x00, sizeof(mlv_xref_t));
 
@@ -227,11 +226,8 @@ void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_c
 
     for(uint32_t chunk = 0; chunk < chunk_count; chunk++)
     {
-        //uint32_t last_pct = 0;
-        int64_t size = 0;
         int64_t position = 0;
 
-        size = file_set_pos(chunk_files[chunk], 0, SEEK_END);
         file_set_pos(chunk_files[chunk], 0, SEEK_SET);
 
         while(1)
