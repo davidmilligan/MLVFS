@@ -26,6 +26,7 @@
 //all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame
 struct frame_headers
 {
+    uint32_t fileNumber;
     size_t position;
     mlv_vidf_hdr_t vidf_hdr;
     mlv_file_hdr_t file_hdr;

@@ -79,111 +79,108 @@ static int get_mlv_frame_number(const char *path)
     return 0;
 }
 
-static int mlv_get_frame_headers(FILE * mlv_file, int index, struct frame_headers * frame_headers)
+//returns 1 if successful, 0 otherwise
+static int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers)
 {
+    char mlv_filename[1024];
+    get_mlv_filename(path, mlv_filename);
+
+    FILE **chunk_files = NULL;
+    uint32_t chunk_count = 0;
+
+    chunk_files = load_chunks(mlv_filename, &chunk_count);
+    if(!chunk_files || !chunk_count)
+    {
+        return 0;
+    }
+
+    memset(frame_headers, 0, sizeof(struct frame_headers));
+
+    mlv_xref_hdr_t *block_xref = get_index(mlv_filename);
+    mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
+
+    int found = 0;
+    uint32_t vidf_counter = 0;
     mlv_hdr_t mlv_hdr;
     uint32_t hdr_size;
-    unsigned int position = ftell(mlv_file);
-    int found = 0;
-    memset(frame_headers, 0, sizeof(struct frame_headers));
-    //TODO: use an index file rather than searching the whole file for a certain frame
-    while(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, mlv_file))
+
+    for(uint32_t block_xref_pos = 0; (block_xref_pos < block_xref->entryCount) && !found; block_xref_pos++)
     {
-        fseek(mlv_file, position, SEEK_SET);
-        if(!memcmp(mlv_hdr.blockType, "VIDF", 4))
+        /* get the file and position of the next block */
+        uint32_t in_file_num = xrefs[block_xref_pos].fileNumber;
+        int64_t position = xrefs[block_xref_pos].frameOffset;
+
+        /* select file */
+        FILE *in_file = chunk_files[in_file_num];
+
+        switch(xrefs[block_xref_pos].frameType)
         {
-            hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
-            
-            if(fread(&frame_headers->vidf_hdr, hdr_size, 1, mlv_file))
-            {
-                if(frame_headers->vidf_hdr.frameNumber == index)
+            case MLV_FRAME_VIDF:
+                //Matches to number in sequence rather than frameNumber in header for consistency with readdir
+                if(index == vidf_counter)
                 {
                     found = 1;
+                    frame_headers->fileNumber = in_file_num;
                     frame_headers->position = position;
-                    fseek(mlv_file, position , SEEK_SET);
-                    break;
+                    fseek(in_file, position, SEEK_SET);
+                    hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->vidf_hdr, hdr_size, 1, in_file);
                 }
-            }
-            else
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
+                else
+                {
+                    vidf_counter++;
+                }
                 break;
-            }
-        }
-        else if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
-        {
-            hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
-            
-            if(!fread(&frame_headers->file_hdr, hdr_size, 1, mlv_file))
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
+
+            case MLV_FRAME_AUDF:
                 break;
-            }
+
+            case MLV_FRAME_UNSPECIFIED:
+            default:
+                fseek(in_file, position, SEEK_SET);
+                fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
+                fseek(in_file, position, SEEK_SET);
+                if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->file_hdr, hdr_size, 1, in_file);
+                }
+                else if(!memcmp(mlv_hdr.blockType, "RTCI", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_rtci_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->rtci_hdr, hdr_size, 1, in_file);
+                }
+                else if(!memcmp(mlv_hdr.blockType, "IDNT", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_idnt_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->idnt_hdr, hdr_size, 1, in_file);
+                }
+                else if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_rawi_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->rawi_hdr, hdr_size, 1, in_file);
+                }
+                else if(!memcmp(mlv_hdr.blockType, "EXPO", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_expo_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->expo_hdr, hdr_size, 1, in_file);
+                }
+                else if(!memcmp(mlv_hdr.blockType, "LENS", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_lens_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->lens_hdr, hdr_size, 1, in_file);
+                }
+                else if(!memcmp(mlv_hdr.blockType, "WBAL", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_wbal_hdr_t), mlv_hdr.blockSize);
+                    fread(&frame_headers->wbal_hdr, hdr_size, 1, in_file);
+                }
         }
-        else if(!memcmp(mlv_hdr.blockType, "RTCI", 4))
-        {
-            hdr_size = MIN(sizeof(mlv_rtci_hdr_t), mlv_hdr.blockSize);
-            
-            if(!fread(&frame_headers->rtci_hdr, hdr_size, 1, mlv_file))
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
-                break;
-            }
-        }
-        else if(!memcmp(mlv_hdr.blockType, "IDNT", 4))
-        {
-            hdr_size = MIN(sizeof(mlv_idnt_hdr_t), mlv_hdr.blockSize);
-            
-            if(!fread(&frame_headers->idnt_hdr, hdr_size, 1, mlv_file))
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
-                break;
-            }
-        }
-        else if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
-        {
-            hdr_size = MIN(sizeof(mlv_rawi_hdr_t), mlv_hdr.blockSize);
-            
-            if(!fread(&frame_headers->rawi_hdr, hdr_size, 1, mlv_file))
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
-                break;
-            }
-        }
-        else if(!memcmp(mlv_hdr.blockType, "EXPO", 4))
-        {
-            hdr_size = MIN(sizeof(mlv_expo_hdr_t), mlv_hdr.blockSize);
-            
-            if(!fread(&frame_headers->expo_hdr, hdr_size, 1, mlv_file))
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
-                break;
-            }
-        }
-        else if(!memcmp(mlv_hdr.blockType, "LENS", 4))
-        {
-            hdr_size = MIN(sizeof(mlv_lens_hdr_t), mlv_hdr.blockSize);
-            
-            if(!fread(&frame_headers->lens_hdr, hdr_size, 1, mlv_file))
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
-                break;
-            }
-        }
-        else if(!memcmp(mlv_hdr.blockType, "WBAL", 4))
-        {
-            hdr_size = MIN(sizeof(mlv_wbal_hdr_t), mlv_hdr.blockSize);
-            
-            if(!fread(&frame_headers->wbal_hdr, hdr_size, 1, mlv_file))
-            {
-                fprintf(stderr, "File ends in the middle of a block\n");
-                break;
-            }
-        }
-        
-        fseek(mlv_file, position + mlv_hdr.blockSize, SEEK_SET);
-        position = ftell(mlv_file);
     }
+
+    free(block_xref);
+    close_chunks(chunk_files, chunk_count);
+
     return found;
 }
 
@@ -191,28 +188,19 @@ static size_t mlv_get_dng_size(const char *path)
 {
     size_t result = 0;
     struct frame_headers frame_headers;
-    FILE * mlv_file = fopen(path, "rb");
-    if(mlv_file)
+    int frame_number = get_mlv_frame_number(path);
+    if(mlv_get_frame_headers(path, frame_number, &frame_headers))
     {
-        int frame_number = get_mlv_frame_number(path);
-        if(mlv_get_frame_headers(mlv_file, frame_number, &frame_headers))
-        {
-            result = dng_get_size(&frame_headers);
-        }
-        fclose(mlv_file);
-    }
-    else
-    {
-        fprintf(stderr, "Could not open file: '%s'\n", path);
+        result = dng_get_size(&frame_headers);
     }
     return result;
 }
 
-static int mlv_get_frame_count(const char *path)
+static int mlv_get_frame_count(const char *real_path)
 {
     uint32_t videoFrameCount = 0;
 
-    mlv_xref_hdr_t *block_xref = get_index(path);
+    mlv_xref_hdr_t *block_xref = get_index(real_path);
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
 
     for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
@@ -228,7 +216,7 @@ static int mlv_get_frame_count(const char *path)
     if(videoFrameCount == 0)
     {
         free(block_xref);
-        block_xref = force_index(path);
+        block_xref = force_index(real_path);
         xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
 
         for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
@@ -257,7 +245,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             struct stat mlv_stat;
             stbuf->st_mode = S_IFREG | 0444;
             stbuf->st_nlink = 1;
-            stbuf->st_size = mlv_get_dng_size(mlv_filename);
+            stbuf->st_size = mlv_get_dng_size(path);
             if(stat(mlv_filename, &mlv_stat) == 0)
             {
                 // OS-specific timestamps
@@ -344,37 +332,43 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
     {
         int frame_number = get_mlv_frame_number(path);
         struct frame_headers frame_headers;
-        FILE * mlv_file = fopen(mlv_filename, "rb");
-        if(mlv_file)
+        if(mlv_get_frame_headers(path, frame_number, &frame_headers))
         {
-            if(mlv_get_frame_headers(mlv_file, frame_number, &frame_headers))
-            {
-                size_t dng_size = dng_get_size(&frame_headers);
-                if(offset + size > dng_size)
-                {
-                    size = (size_t)(dng_size - offset);
-                }
+            FILE **chunk_files = NULL;
+            uint32_t chunk_count = 0;
 
-                size_t header_size = dng_get_header_size(&frame_headers);
-                if(offset >= header_size)
+            chunk_files = load_chunks(mlv_filename, &chunk_count);
+            if(!chunk_files || !chunk_count)
+            {
+                return -1;
+            }
+
+            size_t dng_size = dng_get_size(&frame_headers);
+            if(offset + size > dng_size)
+            {
+                size = (size_t)(dng_size - offset);
+            }
+
+            size_t header_size = dng_get_header_size(&frame_headers);
+            if(offset >= header_size)
+            {
+                dng_get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf, offset - header_size, size);
+            }
+            else
+            {
+                int remaining = MIN(size, (size_t)(header_size - offset));
+                dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
+                if(remaining < size)
                 {
-                    dng_get_image_data(&frame_headers, mlv_file, (uint8_t*)buf, offset - header_size, size);
-                }
-                else
-                {
-                    int remaining = MIN(size, (size_t)(header_size - offset));
-                    dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
-                    if(remaining < size)
-                    {
-                        dng_get_image_data(&frame_headers, mlv_file, (uint8_t*)buf + remaining, 0, size - remaining);
-                    }
+                    dng_get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf + remaining, 0, size - remaining);
                 }
             }
-            fclose(mlv_file);
+
+            close_chunks(chunk_files, chunk_count);
         }
         else
         {
-            fprintf(stderr, "Could not open file: '%s'\n", path);
+            size = 0;
         }
         return size;
     }
