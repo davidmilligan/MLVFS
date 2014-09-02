@@ -208,8 +208,8 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uin
     uint64_t pixel_start_address = pixel_start_index * bpp / 16;
     size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
     uint64_t pixel_count = output_size / 2;
-    uint64_t packed_size = (pixel_count + 1) * 16 / bpp;
-    uint16_t * packed_bits = malloc((size_t)packed_size);
+    uint64_t packed_size = (pixel_count + 2) * bpp / 16;
+    uint16_t * packed_bits = malloc((size_t)(packed_size * 2));
     uint8_t * buffer = output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2;
     memset(buffer, 0, output_size);
     if(packed_bits)

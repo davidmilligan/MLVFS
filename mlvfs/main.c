@@ -349,14 +349,25 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         {
             if(mlv_get_frame_headers(mlv_file, frame_number, &frame_headers))
             {
-                size_t header_size = dng_get_header_size(&frame_headers);
-                if(offset < header_size)
+                size_t dng_size = dng_get_size(&frame_headers);
+                if(offset + size > dng_size)
                 {
-                    dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, size);
+                    size = dng_size - offset;
                 }
-                if(offset + size > header_size)
+
+                size_t header_size = dng_get_header_size(&frame_headers);
+                if(offset >= header_size)
                 {
                     dng_get_image_data(&frame_headers, mlv_file, (uint8_t*)buf, offset - header_size, size);
+                }
+                else
+                {
+                    int remaining = MIN(size, header_size - offset);
+                    dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
+                    if(remaining < size)
+                    {
+                        dng_get_image_data(&frame_headers, mlv_file, (uint8_t*)buf + remaining, 0, size - remaining);
+                    }
                 }
             }
             fclose(mlv_file);
