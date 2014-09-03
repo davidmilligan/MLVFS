@@ -32,7 +32,7 @@
 #include "dng_tag_values.h"
 
 #define IFD0_COUNT 33
-#define EXIF_IFD_COUNT 5
+#define EXIF_IFD_COUNT 8
 #define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
@@ -233,6 +233,9 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcISOSpeedRatings,             ttShort,    1,      frame_headers->expo_hdr.isoValue},
             {tcSensitivityType,             ttShort,    1,      stISOSpeed},
             {tcExifVersion,                 ttUndefined,4,      0x30333230},
+            {tcSubjectDistance,             ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.focalDist, 1, header, &data_offset)},
+            {tcFocalLength,                 ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.focalLength, 1, header, &data_offset)},
+            {tcLensModelExif,               STRING_ENTRY((char*)frame_headers->lens_hdr.lensName, header, &data_offset)},
         };
         
         add_ifd(IFD0, header, &position, IFD0_COUNT);
