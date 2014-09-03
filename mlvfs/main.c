@@ -184,18 +184,6 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
     return found;
 }
 
-static size_t mlv_get_dng_size(const char *path)
-{
-    size_t result = 0;
-    struct frame_headers frame_headers;
-    int frame_number = get_mlv_frame_number(path);
-    if(mlv_get_frame_headers(path, frame_number, &frame_headers))
-    {
-        result = dng_get_size(&frame_headers);
-    }
-    return result;
-}
-
 static int mlv_get_frame_count(const char *real_path)
 {
     uint32_t videoFrameCount = 0;
@@ -236,16 +224,53 @@ static int mlv_get_frame_count(const char *real_path)
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
-    
+
+    struct frame_headers frame_headers;
+
     if (string_ends_with(path, ".DNG"))
     {
         char mlv_filename[1024];
         if(get_mlv_filename(path, mlv_filename))
         {
-            struct stat mlv_stat;
+            //struct stat mlv_stat;
             stbuf->st_mode = S_IFREG | 0444;
             stbuf->st_nlink = 1;
-            stbuf->st_size = mlv_get_dng_size(path);
+
+            int frame_number = get_mlv_frame_number(path);
+            if(mlv_get_frame_headers(path, frame_number, &frame_headers))
+            {
+                struct tm tm_str;
+                tm_str.tm_sec = frame_headers.rtci_hdr.tm_sec + (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) / 1000000;
+                tm_str.tm_min = frame_headers.rtci_hdr.tm_min;
+                tm_str.tm_hour = frame_headers.rtci_hdr.tm_hour;
+                tm_str.tm_mday = frame_headers.rtci_hdr.tm_mday;
+                tm_str.tm_mon = frame_headers.rtci_hdr.tm_mon;
+                tm_str.tm_year = frame_headers.rtci_hdr.tm_year;
+                tm_str.tm_isdst = frame_headers.rtci_hdr.tm_isdst;
+
+                struct timespec timespec_str;
+                timespec_str.tv_sec = mktime(&tm_str);
+                timespec_str.tv_nsec = (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) * 1000;
+
+                // OS-specific timestamps
+                #if __DARWIN_UNIX03
+                memcpy(&stbuf->st_atimespec, &timespec_str, sizeof(struct timespec));
+                memcpy(&stbuf->st_birthtimespec, &timespec_str, sizeof(struct timespec));
+                memcpy(&stbuf->st_ctimespec, &timespec_str, sizeof(struct timespec));
+                memcpy(&stbuf->st_mtimespec, &timespec_str, sizeof(struct timespec));
+                #else
+                memcpy(&stbuf->st_atim, &timespec_str, sizeof(struct timespec));
+                memcpy(&stbuf->st_ctim, &timespec_str, sizeof(struct timespec));
+                memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
+                #endif
+
+                stbuf->st_size = dng_get_size(&frame_headers);
+            }
+            else
+            {
+                return -ENOENT;
+            }
+/*
             if(stat(mlv_filename, &mlv_stat) == 0)
             {
                 // OS-specific timestamps
@@ -260,6 +285,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
                 #endif
             }
+*/
         }
         else
         {
