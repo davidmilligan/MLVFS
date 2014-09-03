@@ -261,7 +261,7 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uin
     uint8_t * buffer = output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2;
     if(packed_bits)
     {
-        fseek(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + (size_t)pixel_start_address * 2, SEEK_SET);
+        fseeko(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + (size_t)pixel_start_address * 2, SEEK_SET);
         if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
             uint32_t mask = (1 << bpp) - 1;
