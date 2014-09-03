@@ -228,7 +228,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         
         struct directory_entry EXIF_IFD[EXIF_IFD_COUNT] =
         {
-            {tcExposureTime,                ttRational, RATIONAL_ENTRY2(1, 30, header, &data_offset)}, //TODO: implement
+            {tcExposureTime,                ttRational, RATIONAL_ENTRY2((int32_t)frame_headers->expo_hdr.shutterValue/1000, 1000, header, &data_offset)},
             {tcFNumber,                     ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.aperture, 100, header, &data_offset)},
             {tcISOSpeedRatings,             ttShort,    1,      frame_headers->expo_hdr.isoValue},
             {tcSensitivityType,             ttShort,    1,      stISOSpeed},
