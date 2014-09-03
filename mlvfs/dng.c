@@ -32,18 +32,20 @@
 #include "dng_tag_values.h"
 
 #define IFD0_COUNT 33
+#define EXIF_IFD_COUNT 5
 #define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
 #define STRING_ENTRY(a,b,c) ttAscii, (strlen(a) + 1), add_string(a, b, c)
 #define RATIONAL_ENTRY(a,b,c,d) (d/2), add_array(a, b, c, d)
+#define RATIONAL_ENTRY2(a,b,c,d) 1, add_rational(a, b, c, d)
 #define ARRAY_ENTRY(a,b,c,d) d, add_array(a, b, c, d)
-#define DATA_SPACE 4096
+#define LINEARIZATION_TABLE(a,b,c) a, add_linearization_table(a, b, c)
+#define HEADER_SIZE 65536
 
 static uint16_t tiff_header[] = { byteOrderII, magicTIFF, 8, 0};
 
 static int32_t daylight_wbal[] = {473635,1000000,1000000,1000000,624000,1000000};
-static int32_t linear_response_limit[] = {1,1};
 
 struct directory_entry {
     uint16_t tag;
@@ -61,6 +63,18 @@ enum
     tcReelName              = 51081,
     tcCameraLabel           = 51105,
 };
+
+
+static uint32_t add_linearization_table(uint32_t max, uint8_t * buffer, size_t * data_offset)
+{
+    uint32_t result = *data_offset;
+    for(uint16_t curr; curr < max; curr++)
+    {
+        *(uint16_t*)(buffer + *data_offset) = curr;
+        *data_offset += sizeof(uint16_t);
+    }
+    return result;
+}
 
 static uint32_t add_array(int32_t * array, uint8_t * buffer, size_t * data_offset, size_t length)
 {
@@ -90,6 +104,26 @@ static uint32_t add_string(char * str, uint8_t * buffer, size_t * data_offset)
     return result;
 }
 
+static uint32_t add_rational(int32_t numerator, int32_t denominator, uint8_t * buffer, size_t * data_offset)
+{
+    uint32_t result = *data_offset;
+    *(int32_t*)(buffer + *data_offset) = numerator;
+    *data_offset += sizeof(int32_t);
+    *(int32_t*)(buffer + *data_offset) = denominator;
+    *data_offset += sizeof(int32_t);
+    return result;
+}
+
+static void add_ifd(struct directory_entry * ifd, uint8_t * header, size_t * position, int count)
+{
+    *(uint16_t*)(header + *position) = count;
+    *position += sizeof(uint16_t);
+    memcpy(header + *position, ifd, count * sizeof(struct directory_entry));
+    *position += count * sizeof(struct directory_entry);
+    *(uint32_t*)(header + *position) = 0;
+    *position += sizeof(uint32_t);
+}
+
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     /*
@@ -116,8 +150,10 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         char * space = strchr(make, ' ');
         if(space) *space = 0x0;
         
-        size_t data_offset = position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
+        size_t exif_ifd_offset = position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
+        size_t data_offset = exif_ifd_offset + sizeof(uint16_t) + EXIF_IFD_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
         
+        int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
         //we get the active area of the original raw source, not the recorded data, so overwrite the active area if the recorded data does
         //not contain the OB areas
         if(frame_headers->rawi_hdr.xRes < frame_headers->rawi_hdr.raw_info.active_area.x1 + frame_headers->rawi_hdr.raw_info.active_area.x2 ||
@@ -134,6 +170,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_rate[0] += 24;
             frame_rate[1]++;
         }
+        
         struct directory_entry IFD0[IFD0_COUNT] =
         {
             {tcNewSubFileType,              ttLong,     1,      sfMainImage},
@@ -155,9 +192,10 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcDateTime,                    STRING_ENTRY("", header, &data_offset)}, //TODO: implement
             {tcCFARepeatPatternDim,         ttShort,    2,      0x00020002}, //2x2
             {tcCFAPattern,                  ttByte,     4,      0x02010100}, //RGGB
-            //TODO: EXIF
+            {tcExifIFD,                     ttLong,     1,      exif_ifd_offset},
             {tcDNGVersion,                  ttByte,     4,      0x00000401}, //1.4.0.0 in little endian
             {tcUniqueCameraModel,           STRING_ENTRY(model, header, &data_offset)},
+            {tcLinearizationTable,          ttShort,    LINEARIZATION_TABLE((1 << bpp) - 1, header, &data_offset)},
             {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
             {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
             {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},
@@ -165,27 +203,22 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcColorMatrix1,                ttSRational,RATIONAL_ENTRY(frame_headers->rawi_hdr.raw_info.color_matrix1, header, &data_offset, 18)},
             {tcAsShotNeutral,               ttRational, RATIONAL_ENTRY(daylight_wbal, header, &data_offset, 6)}, //TODO: get actual wbal
             {tcBaselineExposure,            ttSRational,RATIONAL_ENTRY(frame_headers->rawi_hdr.raw_info.exposure_bias, header, &data_offset, 2)},
-            {tcLinearResponseLimit,         ttRational, RATIONAL_ENTRY(linear_response_limit, header, &data_offset, 2)},
-            {tcCalibrationIlluminant1,      ttShort,    1,      21},
-            {tcCalibrationIlluminant2,      ttShort,    1,      21},
             {tcActiveArea,                  ttLong,     ARRAY_ENTRY(frame_headers->rawi_hdr.raw_info.dng_active_area, header, &data_offset, 4)},
             {tcFrameRate,                   ttSRational,RATIONAL_ENTRY(frame_rate, header, &data_offset, 2)},
+            {tcBaselineExposureOffset,      ttSRational,RATIONAL_ENTRY2(0, 1, header, &data_offset)},
         };
         
-        *(uint16_t*)(header + position) = IFD0_COUNT;
-        position += sizeof(uint16_t);
+        struct directory_entry EXIF_IFD[EXIF_IFD_COUNT] =
+        {
+            {tcExposureTime,                ttRational, RATIONAL_ENTRY2(1, 30, header, &data_offset)}, //TODO: implement
+            {tcFNumber,                     ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.aperture, 100, header, &data_offset)},
+            {tcISOSpeedRatings,             ttShort,    1,      frame_headers->expo_hdr.isoValue},
+            {tcSensitivityType,             ttShort,    1,      stISOSpeed},
+            {tcExifVersion,                 ttUndefined,4,      0x30333230},
+        };
         
-        memcpy(header + position, IFD0, IFD0_COUNT * sizeof(struct directory_entry));
-        position += IFD0_COUNT * sizeof(struct directory_entry);
-        
-        //next IFD offset = 0
-        *(uint32_t*)(header + position) = 0;
-        position += sizeof(uint32_t);
-        
-        //skip over all the strings we added
-        position = data_offset;
-        
-        //TODO: EXIF IFD
+        add_ifd(IFD0, header, &position, IFD0_COUNT);
+        add_ifd(EXIF_IFD, header, &position, EXIF_IFD_COUNT);
         
         size_t output_size = MIN(max_size, header_size - (size_t)MIN(0, offset));
         if(output_size)
@@ -200,7 +233,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
 
 size_t dng_get_header_size(struct frame_headers * frame_headers)
 {
-    return sizeof(tiff_header) + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t) + DATA_SPACE;
+    return HEADER_SIZE;
 }
 
 /**
