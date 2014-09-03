@@ -124,6 +124,23 @@ static void add_ifd(struct directory_entry * ifd, uint8_t * header, size_t * pos
     *position += sizeof(uint32_t);
 }
 
+static char * format_datetime(char * datetime, struct frame_headers * frame_headers)
+{
+    uint32_t seconds = frame_headers->rtci_hdr.tm_sec + (uint32_t)((frame_headers->vidf_hdr.timestamp - frame_headers->rtci_hdr.timestamp) / 1000000);
+    uint32_t minutes = frame_headers->rtci_hdr.tm_min + seconds / 60;
+    uint32_t hours = frame_headers->rtci_hdr.tm_hour + minutes / 60;
+    uint32_t days = frame_headers->rtci_hdr.tm_mday + hours / 24;
+    //TODO: days could also overflow in the month, but this is no longer simple modulo arithmetic like with hr:min:sec
+    sprintf(datetime, "%04d:%02d:%02d %02d:%02d:%02d",
+            1900 + frame_headers->rtci_hdr.tm_year,
+            frame_headers->rtci_hdr.tm_mon,
+            days,
+            hours % 24,
+            minutes % 60,
+            seconds % 60);
+    return datetime;
+}
+
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     /*
@@ -170,6 +187,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_rate[0] += 24;
             frame_rate[1]++;
         }
+        char datetime[255];
         
         struct directory_entry IFD0[IFD0_COUNT] =
         {
@@ -189,7 +207,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcStripByteCounts,             ttLong,     1,      dng_get_image_size(frame_headers)},
             {tcPlanarConfiguration,         ttShort,    1,      pcInterleaved},
             {tcSoftware,                    STRING_ENTRY(MLVFS_SOFTWARE_NAME, header, &data_offset)},
-            {tcDateTime,                    STRING_ENTRY("", header, &data_offset)}, //TODO: implement
+            {tcDateTime,                    STRING_ENTRY(format_datetime(datetime,frame_headers), header, &data_offset)}, //TODO: implement
             {tcCFARepeatPatternDim,         ttShort,    2,      0x00020002}, //2x2
             {tcCFAPattern,                  ttByte,     4,      0x02010100}, //RGGB
             {tcExifIFD,                     ttLong,     1,      exif_ifd_offset},
