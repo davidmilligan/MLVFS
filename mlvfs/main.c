@@ -57,7 +57,7 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
     strncpy(temp, path, 1024);
     if((split = strrchr(temp, '/')) != NULL)
     {
-        *split = 0x00;
+        if(split != temp) *split = 0x00;
         sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, temp);
         return 1;
     }
@@ -225,17 +225,23 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
 
-    struct frame_headers frame_headers;
-
-    if (string_ends_with(path, ".DNG"))
+    if (!strcmp(path, "/"))
     {
-        char mlv_filename[1024];
-        if(get_mlv_filename(path, mlv_filename))
+        stbuf->st_mode = S_IFDIR | 0555;
+        stbuf->st_nlink = 3;
+
+        return 0; // root directory
+    }
+
+    char mlv_filename[1024];
+    if(get_mlv_filename(path, mlv_filename))
+    {
+        if (string_ends_with(path, ".DNG"))
         {
-            //struct stat mlv_stat;
             stbuf->st_mode = S_IFREG | 0444;
             stbuf->st_nlink = 1;
 
+            struct frame_headers frame_headers;
             int frame_number = get_mlv_frame_number(path);
             if(mlv_get_frame_headers(path, frame_number, &frame_headers))
             {
@@ -265,14 +271,18 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 #endif
 
                 stbuf->st_size = dng_get_size(&frame_headers);
+
+                return 0; // DNG frame found
             }
-            else
-            {
-                return -ENOENT;
-            }
-/*
+        }
+        else if (string_ends_with(path, ".MLV"))
+        {
+            struct stat mlv_stat;
             if(stat(mlv_filename, &mlv_stat) == 0)
             {
+                stbuf->st_mode = S_IFDIR | 0555;
+                stbuf->st_nlink = 3;
+
                 // OS-specific timestamps
                 #if __DARWIN_UNIX03
                 memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
@@ -284,20 +294,15 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
                 memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
                 #endif
+
+                stbuf->st_size = mlv_get_frame_count(mlv_filename);
+
+                return 0; // MLV found
             }
-*/
-        }
-        else
-        {
-            return -ENOENT;
         }
     }
-    else
-    {
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 3;
-    }
-    return 0;
+
+    return -ENOENT;
 }
 
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
