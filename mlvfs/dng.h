@@ -27,7 +27,7 @@
 struct frame_headers
 {
     uint32_t fileNumber;
-    size_t position;
+    uint64_t position;
     mlv_vidf_hdr_t vidf_hdr;
     mlv_file_hdr_t file_hdr;
     mlv_rtci_hdr_t rtci_hdr;
