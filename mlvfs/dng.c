@@ -186,7 +186,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcOrientation,                 ttShort,    1,      1},
             {tcSamplesPerPixel,             ttShort,    1,      1},
             {tcRowsPerStrip,                ttShort,    1,      frame_headers->rawi_hdr.yRes},
-            {tcStripByteCounts,             ttShort,    1,      dng_get_image_size(frame_headers)},
+            {tcStripByteCounts,             ttLong,     1,      dng_get_image_size(frame_headers)},
             {tcPlanarConfiguration,         ttShort,    1,      pcInterleaved},
             {tcSoftware,                    STRING_ENTRY(MLVFS_SOFTWARE_NAME, header, &data_offset)},
             {tcDateTime,                    STRING_ENTRY("", header, &data_offset)}, //TODO: implement
