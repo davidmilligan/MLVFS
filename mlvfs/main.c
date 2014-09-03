@@ -250,7 +250,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 
                 struct timespec timespec_str;
                 timespec_str.tv_sec = mktime(&tm_str);
-                timespec_str.tv_nsec = (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) * 1000;
+                timespec_str.tv_nsec = ((frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) % 1000000) * 1000;
 
                 // OS-specific timestamps
                 #if __DARWIN_UNIX03
