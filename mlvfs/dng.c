@@ -68,7 +68,7 @@ enum
 static uint32_t add_linearization_table(uint32_t max, uint8_t * buffer, size_t * data_offset)
 {
     uint32_t result = *data_offset;
-    for(uint16_t curr; curr < max; curr++)
+    for(uint16_t curr = 0; curr < max; curr++)
     {
         *(uint16_t*)(buffer + *data_offset) = curr;
         *data_offset += sizeof(uint16_t);
