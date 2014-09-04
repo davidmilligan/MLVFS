@@ -252,7 +252,7 @@ void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_c
             if(!memcmp(buf.blockType, "MLVI", 4))
             {
                 mlv_file_hdr_t file_hdr;
-                uint32_t hdr_size = MIN(sizeof(mlv_file_hdr_t), buf.blockSize);
+                size_t hdr_size = MIN(sizeof(mlv_file_hdr_t), buf.blockSize);
 
                 file_set_pos(chunk_files[chunk], position, SEEK_SET);
 

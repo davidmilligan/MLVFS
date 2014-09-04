@@ -36,7 +36,7 @@
 #define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
-#define STRING_ENTRY(a,b,c) ttAscii, (strlen(a) + 1), add_string(a, b, c)
+#define STRING_ENTRY(a,b,c) ttAscii, (uint32_t)(strlen(a) + 1), add_string(a, b, c)
 #define RATIONAL_ENTRY(a,b,c,d) (d/2), add_array(a, b, c, d)
 #define RATIONAL_ENTRY2(a,b,c,d) 1, add_rational(a, b, c, d)
 #define ARRAY_ENTRY(a,b,c,d) d, add_array(a, b, c, d)
@@ -65,7 +65,7 @@ enum
 };
 
 
-static uint32_t add_linearization_table(uint32_t max, uint8_t * buffer, size_t * data_offset)
+static uint32_t add_linearization_table(uint32_t max, uint8_t * buffer, uint32_t * data_offset)
 {
     uint32_t result = *data_offset;
     for(uint16_t curr = 0; curr < max; curr++)
@@ -76,7 +76,7 @@ static uint32_t add_linearization_table(uint32_t max, uint8_t * buffer, size_t *
     return result;
 }
 
-static uint32_t add_array(int32_t * array, uint8_t * buffer, size_t * data_offset, size_t length)
+static uint32_t add_array(int32_t * array, uint8_t * buffer, uint32_t * data_offset, size_t length)
 {
     uint32_t result = *data_offset;
     memcpy(buffer + result, array, length * sizeof(int32_t));
@@ -84,7 +84,7 @@ static uint32_t add_array(int32_t * array, uint8_t * buffer, size_t * data_offse
     return result;
 }
 
-static uint32_t add_string(char * str, uint8_t * buffer, size_t * data_offset)
+static uint32_t add_string(char * str, uint8_t * buffer, uint32_t * data_offset)
 {
     uint32_t result = 0;
     size_t length = strlen(str) + 1;
@@ -104,7 +104,7 @@ static uint32_t add_string(char * str, uint8_t * buffer, size_t * data_offset)
     return result;
 }
 
-static uint32_t add_rational(int32_t numerator, int32_t denominator, uint8_t * buffer, size_t * data_offset)
+static uint32_t add_rational(int32_t numerator, int32_t denominator, uint8_t * buffer, uint32_t * data_offset)
 {
     uint32_t result = *data_offset;
     *(int32_t*)(buffer + *data_offset) = numerator;
@@ -167,8 +167,8 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         char * space = strchr(make, ' ');
         if(space) *space = 0x0;
         
-        size_t exif_ifd_offset = position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
-        size_t data_offset = exif_ifd_offset + sizeof(uint16_t) + EXIF_IFD_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
+        uint32_t exif_ifd_offset = (uint32_t)(position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t));
+        uint32_t data_offset = exif_ifd_offset + sizeof(uint16_t) + EXIF_IFD_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
         
         int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
         //we get the active area of the original raw source, not the recorded data, so overwrite the active area if the recorded data does
@@ -200,11 +200,11 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcFillOrder,                   ttShort,    1,      1},
             {tcMake,                        STRING_ENTRY(make, header, &data_offset)},
             {tcModel,                       STRING_ENTRY(model, header, &data_offset)},
-            {tcStripOffsets,                ttLong,     1,      header_size},
+            {tcStripOffsets,                ttLong,     1,      (uint32_t)header_size},
             {tcOrientation,                 ttShort,    1,      1},
             {tcSamplesPerPixel,             ttShort,    1,      1},
             {tcRowsPerStrip,                ttShort,    1,      frame_headers->rawi_hdr.yRes},
-            {tcStripByteCounts,             ttLong,     1,      dng_get_image_size(frame_headers)},
+            {tcStripByteCounts,             ttLong,     1,      (uint32_t)dng_get_image_size(frame_headers)},
             {tcPlanarConfiguration,         ttShort,    1,      pcInterleaved},
             {tcSoftware,                    STRING_ENTRY(MLVFS_SOFTWARE_NAME, header, &data_offset)},
             {tcDateTime,                    STRING_ENTRY(format_datetime(datetime,frame_headers), header, &data_offset)}, //TODO: implement

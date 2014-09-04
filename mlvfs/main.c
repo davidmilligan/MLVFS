@@ -246,7 +246,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             if(mlv_get_frame_headers(path, frame_number, &frame_headers))
             {
                 struct tm tm_str;
-                tm_str.tm_sec = frame_headers.rtci_hdr.tm_sec + (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) / 1000000;
+                tm_str.tm_sec = (int)(frame_headers.rtci_hdr.tm_sec + (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) / 1000000);
                 tm_str.tm_min = frame_headers.rtci_hdr.tm_min;
                 tm_str.tm_hour = frame_headers.rtci_hdr.tm_hour;
                 tm_str.tm_mday = frame_headers.rtci_hdr.tm_mday;
@@ -387,7 +387,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
             }
             else
             {
-                int remaining = MIN(size, (size_t)(header_size - offset));
+                size_t remaining = MIN(size, header_size - offset);
                 dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
                 if(remaining < size)
                 {
@@ -401,7 +401,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         {
             size = 0;
         }
-        return size;
+        return (int)size;
     }
     
     return -ENOENT;
