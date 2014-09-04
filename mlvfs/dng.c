@@ -36,7 +36,7 @@
 #define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
-#define STRING_ENTRY(a,b,c) ttAscii, (uint32_t)(strlen(a) + 1), add_string(a, b, c)
+#define STRING_ENTRY(a,b,c) (uint32_t)(strlen(a) + 1), add_string(a, b, c)
 #define RATIONAL_ENTRY(a,b,c,d) (d/2), add_array(a, b, c, d)
 #define RATIONAL_ENTRY2(a,b,c,d) 1, add_rational(a, b, c, d)
 #define ARRAY_ENTRY(a,b,c,d) d, add_array(a, b, c, d)
@@ -198,21 +198,21 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcCompression,                 ttShort,    1,      ccUncompressed},
             {tcPhotometricInterpretation,   ttShort,    1,      piCFA},
             {tcFillOrder,                   ttShort,    1,      1},
-            {tcMake,                        STRING_ENTRY(make, header, &data_offset)},
-            {tcModel,                       STRING_ENTRY(model, header, &data_offset)},
+            {tcMake,                        ttAscii,    STRING_ENTRY(make, header, &data_offset)},
+            {tcModel,                       ttAscii,    STRING_ENTRY(model, header, &data_offset)},
             {tcStripOffsets,                ttLong,     1,      (uint32_t)header_size},
             {tcOrientation,                 ttShort,    1,      1},
             {tcSamplesPerPixel,             ttShort,    1,      1},
             {tcRowsPerStrip,                ttShort,    1,      frame_headers->rawi_hdr.yRes},
             {tcStripByteCounts,             ttLong,     1,      (uint32_t)dng_get_image_size(frame_headers)},
             {tcPlanarConfiguration,         ttShort,    1,      pcInterleaved},
-            {tcSoftware,                    STRING_ENTRY(MLVFS_SOFTWARE_NAME, header, &data_offset)},
-            {tcDateTime,                    STRING_ENTRY(format_datetime(datetime,frame_headers), header, &data_offset)}, //TODO: implement
+            {tcSoftware,                    ttAscii,    STRING_ENTRY(MLVFS_SOFTWARE_NAME, header, &data_offset)},
+            {tcDateTime,                    ttAscii,    STRING_ENTRY(format_datetime(datetime,frame_headers), header, &data_offset)}, //TODO: implement
             {tcCFARepeatPatternDim,         ttShort,    2,      0x00020002}, //2x2
             {tcCFAPattern,                  ttByte,     4,      0x02010100}, //RGGB
             {tcExifIFD,                     ttLong,     1,      exif_ifd_offset},
             {tcDNGVersion,                  ttByte,     4,      0x00000401}, //1.4.0.0 in little endian
-            {tcUniqueCameraModel,           STRING_ENTRY(model, header, &data_offset)},
+            {tcUniqueCameraModel,           ttAscii,    STRING_ENTRY(model, header, &data_offset)},
             {tcLinearizationTable,          ttShort,    LINEARIZATION_TABLE((1 << bpp) - 1, header, &data_offset)},
             {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
             {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
@@ -235,7 +235,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcExifVersion,                 ttUndefined,4,      0x30333230},
             {tcSubjectDistance,             ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.focalDist, 1, header, &data_offset)},
             {tcFocalLength,                 ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.focalLength, 1, header, &data_offset)},
-            {tcLensModelExif,               STRING_ENTRY((char*)frame_headers->lens_hdr.lensName, header, &data_offset)},
+            {tcLensModelExif,               ttAscii,    STRING_ENTRY((char*)frame_headers->lens_hdr.lensName, header, &data_offset)},
         };
         
         add_ifd(IFD0, header, &position, IFD0_COUNT);
