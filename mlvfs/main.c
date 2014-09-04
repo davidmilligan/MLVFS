@@ -225,18 +225,10 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
 
-    if (!strcmp(path, "/"))
-    {
-        stbuf->st_mode = S_IFDIR | 0555;
-        stbuf->st_nlink = 3;
-
-        return 0; // root directory
-    }
-
     char mlv_filename[1024];
-    if(get_mlv_filename(path, mlv_filename))
+    if (string_ends_with(path, ".DNG"))
     {
-        if (string_ends_with(path, ".DNG"))
+        if(get_mlv_filename(path, mlv_filename))
         {
             stbuf->st_mode = S_IFREG | 0444;
             stbuf->st_nlink = 1;
@@ -275,30 +267,38 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 return 0; // DNG frame found
             }
         }
-        else if (string_ends_with(path, ".MLV"))
+    }
+    else
+    {
+        sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, path);
+        struct stat mlv_stat;
+        if(stat(mlv_filename, &mlv_stat) == 0)
         {
-            struct stat mlv_stat;
-            if(stat(mlv_filename, &mlv_stat) == 0)
+            stbuf->st_mode = S_IFDIR | 0555;
+            stbuf->st_nlink = 3;
+            
+            // OS-specific timestamps
+            #if __DARWIN_UNIX03
+            memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_birthtimespec, &mlv_stat.st_birthtimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_ctimespec, &mlv_stat.st_ctimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_mtimespec, &mlv_stat.st_mtimespec, sizeof(struct timespec));
+            #else
+            memcpy(&stbuf->st_atim, &mlv_stat.st_atim, sizeof(struct timespec));
+            memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
+            memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
+            #endif
+            
+            if (string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
             {
-                stbuf->st_mode = S_IFDIR | 0555;
-                stbuf->st_nlink = 3;
-
-                // OS-specific timestamps
-                #if __DARWIN_UNIX03
-                memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
-                memcpy(&stbuf->st_birthtimespec, &mlv_stat.st_birthtimespec, sizeof(struct timespec));
-                memcpy(&stbuf->st_ctimespec, &mlv_stat.st_ctimespec, sizeof(struct timespec));
-                memcpy(&stbuf->st_mtimespec, &mlv_stat.st_mtimespec, sizeof(struct timespec));
-                #else
-                memcpy(&stbuf->st_atim, &mlv_stat.st_atim, sizeof(struct timespec));
-                memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
-                memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
-                #endif
-
                 stbuf->st_size = mlv_get_frame_count(mlv_filename);
-
-                return 0; // MLV found
             }
+            else
+            {
+                stbuf->st_size = mlv_stat.st_size;
+            }
+            
+            return 0; // MLV found
         }
     }
 
@@ -318,40 +318,40 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 
 static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
-    if (!strcmp(path, "/"))
+    char real_path[1024];
+    sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
+    if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
         filler(buf, ".", NULL, 0);
         filler(buf, "..", NULL, 0);
-        
-        DIR * mlv_dir = opendir(mlvfs.mlv_path);
-        if (mlv_dir == NULL)
-            return -1;
-        
-        struct dirent * child;
-        
-        while ((child = readdir(mlv_dir)) != NULL)
-        {
-            if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
-            {
-                filler(buf, child->d_name, NULL, 0);
-            }
-        }
-        closedir(mlv_dir);
-        return 0;
-    }
-    else if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
-    {
-        filler(buf, ".", NULL, 0);
-        filler(buf, "..", NULL, 0);
-        char temp[1024];
-        sprintf(temp, "%s%s", mlvfs.mlv_path, path);
-        int frame_count = mlv_get_frame_count(temp);
+        int frame_count = mlv_get_frame_count(real_path);
         for (int i = 0; i < frame_count; i++)
         {
-            sprintf(temp, "%08d.DNG", i);
-            filler(buf, temp, NULL, 0);
+            sprintf(real_path, "%08d.DNG", i);
+            filler(buf, real_path, NULL, 0);
         }
         return 0;
+    }
+    else
+    {
+        DIR * dir = opendir(real_path);
+        if (dir != NULL)
+        {
+            filler(buf, ".", NULL, 0);
+            filler(buf, "..", NULL, 0);
+            
+            struct dirent * child;
+            
+            while ((child = readdir(dir)) != NULL)
+            {
+                if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
+                {
+                    filler(buf, child->d_name, NULL, 0);
+                }
+            }
+            closedir(dir);
+            return 0;
+        }
     }
     return -ENOENT;
 }
