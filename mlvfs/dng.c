@@ -188,6 +188,12 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_rate[1]++;
         }
         char datetime[255];
+        int32_t basline_exposure[2] = {frame_headers->rawi_hdr.raw_info.exposure_bias[0],frame_headers->rawi_hdr.raw_info.exposure_bias[1]};
+        if(basline_exposure[1] == 0)
+        {
+            basline_exposure[0] = 0;
+            basline_exposure[1] = 1;
+        }
         
         struct directory_entry IFD0[IFD0_COUNT] =
         {
@@ -207,7 +213,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcStripByteCounts,             ttLong,     1,      (uint32_t)dng_get_image_size(frame_headers)},
             {tcPlanarConfiguration,         ttShort,    1,      pcInterleaved},
             {tcSoftware,                    ttAscii,    STRING_ENTRY(MLVFS_SOFTWARE_NAME, header, &data_offset)},
-            {tcDateTime,                    ttAscii,    STRING_ENTRY(format_datetime(datetime,frame_headers), header, &data_offset)}, //TODO: implement
+            {tcDateTime,                    ttAscii,    STRING_ENTRY(format_datetime(datetime,frame_headers), header, &data_offset)},
             {tcCFARepeatPatternDim,         ttShort,    2,      0x00020002}, //2x2
             {tcCFAPattern,                  ttByte,     4,      0x02010100}, //RGGB
             {tcExifIFD,                     ttLong,     1,      exif_ifd_offset},
@@ -220,7 +226,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcDefaultCropSize,             ttShort,    2,      PACK2(frame_headers->rawi_hdr.xRes,frame_headers->rawi_hdr.yRes)},
             {tcColorMatrix1,                ttSRational,RATIONAL_ENTRY(frame_headers->rawi_hdr.raw_info.color_matrix1, header, &data_offset, 18)},
             {tcAsShotNeutral,               ttRational, RATIONAL_ENTRY(daylight_wbal, header, &data_offset, 6)}, //TODO: get actual wbal
-            {tcBaselineExposure,            ttSRational,RATIONAL_ENTRY(frame_headers->rawi_hdr.raw_info.exposure_bias, header, &data_offset, 2)},
+            {tcBaselineExposure,            ttSRational,RATIONAL_ENTRY(basline_exposure, header, &data_offset, 2)},
             {tcActiveArea,                  ttLong,     ARRAY_ENTRY(frame_headers->rawi_hdr.raw_info.dng_active_area, header, &data_offset, 4)},
             {tcFrameRate,                   ttSRational,RATIONAL_ENTRY(frame_rate, header, &data_offset, 2)},
             {tcBaselineExposureOffset,      ttSRational,RATIONAL_ENTRY2(0, 1, header, &data_offset)},
