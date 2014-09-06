@@ -195,6 +195,12 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             basline_exposure[1] = 1;
         }
         
+        int32_t wbal[6] = {frame_headers->wbal_hdr.wbgain_r, frame_headers->wbal_hdr.wbgain_g,
+                           frame_headers->wbal_hdr.wbgain_g, frame_headers->wbal_hdr.wbgain_g,
+                           frame_headers->wbal_hdr.wbgain_b, frame_headers->wbal_hdr.wbgain_g};
+        
+        if(frame_headers->wbal_hdr.wbgain_g == 0) memcpy(wbal, daylight_wbal, sizeof(wbal));
+        
         struct directory_entry IFD0[IFD0_COUNT] =
         {
             {tcNewSubFileType,              ttLong,     1,      sfMainImage},
@@ -225,7 +231,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},
             {tcDefaultCropSize,             ttShort,    2,      PACK2(frame_headers->rawi_hdr.xRes,frame_headers->rawi_hdr.yRes)},
             {tcColorMatrix1,                ttSRational,RATIONAL_ENTRY(frame_headers->rawi_hdr.raw_info.color_matrix1, header, &data_offset, 18)},
-            {tcAsShotNeutral,               ttRational, RATIONAL_ENTRY(daylight_wbal, header, &data_offset, 6)}, //TODO: get actual wbal
+            {tcAsShotNeutral,               ttRational, RATIONAL_ENTRY(wbal, header, &data_offset, 6)},
             {tcBaselineExposure,            ttSRational,RATIONAL_ENTRY(basline_exposure, header, &data_offset, 2)},
             {tcActiveArea,                  ttLong,     ARRAY_ENTRY(frame_headers->rawi_hdr.raw_info.dng_active_area, header, &data_offset, 4)},
             {tcFrameRate,                   ttSRational,RATIONAL_ENTRY(frame_rate, header, &data_offset, 2)},
