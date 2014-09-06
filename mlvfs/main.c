@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <wordexp.h>
 #include <fuse.h>
 #include <sys/param.h>
 #include "raw.h"
@@ -435,17 +436,43 @@ static const struct fuse_opt mlvfs_opts[] =
 
 int main(int argc, char **argv)
 {
-    int res = 0;
+    mlvfs.mlv_path = NULL;
+
+    int res = 1;
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     
     if (fuse_opt_parse(&args, &mlvfs, mlvfs_opts, NULL) == -1)
     {
         exit(1);
     }
-    
-    umask(0);
-    res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
-    
+
+    if (mlvfs.mlv_path != NULL)
+    {
+        // shell and wildcard expansion, taking just the first result
+        wordexp_t p;
+        wordexp(mlvfs.mlv_path, &p, 0);
+
+        // assume that p.we_wordc > 0
+        free(mlvfs.mlv_path);
+        mlvfs.mlv_path = p.we_wordv[0];
+
+        // check if the directory actually exists
+        struct stat file_stat;
+        if ((stat(mlvfs.mlv_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+        {
+            umask(0);
+            res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
+        }
+        else
+        {
+            fprintf(stderr, "MLVFS: mount path is not a directory\n");
+        }
+    }
+    else
+    {
+        fprintf(stderr, "MLVFS: no mount path specified\n");
+    }
+
     fuse_opt_free_args(&args);
     return res;
 }
