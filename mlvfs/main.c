@@ -50,6 +50,7 @@ static int string_ends_with(const char *source, const char *ending)
     return !strcmp(source + strlen(source) - strlen(ending), ending);
 }
 
+//returns 1 if apparently within an MLV file, 0 otherwise
 static int get_mlv_filename(const char *path, char * mlv_filename)
 {
     char temp[1024];
@@ -59,7 +60,7 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
     {
         *split = 0x00;
         sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, temp);
-        return 1;
+        return (string_ends_with(mlv_filename, ".MLV") || string_ends_with(mlv_filename, ".mlv"));
     }
     return 0;
 }
@@ -83,7 +84,7 @@ static int get_mlv_frame_number(const char *path)
 static int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers)
 {
     char mlv_filename[1024];
-    get_mlv_filename(path, mlv_filename);
+    if (!get_mlv_filename(path, mlv_filename)) return 0;
 
     FILE **chunk_files = NULL;
     uint32_t chunk_count = 0;
