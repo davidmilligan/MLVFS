@@ -55,9 +55,9 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
     char temp[1024];
     char *split;
     strncpy(temp, path, 1024);
-    if((split = strrchr(temp, '/')) != NULL)
+    if((split = strrchr(temp + 1, '/')) != NULL)
     {
-        if(split != temp) *split = 0x00;
+        *split = 0x00;
         sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, temp);
         return 1;
     }
@@ -225,9 +225,9 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
 
-    char mlv_filename[1024];
     if (string_ends_with(path, ".DNG"))
     {
+        char mlv_filename[1024];
         if(get_mlv_filename(path, mlv_filename))
         {
             stbuf->st_mode = S_IFREG | 0444;
@@ -270,9 +270,10 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     }
     else
     {
-        sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, path);
+        char real_path[1024];
+        sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
         struct stat mlv_stat;
-        if(stat(mlv_filename, &mlv_stat) == 0)
+        if(stat(real_path, &mlv_stat) == 0)
         {
             stbuf->st_mode = S_IFDIR | 0555;
             stbuf->st_nlink = 3;
@@ -291,14 +292,14 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             
             if (string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
             {
-                stbuf->st_size = mlv_get_frame_count(mlv_filename);
+                stbuf->st_size = mlv_get_frame_count(real_path);
             }
             else
             {
                 stbuf->st_size = mlv_stat.st_size;
             }
             
-            return 0; // MLV found
+            return 0; // MLV or directory found
         }
     }
 
@@ -347,6 +348,16 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
                 if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
                 {
                     filler(buf, child->d_name, NULL, 0);
+                }
+                else if (child->d_type == DT_UNKNOWN) // If d_type is not supported on this filesystem
+                {
+                    struct stat file_stat;
+                    char real_file_path[1024];
+                    sprintf(real_file_path, "%s/%s", real_path, child->d_name);
+                    if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+                    {
+                        filler(buf, child->d_name, NULL, 0);
+                    }
                 }
             }
             closedir(dir);
