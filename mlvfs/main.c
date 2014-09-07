@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <wordexp.h>
 #include <fuse.h>
 #include <sys/param.h>
 #include "raw.h"
@@ -50,16 +51,17 @@ static int string_ends_with(const char *source, const char *ending)
     return !strcmp(source + strlen(source) - strlen(ending), ending);
 }
 
+//returns 1 if apparently within an MLV file, 0 otherwise
 static int get_mlv_filename(const char *path, char * mlv_filename)
 {
     char temp[1024];
     char *split;
     strncpy(temp, path, 1024);
-    if((split = strrchr(temp, '/')) != NULL)
+    if((split = strrchr(temp + 1, '/')) != NULL)
     {
-        if(split != temp) *split = 0x00;
+        *split = 0x00;
         sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, temp);
-        return 1;
+        return (string_ends_with(mlv_filename, ".MLV") || string_ends_with(mlv_filename, ".mlv"));
     }
     return 0;
 }
@@ -83,7 +85,7 @@ static int get_mlv_frame_number(const char *path)
 static int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers)
 {
     char mlv_filename[1024];
-    get_mlv_filename(path, mlv_filename);
+    if (!get_mlv_filename(path, mlv_filename)) return 0;
 
     FILE **chunk_files = NULL;
     uint32_t chunk_count = 0;
@@ -225,9 +227,9 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
 
-    char mlv_filename[1024];
     if (string_ends_with(path, ".DNG"))
     {
+        char mlv_filename[1024];
         if(get_mlv_filename(path, mlv_filename))
         {
             stbuf->st_mode = S_IFREG | 0444;
@@ -270,9 +272,10 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     }
     else
     {
-        sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, path);
+        char real_path[1024];
+        sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
         struct stat mlv_stat;
-        if(stat(mlv_filename, &mlv_stat) == 0)
+        if(stat(real_path, &mlv_stat) == 0)
         {
             stbuf->st_mode = S_IFDIR | 0555;
             stbuf->st_nlink = 3;
@@ -291,14 +294,14 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             
             if (string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
             {
-                stbuf->st_size = mlv_get_frame_count(mlv_filename);
+                stbuf->st_size = mlv_get_frame_count(real_path);
             }
             else
             {
                 stbuf->st_size = mlv_stat.st_size;
             }
             
-            return 0; // MLV found
+            return 0; // MLV or directory found
         }
     }
 
@@ -347,6 +350,16 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
                 if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
                 {
                     filler(buf, child->d_name, NULL, 0);
+                }
+                else if (child->d_type == DT_UNKNOWN) // If d_type is not supported on this filesystem
+                {
+                    struct stat file_stat;
+                    char real_file_path[1024];
+                    sprintf(real_file_path, "%s/%s", real_path, child->d_name);
+                    if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+                    {
+                        filler(buf, child->d_name, NULL, 0);
+                    }
                 }
             }
             closedir(dir);
@@ -423,17 +436,43 @@ static const struct fuse_opt mlvfs_opts[] =
 
 int main(int argc, char **argv)
 {
-    int res = 0;
+    mlvfs.mlv_path = NULL;
+
+    int res = 1;
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     
     if (fuse_opt_parse(&args, &mlvfs, mlvfs_opts, NULL) == -1)
     {
         exit(1);
     }
-    
-    umask(0);
-    res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
-    
+
+    if (mlvfs.mlv_path != NULL)
+    {
+        // shell and wildcard expansion, taking just the first result
+        wordexp_t p;
+        wordexp(mlvfs.mlv_path, &p, 0);
+
+        // assume that p.we_wordc > 0
+        free(mlvfs.mlv_path);
+        mlvfs.mlv_path = p.we_wordv[0];
+
+        // check if the directory actually exists
+        struct stat file_stat;
+        if ((stat(mlvfs.mlv_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+        {
+            umask(0);
+            res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
+        }
+        else
+        {
+            fprintf(stderr, "MLVFS: mount path is not a directory\n");
+        }
+    }
+    else
+    {
+        fprintf(stderr, "MLVFS: no mount path specified\n");
+    }
+
     fuse_opt_free_args(&args);
     return res;
 }
