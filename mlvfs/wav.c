@@ -68,7 +68,24 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
 }
 
 //TODO: implement
+static int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr)
+{
+    return 0;
+}
+
 size_t wav_get_size(const char *path)
 {
+    mlv_file_hdr_t mlv_file_hdr;
+    mlv_wavi_hdr_t mlv_wavi_hdr;
+    FILE * mlv_file = fopen(path, "rb");
+    if(mlv_file)
+    {
+        if(fread(&mlv_file_hdr, sizeof(mlv_file_hdr_t), 1, mlv_file) && !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && wav_get_wavi(path, &mlv_wavi_hdr))
+        {
+            return sizeof(struct wav_header) + mlv_wavi_hdr.bytesPerSecond * mlv_file_hdr.sourceFpsNom * mlv_get_frame_count(path) / mlv_file_hdr.sourceFpsDenom;
+        }
+        fclose(mlv_file);
+    }
+    
     return 0;
 }
