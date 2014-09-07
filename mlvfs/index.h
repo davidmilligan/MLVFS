@@ -33,4 +33,6 @@ mlv_xref_hdr_t *force_index(const char *base_filename);
 FILE **load_chunks(const char *base_filename, uint32_t *entries);
 void close_chunks(FILE **chunk_files, uint32_t chunk_count);
 
+int mlv_get_frame_count(const char *real_path);
+
 #endif
