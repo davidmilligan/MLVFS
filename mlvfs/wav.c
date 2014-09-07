@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include "raw.h"
 #include "mlv.h"
 #include "index.h"
@@ -67,10 +68,47 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
     return 0;
 }
 
-//TODO: implement
 static int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr)
 {
-    return 0;
+    FILE **chunk_files = NULL;
+    uint32_t chunk_count = 0;
+    
+    chunk_files = load_chunks(path, &chunk_count);
+    if(!chunk_files || !chunk_count)
+    {
+        return 0;
+    }
+    
+    mlv_xref_hdr_t *block_xref = get_index(path);
+    mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
+    
+    int found = 0;
+    mlv_hdr_t mlv_hdr;
+    uint32_t hdr_size;
+    
+    for(uint32_t block_xref_pos = 0; (block_xref_pos < block_xref->entryCount) && !found; block_xref_pos++)
+    {
+        /* get the file and position of the next block */
+        uint32_t in_file_num = xrefs[block_xref_pos].fileNumber;
+        int64_t position = xrefs[block_xref_pos].frameOffset;
+        
+        /* select file */
+        FILE *in_file = chunk_files[in_file_num];
+        
+        fseeko(in_file, position, SEEK_SET);
+        fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
+        fseeko(in_file, position, SEEK_SET);
+        if(!memcmp(mlv_hdr.blockType, "WAVI", 4))
+        {
+            hdr_size = MIN(sizeof(mlv_wavi_hdr_t), mlv_hdr.blockSize);
+            fread(wavi_hdr, hdr_size, 1, in_file);
+        }
+    }
+    
+    free(block_xref);
+    close_chunks(chunk_files, chunk_count);
+    
+    return found;
 }
 
 size_t wav_get_size(const char *path)
