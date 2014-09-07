@@ -35,6 +35,7 @@
 #include "mlv.h"
 #include "dng.h"
 #include "index.h"
+#include "wav.h"
 
 struct mlvfs
 {
@@ -227,16 +228,16 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
 
-    if (string_ends_with(path, ".DNG"))
+    if (string_ends_with(path, ".DNG") || string_ends_with(path, ".WAV"))
     {
         char mlv_filename[1024];
         if(get_mlv_filename(path, mlv_filename))
         {
             stbuf->st_mode = S_IFREG | 0444;
             stbuf->st_nlink = 1;
-
+                
             struct frame_headers frame_headers;
-            int frame_number = get_mlv_frame_number(path);
+            int frame_number = string_ends_with(path, ".DNG") ? get_mlv_frame_number(path) : 0;
             if(mlv_get_frame_headers(path, frame_number, &frame_headers))
             {
                 struct tm tm_str;
@@ -264,7 +265,14 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
                 #endif
 
-                stbuf->st_size = dng_get_size(&frame_headers);
+                if(string_ends_with(path, ".DNG"))
+                {
+                    stbuf->st_size = dng_get_size(&frame_headers);
+                }
+                else
+                {
+                    stbuf->st_size = wav_get_size(mlv_filename);
+                }
 
                 return 0; // DNG frame found
             }
@@ -310,7 +318,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
-    if (!string_ends_with(path, ".DNG"))
+    if (!(string_ends_with(path, ".DNG") || string_ends_with(path, ".WAV")))
         return -ENOENT;
     
     if ((fi->flags & O_ACCMODE) != O_RDONLY) /* Only reading allowed. */
@@ -327,6 +335,10 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
     {
         filler(buf, ".", NULL, 0);
         filler(buf, "..", NULL, 0);
+        if(has_audio(real_path))
+        {
+            filler(buf, "_AUDIO.WAV", NULL, 0);
+        }
         int frame_count = mlv_get_frame_count(real_path);
         for (int i = 0; i < frame_count; i++)
         {
@@ -415,6 +427,10 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
             size = 0;
         }
         return (int)size;
+    }
+    else if(string_ends_with(path, ".WAV") && get_mlv_filename(path, mlv_filename))
+    {
+        return (int)wav_get_data(mlv_filename, (uint8_t*)buf, offset, size);
     }
     
     return -ENOENT;
