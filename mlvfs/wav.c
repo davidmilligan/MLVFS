@@ -108,11 +108,11 @@ int has_audio(const char *path)
     return 0;
 }
 
-//TODO: implement
 size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     mlv_wavi_hdr_t wavi_hdr;
     size_t size = wav_get_size(path);
+    int64_t output_position = 0;
     if(wav_get_wavi(path, &wavi_hdr))
     {
         memset(output_buffer, 0, max_size);
@@ -123,7 +123,7 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
                 .RIFF = "RIFF",
                 .file_size = (uint32_t)size,
                 .WAVE = "WAVE",
-                .fmt = "fmt",
+                .fmt = "fmt\x20",
                 .subchunk1_size = 16,
                 .audio_format = 1,
                 .num_channels = wavi_hdr.channels,
@@ -134,8 +134,55 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
                 .data = "data",
                 .subchunk2_size = (uint32_t)(size - sizeof(struct wav_header) + 8),
             };
-            memcpy(output_buffer, &header + offset, MIN(sizeof(struct wav_header), max_size));
+            memcpy(output_buffer, &header + offset, MIN(sizeof(struct wav_header) - offset, max_size));
+            output_position += MIN(sizeof(struct wav_header) - offset, max_size);
         }
+        FILE **chunk_files = NULL;
+        uint32_t chunk_count = 0;
+        
+        chunk_files = load_chunks(path, &chunk_count);
+        if(!chunk_files || !chunk_count)
+        {
+            return 0;
+        }
+        
+        mlv_xref_hdr_t *block_xref = get_index(path);
+        mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
+        mlv_audf_hdr_t audf_hdr;
+        int64_t audio_position = 0;
+        int64_t requested_audio_offset = offset - sizeof(struct wav_header);
+        
+        for(uint32_t block_xref_pos = 0; (block_xref_pos < block_xref->entryCount); block_xref_pos++)
+        {
+            if(xrefs[block_xref_pos].frameType == MLV_FRAME_AUDF)
+            {
+                uint32_t in_file_num = xrefs[block_xref_pos].fileNumber;
+                int64_t position = xrefs[block_xref_pos].frameOffset;
+                FILE *in_file = chunk_files[in_file_num];
+                
+                fseeko(in_file, position, SEEK_SET);
+                fread(&audf_hdr, sizeof(mlv_audf_hdr_t), 1, in_file);
+                if(!memcmp(audf_hdr.blockType, "AUDF", 4))
+                {
+                    size_t frame_size = audf_hdr.blockSize - sizeof(mlv_audf_hdr_t) - audf_hdr.frameSpace;
+                    int64_t frame_end = audio_position + frame_size;
+                    if(frame_end >= requested_audio_offset)
+                    {
+                        int64_t start_offset = offset - sizeof(struct wav_header) - audio_position;
+                        start_offset = MAX(0, start_offset);
+                        fseeko(in_file, position + sizeof(mlv_audf_hdr_t) + audf_hdr.frameSpace + start_offset, SEEK_SET);
+                        fread(output_buffer + output_position, MIN(frame_size - start_offset, max_size - output_position), 1, in_file);
+                        output_position += MIN(frame_size - start_offset, max_size - output_position);
+                        if(max_size - output_position <= 0) break;
+                    }
+                    audio_position += frame_size;
+                }
+            }
+        }
+        
+        free(block_xref);
+        close_chunks(chunk_files, chunk_count);
+        
         return max_size;
     }
     return 0;
