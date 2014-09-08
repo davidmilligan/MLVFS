@@ -115,7 +115,6 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
     int64_t output_position = 0;
     if(wav_get_wavi(path, &wavi_hdr))
     {
-        memset(output_buffer, 0, max_size);
         if(offset < sizeof(struct wav_header))
         {
             struct wav_header header =
