@@ -26,6 +26,7 @@
 #include "raw.h"
 #include "mlv.h"
 #include "index.h"
+#include "wav.h"
 
 struct wav_header {
     //file header
@@ -39,34 +40,13 @@ struct wav_header {
     uint16_t num_channels;
     uint32_t sample_rate;
     uint32_t byte_rate;
-    uint16_t block_align;
+    uint16_t block_align;       // ???
     uint16_t bits_per_sample;
     //subchunk2
     char data[4];               // "data"
     uint32_t subchunk2_size;
     //audio data start
 };
-
-int has_audio(const char *path)
-{
-    mlv_file_hdr_t mlv_file_hdr;
-    FILE * mlv_file = fopen(path, "rb");
-    if(mlv_file)
-    {
-        if(fread(&mlv_file_hdr, sizeof(mlv_file_hdr_t), 1, mlv_file))
-        {
-            return !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && mlv_file_hdr.audioClass == 1;
-        }
-        fclose(mlv_file);
-    }
-    return 0;
-}
-
-//TODO: implement
-size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, size_t max_size)
-{
-    return 0;
-}
 
 static int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr)
 {
@@ -102,6 +82,8 @@ static int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr)
         {
             hdr_size = MIN(sizeof(mlv_wavi_hdr_t), mlv_hdr.blockSize);
             fread(wavi_hdr, hdr_size, 1, in_file);
+            found = 1;
+            break;
         }
     }
     
@@ -109,6 +91,54 @@ static int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr)
     close_chunks(chunk_files, chunk_count);
     
     return found;
+}
+
+int has_audio(const char *path)
+{
+    mlv_file_hdr_t mlv_file_hdr;
+    FILE * mlv_file = fopen(path, "rb");
+    if(mlv_file)
+    {
+        if(fread(&mlv_file_hdr, sizeof(mlv_file_hdr_t), 1, mlv_file))
+        {
+            return !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && mlv_file_hdr.audioClass == 1;
+        }
+        fclose(mlv_file);
+    }
+    return 0;
+}
+
+//TODO: implement
+size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, size_t max_size)
+{
+    mlv_wavi_hdr_t wavi_hdr;
+    size_t size = wav_get_size(path);
+    if(wav_get_wavi(path, &wavi_hdr))
+    {
+        memset(output_buffer, 0, max_size);
+        if(offset < sizeof(struct wav_header))
+        {
+            struct wav_header header =
+            {
+                .RIFF = "RIFF",
+                .file_size = (uint32_t)size,
+                .WAVE = "WAVE",
+                .fmt = "fmt",
+                .subchunk1_size = 16,
+                .audio_format = 1,
+                .num_channels = wavi_hdr.channels,
+                .sample_rate = wavi_hdr.samplingRate,
+                .byte_rate = wavi_hdr.bytesPerSecond,
+                .block_align = 4,
+                .bits_per_sample = wavi_hdr.bitsPerSample,
+                .data = "data",
+                .subchunk2_size = (uint32_t)(size - sizeof(struct wav_header) + 8),
+            };
+            memcpy(output_buffer, &header + offset, MIN(sizeof(struct wav_header), max_size));
+        }
+        return max_size;
+    }
+    return 0;
 }
 
 size_t wav_get_size(const char *path)
@@ -120,7 +150,7 @@ size_t wav_get_size(const char *path)
     {
         if(fread(&mlv_file_hdr, sizeof(mlv_file_hdr_t), 1, mlv_file) && !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && wav_get_wavi(path, &mlv_wavi_hdr))
         {
-            return sizeof(struct wav_header) + mlv_wavi_hdr.bytesPerSecond * mlv_file_hdr.sourceFpsNom * mlv_get_frame_count(path) / mlv_file_hdr.sourceFpsDenom;
+            return sizeof(struct wav_header) + (uint64_t)mlv_wavi_hdr.bytesPerSecond * (uint64_t)mlv_file_hdr.sourceFpsDenom * (uint64_t)mlv_get_frame_count(path) / (uint64_t)mlv_file_hdr.sourceFpsNom;
         }
         fclose(mlv_file);
     }
