@@ -427,14 +427,14 @@ int main(int argc, char **argv)
 
     if (mlvfs.mlv_path != NULL)
     {
-        char * temp = malloc(1024);
+        char temp[1024];
         sprintf(temp, "\"%s\"", mlvfs.mlv_path);
         // shell and wildcard expansion, taking just the first result
         wordexp_t p;
         wordexp(temp, &p, 0);
 
         // assume that p.we_wordc > 0
-        free(temp);
+        free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
         mlvfs.mlv_path = p.we_wordv[0];
 
         // check if the directory actually exists
@@ -448,6 +448,8 @@ int main(int argc, char **argv)
         {
             fprintf(stderr, "MLVFS: mlv path is not a directory\n");
         }
+
+        wordfree(&p);
     }
     else
     {
