@@ -427,12 +427,14 @@ int main(int argc, char **argv)
 
     if (mlvfs.mlv_path != NULL)
     {
+        char * temp = malloc(1024);
+        sprintf(temp, "\"%s\"", mlvfs.mlv_path);
         // shell and wildcard expansion, taking just the first result
         wordexp_t p;
-        wordexp(mlvfs.mlv_path, &p, 0);
+        wordexp(temp, &p, 0);
 
         // assume that p.we_wordc > 0
-        free(mlvfs.mlv_path);
+        free(temp);
         mlvfs.mlv_path = p.we_wordv[0];
 
         // check if the directory actually exists
@@ -444,12 +446,12 @@ int main(int argc, char **argv)
         }
         else
         {
-            fprintf(stderr, "MLVFS: mount path is not a directory\n");
+            fprintf(stderr, "MLVFS: mlv path is not a directory\n");
         }
     }
     else
     {
-        fprintf(stderr, "MLVFS: no mount path specified\n");
+        fprintf(stderr, "MLVFS: no mlv path specified\n");
     }
 
     fuse_opt_free_args(&args);
