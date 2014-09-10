@@ -4,6 +4,8 @@ ifeq "$(PLATFORM)" ""
 PLATFORM := $(shell uname -s)
 endif
 
+DEBUG = -g
+
 # CFLAGs and LIBS from `pkg-config fuse --cflags --libs`
 ifeq "$(PLATFORM)" "Darwin"
 INCLUDE = -I/usr/local/include/osxfuse
@@ -18,6 +20,9 @@ EXEC = mlvfs
 OBJS = dng.o index.o wav.o
 
 default: $(EXEC)
+
+debug: CFLAGS += $(DEBUG)
+debug: $(EXEC)
 
 $(EXEC): main.c $(OBJS)
 	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
