@@ -289,15 +289,20 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packe
     uint64_t pixel_start_address = pixel_start_index * bpp / 16;
     size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
     uint64_t pixel_count = output_size / 2;
-    uint8_t * buffer = output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2;
+    uint16_t * dng_data = (uint16_t *)(output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2);
     uint32_t mask = (1 << bpp) - 1;
+    
+	/* ok this is pointing outside the reserved buffer, but its indexed later to get within bounds again */
+	uint16_t * raw_bits = (uint16_t *)(packed_bits - pixel_start_address);
     
     for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
     {
-        uint64_t pixel_address = (pixel_index + pixel_start_index) * bpp / 16 - pixel_start_address;
-        uint64_t pixel_offset = (pixel_index + pixel_start_index) * bpp % 16;
-        uint32_t data = ((packed_bits[pixel_address] << 16) & 0xFFFF0000) | (packed_bits[pixel_address + 1] & 0xFFFF);
-        *(uint16_t*)(buffer + pixel_index * 2) = (uint16_t)((data >> ((32 - bpp) - pixel_offset)) & mask);
+        uint64_t bits_offset = (pixel_start_index + pixel_index) * bpp;
+        uint64_t bits_address = bits_offset / 16;
+        uint32_t bits_shift = bits_offset % 16;
+        uint32_t data = (raw_bits[bits_address] << 16) | raw_bits[bits_address + 1];
+        
+        dng_data[pixel_index] = (uint16_t)((data >> ((32 - bpp) - bits_shift)) & mask);
     }
     return max_size;
 }
