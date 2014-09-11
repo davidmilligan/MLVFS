@@ -187,6 +187,31 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
     return found;
 }
 
+static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
+{
+    int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
+    uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
+    uint64_t pixel_start_address = pixel_start_index * bpp / 16;
+    size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
+    uint64_t pixel_count = output_size / 2;
+    uint64_t packed_size = (pixel_count + 2) * bpp / 16;
+    uint16_t * packed_bits = malloc((size_t)(packed_size * 2));
+    if(packed_bits)
+    {
+        fseeko(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
+        if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
+        {
+            dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
+        }
+        else
+        {
+            fprintf(stderr, "Error reading source data");
+        }
+        free(packed_bits);
+    }
+    return max_size;
+}
+
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
@@ -371,7 +396,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
             size_t header_size = dng_get_header_size(&frame_headers);
             if(offset >= header_size)
             {
-                dng_get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf, offset - header_size, size);
+                get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf, offset - header_size, size);
             }
             else
             {
@@ -379,7 +404,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                 dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
                 if(remaining < size)
                 {
-                    dng_get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf + remaining, 0, size - remaining);
+                    get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf + remaining, 0, size - remaining);
                 }
             }
 

@@ -281,36 +281,23 @@ size_t dng_get_header_size(struct frame_headers * frame_headers)
  ffffgggg gggggggg
  gghhhhhh hhhhhhhh
  */
-size_t dng_get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
+size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packed_bits, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     //unpack bits to 16 bit little endian (LSB first)
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
-    uint64_t pixel_start_index = (size_t)MAX(0, offset) / 2; //lets hope offsets are always even for now
+    uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
     uint64_t pixel_start_address = pixel_start_index * bpp / 16;
     size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
     uint64_t pixel_count = output_size / 2;
-    uint64_t packed_size = (pixel_count + 2) * bpp / 16;
-    uint16_t * packed_bits = malloc((size_t)(packed_size * 2));
     uint8_t * buffer = output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2;
-    if(packed_bits)
+    uint32_t mask = (1 << bpp) - 1;
+    
+    for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
     {
-        fseeko(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
-        if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
-        {
-            uint32_t mask = (1 << bpp) - 1;
-            for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
-            {
-                uint64_t pixel_address = (pixel_index + pixel_start_index) * bpp / 16 - pixel_start_address;
-                uint64_t pixel_offset = (pixel_index + pixel_start_index) * bpp % 16;
-                uint32_t data = ((packed_bits[pixel_address] << 16) & 0xFFFF0000) | (packed_bits[pixel_address + 1] & 0xFFFF);
-                *(uint16_t*)(buffer + pixel_index * 2) = (uint16_t)((data >> ((32 - bpp) - pixel_offset)) & mask);
-            }
-        }
-        else
-        {
-            fprintf(stderr, "Error reading source data");
-        }
-        free(packed_bits);
+        uint64_t pixel_address = (pixel_index + pixel_start_index) * bpp / 16 - pixel_start_address;
+        uint64_t pixel_offset = (pixel_index + pixel_start_index) * bpp % 16;
+        uint32_t data = ((packed_bits[pixel_address] << 16) & 0xFFFF0000) | (packed_bits[pixel_address + 1] & 0xFFFF);
+        *(uint16_t*)(buffer + pixel_index * 2) = (uint16_t)((data >> ((32 - bpp) - pixel_offset)) & mask);
     }
     return max_size;
 }
