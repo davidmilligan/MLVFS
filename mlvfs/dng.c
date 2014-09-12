@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/param.h>
 #include <string.h>
 #include "raw.h"
 #include "mlv.h"
@@ -152,7 +151,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
     requested size is at least 64kB)
     */
     size_t header_size = dng_get_header_size(frame_headers);
-    uint8_t * header = malloc(header_size);
+    uint8_t * header = (uint8_t *)malloc(header_size);
     size_t position = 0;
     if(header)
     {

@@ -54,6 +54,11 @@
 #ifndef _raw_h_
 #define _raw_h_
 
+#if defined(_WIN32)
+#define __attribute__(x)
+#pragma pack(push,2)
+#endif
+
 /* group 8 pixels in 14 bytes to simplify decoding */
 struct raw_pixblock
 {
@@ -238,6 +243,10 @@ extern int raw_lv_is_enabled();
 /* (no need to sprinkle the code with #ifdef CONFIG_RAW_LIVEVIEW) */
 /* Q: any way to make this cleaner? (with weak func, the compiler no longer optimizes these things) */
 #define raw_lv_is_enabled() 0
+#endif
+
+#if defined(_WIN32)
+#pragma pack(pop)
 #endif
 
 #endif

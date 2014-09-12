@@ -21,6 +21,10 @@
 #ifndef mlvfs_dng_h
 #define mlvfs_dng_h
 
+#include <sys/types.h>
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 #include "mlv.h"
 
 //all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame

@@ -27,16 +27,13 @@
 #include "mlv.h"
 
 /* helper macros */
-#define MIN(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a < _b ? _a : _b; })
+#define MIN(a,b) (((a)<(b))?(a):(b))
 
 /* platform/target specific fseek/ftell functions go here */
 uint64_t file_get_pos(FILE *stream)
 {
-#if defined(__WIN32)
-    return ftello64(stream);
+#if defined(_WIN32)
+    return _ftelli64(stream);
 #else
     return ftello(stream);
 #endif
@@ -44,8 +41,8 @@ uint64_t file_get_pos(FILE *stream)
 
 uint32_t file_set_pos(FILE *stream, uint64_t offset, int whence)
 {
-#if defined(__WIN32)
-    return fseeko64(stream, offset, whence);
+#if defined(_WIN32)
+    return _fseeki64(stream, offset, whence);
 #else
     return fseeko(stream, offset, whence);
 #endif
@@ -72,7 +69,7 @@ void xref_resize(frame_xref_t **table, uint32_t entries, uint32_t *allocated)
     if(entries * sizeof(frame_xref_t) > *allocated)
     {
         *allocated += (entries + 1) * sizeof(frame_xref_t);
-        *table = realloc(*table, *allocated);
+        *table = (frame_xref_t *)realloc(*table, *allocated);
     }
 }
 
@@ -130,7 +127,7 @@ mlv_xref_hdr_t *load_index(const char *base_filename)
         /* we should check the MLVI header for matching UID value to make sure its the right index... */
         if(!memcmp(buf.blockType, "XREF", 4))
         {
-            block_hdr = malloc(buf.blockSize);
+            block_hdr = (mlv_xref_hdr_t *)malloc(buf.blockSize);
 
             if(fread(block_hdr, buf.blockSize, 1, in_file) != 1)
             {
@@ -323,7 +320,7 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
     *entries = 0;
 
     strncpy(filename, base_filename, sizeof(filename));
-    FILE **files = malloc(sizeof(FILE*));
+    FILE **files = (FILE **)malloc(sizeof(FILE*));
 
     files[0] = fopen(filename, "rb");
     if (!files[0])
@@ -334,12 +331,16 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
     (*entries)++;
     while(seq_number < 99)
     {
-        files = realloc(files, (*entries + 1) * sizeof(FILE*));
+        files = (FILE **)realloc(files, (*entries + 1) * sizeof(FILE*));
 
         /* check for the next file M00, M01 etc */
         char seq_name[3];
 
+        #if defined(_WIN32)
+        _snprintf(seq_name, 3, "%02d", seq_number);
+        #else
         snprintf(seq_name, 3, "%02d", seq_number);
+        #endif
         seq_number++;
 
         strcpy(&filename[strlen(filename) - 2], seq_name);
