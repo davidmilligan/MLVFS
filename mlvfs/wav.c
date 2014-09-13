@@ -97,17 +97,18 @@ static int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr)
 
 int has_audio(const char *path)
 {
+    int result = 0;
     mlv_file_hdr_t mlv_file_hdr;
     FILE * mlv_file = fopen(path, "rb");
     if(mlv_file)
     {
         if(fread(&mlv_file_hdr, sizeof(mlv_file_hdr_t), 1, mlv_file))
         {
-            return !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && mlv_file_hdr.audioClass == 1;
+            result = !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && mlv_file_hdr.audioClass == 1;
         }
         fclose(mlv_file);
     }
-    return 0;
+    return result;
 }
 
 size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, size_t max_size)
@@ -208,6 +209,7 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
 
 size_t wav_get_size(const char *path)
 {
+    size_t result = 0;
     mlv_file_hdr_t mlv_file_hdr;
     mlv_wavi_hdr_t mlv_wavi_hdr;
     FILE * mlv_file = fopen(path, "rb");
@@ -215,10 +217,10 @@ size_t wav_get_size(const char *path)
     {
         if(fread(&mlv_file_hdr, sizeof(mlv_file_hdr_t), 1, mlv_file) && !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && wav_get_wavi(path, &mlv_wavi_hdr))
         {
-            return sizeof(struct wav_header) + (uint64_t)mlv_wavi_hdr.bytesPerSecond * (uint64_t)mlv_file_hdr.sourceFpsDenom * (uint64_t)mlv_get_frame_count(path) / (uint64_t)mlv_file_hdr.sourceFpsNom;
+            result = sizeof(struct wav_header) + (uint64_t)mlv_wavi_hdr.bytesPerSecond * (uint64_t)mlv_file_hdr.sourceFpsDenom * (uint64_t)mlv_get_frame_count(path) / (uint64_t)mlv_file_hdr.sourceFpsNom;
         }
         fclose(mlv_file);
     }
     
-    return 0;
+    return result;
 }

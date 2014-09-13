@@ -217,6 +217,7 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
  */
 static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
+    size_t result = 0;
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
     uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
     uint64_t pixel_start_address = pixel_start_index * bpp / 16;
@@ -229,7 +230,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
         if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
-            return dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
+            result = dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
         }
         else
         {
@@ -237,7 +238,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         }
         free(packed_bits);
     }
-    return 0;
+    return result;
 }
 
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
@@ -508,6 +509,7 @@ int main(int argc, char **argv)
             res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
 
+        if(mlvfs.mlv_path != p.we_wordv[0]) free(mlvfs.mlv_path);
         wordfree(&p);
     }
     else
