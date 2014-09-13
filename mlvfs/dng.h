@@ -22,8 +22,6 @@
 #define mlvfs_dng_h
 
 #include <sys/types.h>
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
 
 #include "mlv.h"
 

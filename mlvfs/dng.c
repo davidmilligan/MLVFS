@@ -30,6 +30,9 @@
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 #define IFD0_COUNT 33
 #define EXIF_IFD_COUNT 8
 #define MLVFS_SOFTWARE_NAME "MLVFS"

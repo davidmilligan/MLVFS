@@ -21,6 +21,8 @@
 #ifndef mlvfs_wav_h
 #define mlvfs_wav_h
 
+#include <sys/types.h>
+
 int has_audio(const char * path);
 size_t wav_get_data(const char * path, uint8_t * output_buffer, off_t offset, size_t max_size);
 size_t wav_get_size(const char * path);

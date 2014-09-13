@@ -35,4 +35,8 @@ void close_chunks(FILE **chunk_files, uint32_t chunk_count);
 
 int mlv_get_frame_count(const char *real_path);
 
+/* platform/target specific fseek/ftell functions go here */
+uint64_t file_get_pos(FILE *stream);
+uint32_t file_set_pos(FILE *stream, uint64_t offset, int whence);
+
 #endif

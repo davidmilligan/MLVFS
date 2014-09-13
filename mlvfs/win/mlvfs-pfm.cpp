@@ -326,7 +326,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
     uint16_t * packed_bits = static_cast<uint16_t *>(malloc(packed_size * sizeof(uint16_t)));
     if(packed_bits)
     {
-        _fseeki64(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
+        file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
         if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
             dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
@@ -1295,7 +1295,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
                     //Uses the number in sequence rather than frameNumber in header
                     frameHeaders[vidf_counter].fileNumber = in_file_num;
                     frameHeaders[vidf_counter].position = position;
-                    _fseeki64(in_file, position, SEEK_SET);
+                    file_set_pos(in_file, position, SEEK_SET);
                     hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
                     fread(&frameHeaders[vidf_counter].vidf_hdr, hdr_size, 1, in_file);
                     vidf_counter++;
@@ -1310,9 +1310,9 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
 
                 case MLV_FRAME_UNSPECIFIED:
                 default:
-                    _fseeki64(in_file, position, SEEK_SET);
+                    file_set_pos(in_file, position, SEEK_SET);
                     fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
-                    _fseeki64(in_file, position, SEEK_SET);
+                    file_set_pos(in_file, position, SEEK_SET);
                     if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
