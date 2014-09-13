@@ -1,8 +1,12 @@
 *.o
+*.obj
 
 mlvfs.xcodeproj/project.xcworkspace/xcshareddata
 mlvfs.xcodeproj/xcuserdata
 
 mlvfs/mlvfs
+mlvfs/win/mlvfs.*
 MLVFS.workflow/Contents/mlvfs
 MLVFS.workflow/Contents/QuickLook/Preview.png
+
+.DS_Store

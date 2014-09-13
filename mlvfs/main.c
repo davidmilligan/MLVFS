@@ -125,7 +125,7 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
                     found = 1;
                     frame_headers->fileNumber = in_file_num;
                     frame_headers->position = position;
-                    fseeko(in_file, position, SEEK_SET);
+                    file_set_pos(in_file, position, SEEK_SET);
                     hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
                     fread(&frame_headers->vidf_hdr, hdr_size, 1, in_file);
                 }
@@ -140,9 +140,9 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
 
             case MLV_FRAME_UNSPECIFIED:
             default:
-                fseeko(in_file, position, SEEK_SET);
+                file_set_pos(in_file, position, SEEK_SET);
                 fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
-                fseeko(in_file, position, SEEK_SET);
+                file_set_pos(in_file, position, SEEK_SET);
                 if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
                 {
                     hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
@@ -198,7 +198,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
     uint16_t * packed_bits = malloc((size_t)(packed_size * 2));
     if(packed_bits)
     {
-        fseeko(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
+        file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
         if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
             dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
@@ -452,26 +452,32 @@ int main(int argc, char **argv)
 
     if (mlvfs.mlv_path != NULL)
     {
-        char temp[1024];
-        sprintf(temp, "\"%s\"", mlvfs.mlv_path);
         // shell and wildcard expansion, taking just the first result
         wordexp_t p;
-        wordexp(temp, &p, 0);
-
-        // assume that p.we_wordc > 0
-        free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
-        mlvfs.mlv_path = p.we_wordv[0];
+        wordexp(mlvfs.mlv_path, &p, 0);
 
         // check if the directory actually exists
         struct stat file_stat;
         if ((stat(mlvfs.mlv_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
         {
-            umask(0);
-            res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
+            res = 0;
+        }
+        else if ((stat(p.we_wordv[0], &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+        {
+            // assume that p.we_wordc > 0
+            free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
+            mlvfs.mlv_path = p.we_wordv[0];
+            res = 0;
         }
         else
         {
             fprintf(stderr, "MLVFS: mlv path is not a directory\n");
+        }
+
+        if(!res)
+        {
+            umask(0);
+            res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
 
         wordfree(&p);

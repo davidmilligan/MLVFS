@@ -21,6 +21,8 @@
 #ifndef mlvfs_dng_h
 #define mlvfs_dng_h
 
+#include <sys/types.h>
+
 #include "mlv.h"
 
 //all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame

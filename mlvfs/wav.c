@@ -22,11 +22,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/param.h>
 #include "raw.h"
 #include "mlv.h"
 #include "index.h"
 #include "wav.h"
+
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 
 struct wav_header {
     //file header
@@ -75,9 +77,9 @@ static int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr)
         /* select file */
         FILE *in_file = chunk_files[in_file_num];
         
-        fseeko(in_file, position, SEEK_SET);
+        file_set_pos(in_file, position, SEEK_SET);
         fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
-        fseeko(in_file, position, SEEK_SET);
+        file_set_pos(in_file, position, SEEK_SET);
         if(!memcmp(mlv_hdr.blockType, "WAVI", 4))
         {
             hdr_size = MIN(sizeof(mlv_wavi_hdr_t), mlv_hdr.blockSize);
@@ -117,6 +119,22 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
     {
         if(offset < sizeof(struct wav_header))
         {
+            #ifdef _WIN32 // Windows does not support C99 designated initializers
+            struct wav_header header;
+            strncpy(header.RIFF, "RIFF", 4);
+            header.file_size = (uint32_t)size;
+            strncpy(header.WAVE, "WAVE", 4);
+            strncpy(header.fmt, "fmt\x20", 4);
+            header.subchunk1_size = 16;
+            header.audio_format = 1;
+            header.num_channels = wavi_hdr.channels;
+            header.sample_rate = wavi_hdr.samplingRate;
+            header.byte_rate = wavi_hdr.bytesPerSecond;
+            header.block_align = 4;
+            header.bits_per_sample = wavi_hdr.bitsPerSample;
+            strncpy(header.data, "data", 4);
+            header.subchunk2_size = (uint32_t)(size - sizeof(struct wav_header) + 8);
+            #else
             struct wav_header header =
             {
                 .RIFF = "RIFF",
@@ -133,6 +151,7 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
                 .data = "data",
                 .subchunk2_size = (uint32_t)(size - sizeof(struct wav_header) + 8),
             };
+            #endif
             memcpy(output_buffer, &header + offset, MIN(sizeof(struct wav_header) - offset, max_size));
             output_position += MIN(sizeof(struct wav_header) - offset, max_size);
         }
@@ -159,7 +178,7 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
                 int64_t position = xrefs[block_xref_pos].frameOffset;
                 FILE *in_file = chunk_files[in_file_num];
                 
-                fseeko(in_file, position, SEEK_SET);
+                file_set_pos(in_file, position, SEEK_SET);
                 fread(&audf_hdr, sizeof(mlv_audf_hdr_t), 1, in_file);
                 if(!memcmp(audf_hdr.blockType, "AUDF", 4))
                 {
@@ -169,7 +188,7 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
                     {
                         int64_t start_offset = offset - sizeof(struct wav_header) - audio_position;
                         start_offset = MAX(0, start_offset);
-                        fseeko(in_file, position + sizeof(mlv_audf_hdr_t) + audf_hdr.frameSpace + start_offset, SEEK_SET);
+                        file_set_pos(in_file, position + sizeof(mlv_audf_hdr_t) + audf_hdr.frameSpace + start_offset, SEEK_SET);
                         fread(output_buffer + output_position, MIN(frame_size - start_offset, max_size - output_position), 1, in_file);
                         output_position += MIN(frame_size - start_offset, max_size - output_position);
                         if(max_size - output_position <= 0) break;

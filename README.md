@@ -20,17 +20,16 @@ You can compile either using the Xcode application or using the command-line too
 Unmounting the filesystem is done through the typical methods.
 
 ## Windows
-Unfortunately, there is no FUSE solution for Windows.  For the time being, it is possible to use a Linux VM to serve the MLVFS filesystem to a Windows host, although it will be inefficient.  Here are the steps:
+There is no FUSE solution for Windows, but an alternative approach that
+functions in much the same way is
+[Pismo File Mount Audit Package](http://www.pismotechnic.com/pfm/ap/).
+Download and install PFMAP, and then register the MLV formatter DLL:
 
-In the Linux VM:
+    pfm register mlvfs.dll
 
-1. Make sure that the Linux VM is networked with the Windows host
-2. Configure Samba to share the local folder that will be used as the MLVFS mount point
-3. Configure FUSE to allow other users (namely `smbd`) to use your mount points by editing `/etc/fuse.conf` (requires `sudo`) and uncommenting the line `user_allow_other` (and also make sure that `fuse.conf` is world-readable)
-4. Run the MLVFS mount command with the additional command-line option `-o allow_other`, e.g.:
+Unlike the FUSE approach on the other platforms, you mount each MLV file
+individually: right-click on an MLV file and select "Quick Mount".
 
-    mlvfs <mount point> --mlv_dir=<directory with MLV files> -o allow_other
-
-In the Windows host, connect to the shared folder, e.g.:
-
-    \\<Linux hostname>\<mount point share>
+If you wish, you can build the MLV formatter DLL yourself by installing the
+Windows SDK and running `nmake` using the SDK command prompt in the `mlvfs/win`
+directory.
