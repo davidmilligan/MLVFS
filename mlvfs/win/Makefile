@@ -4,7 +4,7 @@ EXEC = $(BASE).dll
 CPP_OBJS = mlvfs-pfm.obj dng.obj index.obj
 LIBS = advapi32.lib user32.lib
 
-CPPFLAGS = /I.. /D_INTPTR=2
+CPPFLAGS = /I.. /D_INTPTR=2 /O2
 
 $(EXEC): $(CPP_OBJS)
 	$(CXX) /Fe$(EXEC) /LD $(CPP_OBJS) $(LIBS)
