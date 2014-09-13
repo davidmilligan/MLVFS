@@ -143,6 +143,11 @@ static char * format_datetime(char * datetime, struct frame_headers * frame_head
     return datetime;
 }
 
+/**
+ * Generates the CDNG header (or some section of it). The result is written into output_buffer.
+ * @param frame_headers The MLV blocks associated with the frame
+ * @return The size of the DNG header or 0 on failure
+ */
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     /*
@@ -184,6 +189,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_headers->rawi_hdr.raw_info.active_area.y2 = frame_headers->rawi_hdr.yRes;
         }
         int32_t frame_rate[2] = {frame_headers->file_hdr.sourceFpsNom, frame_headers->file_hdr.sourceFpsDenom};
+        //The CDNG spec recommends using 24000/1001 rather than 23976/1000
         if(frame_rate[0] % 1000 == 976 && frame_rate[1] == 1000)
         {
             frame_rate[0] += 24;
@@ -201,6 +207,8 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
                            frame_headers->wbal_hdr.wbgain_g, frame_headers->wbal_hdr.wbgain_g,
                            frame_headers->wbal_hdr.wbgain_b, frame_headers->wbal_hdr.wbgain_g};
         
+        //If there aren't any RGB multipliers in the metadata, then use daylight
+        //Computing RGB multipliers from Kelvin is beyond my current understadning/ablities
         if(frame_headers->wbal_hdr.wbgain_g == 0) memcpy(wbal, daylight_wbal, sizeof(wbal));
         
         struct directory_entry IFD0[IFD0_COUNT] =
@@ -266,26 +274,29 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
     return 0;
 }
 
+/**
+ * Computes the size of the DNG header (all the IFDs, metadata, and whatnot). 
+ * This is hardcoded to 64kB, which should be plenty large enough. This also
+ * lines up with requests from FUSE, which are typically (but not always) 64kB
+ * @param frame_headers The MLV blocks associated with the frame
+ * @return The size of the DNG header
+ */
 size_t dng_get_header_size(struct frame_headers * frame_headers)
 {
     return HEADER_SIZE;
 }
 
 /**
- * 14-bit encoding:
- 
- hi          lo
- aaaaaaaa aaaaaabb
- bbbbbbbb bbbbcccc
- cccccccc ccdddddd
- dddddddd eeeeeeee
- eeeeeeff ffffffff
- ffffgggg gggggggg
- gghhhhhh hhhhhhhh
+ * Unpacks bits to 16 bit little endian
+ * @param frame_headers The MLV blocks associated with the frame
+ * @param packed_bits A buffer containing the packed imaged data
+ * @param output_buffer The buffer where the result will be written
+ * @param offset The offset into the frame to read
+ * @param max_size The size in bytes to write into the buffer
+ * @return The number of bytes written (just max_size)
  */
 size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packed_bits, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
-    //unpack bits to 16 bit little endian (LSB first)
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
     uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
     uint64_t pixel_start_address = pixel_start_index * bpp / 16;
@@ -309,11 +320,20 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packe
     return max_size;
 }
 
+/**
+ * Computes the resulting, unpacked size of the actual image data for a CDNG (does not include header)
+ * @param frame_headers The MLV blocks associated with the frame
+ * @return The size of the actual image data
+ */
 size_t dng_get_image_size(struct frame_headers * frame_headers)
 {
     return (frame_headers->vidf_hdr.blockSize - frame_headers->vidf_hdr.frameSpace - sizeof(mlv_vidf_hdr_t)) * 16 / frame_headers->rawi_hdr.raw_info.bits_per_pixel; //16 bit
 }
 
+/**
+ * Returns the resulting size of the entire CDNG including the header
+ * @param frame_headers The MLV blocks associated with the frame
+ */
 size_t dng_get_size(struct frame_headers * frame_headers)
 {
     return dng_get_header_size(frame_headers) + dng_get_image_size(frame_headers);

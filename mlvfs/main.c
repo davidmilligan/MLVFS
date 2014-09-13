@@ -44,6 +44,9 @@ struct mlvfs
 
 static struct mlvfs mlvfs;
 
+/**
+ * Determines if a string ends in some string
+ */
 static int string_ends_with(const char *source, const char *ending)
 {
     if(source == NULL || ending == NULL) return 0;
@@ -52,7 +55,12 @@ static int string_ends_with(const char *source, const char *ending)
     return !strcmp(source + strlen(source) - strlen(ending), ending);
 }
 
-//returns 1 if apparently within an MLV file, 0 otherwise
+/**
+ * Determines the real path to an MLV file based on a virtual path from FUSE
+ * @param path The virtual path within the FUSE filesystem
+ * @param mlv_filename [out] The real path to the MLV file
+ * @return 1 if apparently within an MLV file, 0 otherwise
+ */
 static int get_mlv_filename(const char *path, char * mlv_filename)
 {
     char temp[1024];
@@ -67,6 +75,11 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
     return 0;
 }
 
+/**
+ * Parse the frame number out of a file path and return it as an integer
+ * @param path The virtual file path of the DNG
+ * @return The frame number for that DNG
+ */
 static int get_mlv_frame_number(const char *path)
 {
     char temp[1024];
@@ -82,7 +95,13 @@ static int get_mlv_frame_number(const char *path)
     return 0;
 }
 
-//returns 1 if successful, 0 otherwise
+/**
+ * Retrieves all the mlv headers associated a particular video frame
+ * @param path The path to the MLV file containing the video frame
+ * @param index The index of the video frame
+ * @param frame_headers [out] All of the MLV blocks associated with the frame
+ * @return 1 if successful, 0 otherwise
+ */
 static int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers)
 {
     char mlv_filename[1024];
@@ -187,6 +206,15 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
     return found;
 }
 
+/**
+ * Retrieves and unpacks image data for a requested section of a video frame
+ * @param frame_headers The MLV blocks associated with the frame
+ * @param file The file containing the frame data
+ * @param output_buffer [out] The buffer to write the result into
+ * @param offset The offset into the frame to retrieve
+ * @param max_size The amount of frame data to read
+ * @return the number of bytes retrieved, or 0 if failure.
+ */
 static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
@@ -201,7 +229,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
         if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
-            dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
+            return dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
         }
         else
         {
@@ -209,7 +237,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         }
         free(packed_bits);
     }
-    return max_size;
+    return 0;
 }
 
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
