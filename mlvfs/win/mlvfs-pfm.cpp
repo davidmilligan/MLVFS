@@ -1354,11 +1354,28 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         File *outfile;
         File **sibPrev = &root.data.folder.firstChild;
         wchar_t filename[1024];
+        SYSTEMTIME st;
+        FILETIME ft, ftl;
+        uint64_t time;
         for(uint32_t counter = 0; counter < videoFrameCount; counter++)
         {
             // Create a virtual DNG
             wsprintfW(filename, L"%08d.DNG", counter);
-            FileFactory(&root, sibPrev, filename, pfmFileTypeFile, pfmFileFlagReadOnly, 0, &outfile);
+
+            // Generate timestamp in Windows time
+            st.wYear = frameHeaders[counter].rtci_hdr.tm_year + 1900;
+            st.wMonth = frameHeaders[counter].rtci_hdr.tm_mon + 1;
+            st.wDay = frameHeaders[counter].rtci_hdr.tm_mday;
+            st.wHour = frameHeaders[counter].rtci_hdr.tm_hour;
+            st.wMinute = frameHeaders[counter].rtci_hdr.tm_min;
+            st.wSecond = frameHeaders[counter].rtci_hdr.tm_sec;
+            st.wMilliseconds = 0;
+            SystemTimeToFileTime(&st, &ft);
+            LocalFileTimeToFileTime(&ft, &ftl);
+            time = (((uint64_t)ftl.dwHighDateTime) << 32 | ftl.dwLowDateTime) +
+                (frameHeaders[counter].vidf_hdr.timestamp - frameHeaders[counter].rtci_hdr.timestamp) * 10;
+
+            FileFactory(&root, sibPrev, filename, pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
             outfile->fake = 1;
             outfile->data.file.fileSize = dng_get_size(&frameHeaders[counter]);
             sibPrev = &(outfile->sibNext);
