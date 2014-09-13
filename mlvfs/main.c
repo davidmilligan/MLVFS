@@ -452,26 +452,32 @@ int main(int argc, char **argv)
 
     if (mlvfs.mlv_path != NULL)
     {
-        char temp[1024];
-        sprintf(temp, "\"%s\"", mlvfs.mlv_path);
         // shell and wildcard expansion, taking just the first result
         wordexp_t p;
-        wordexp(temp, &p, 0);
-
-        // assume that p.we_wordc > 0
-        free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
-        mlvfs.mlv_path = p.we_wordv[0];
+        wordexp(mlvfs.mlv_path, &p, 0);
 
         // check if the directory actually exists
         struct stat file_stat;
         if ((stat(mlvfs.mlv_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
         {
-            umask(0);
-            res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
+            res = 0;
+        }
+        else if ((stat(p.we_wordv[0], &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+        {
+            // assume that p.we_wordc > 0
+            free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
+            mlvfs.mlv_path = p.we_wordv[0];
+            res = 0;
         }
         else
         {
             fprintf(stderr, "MLVFS: mlv path is not a directory\n");
+        }
+
+        if(!res)
+        {
+            umask(0);
+            res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
 
         wordfree(&p);
