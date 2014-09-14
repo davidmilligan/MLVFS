@@ -198,7 +198,12 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
                 }
             }
         }
-        
+
+        if(output_position < max_size)
+        {
+            memset(output_buffer + output_position, 0, max_size - output_position);
+        }
+
         free(block_xref);
         close_chunks(chunk_files, chunk_count);
         
