@@ -52,6 +52,7 @@
 #undef UINT64_C
 #include "index.h"
 #include "dng.h"
+#include "wav.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -147,10 +148,11 @@ struct Volume: PfmFormatterOps
     File* firstOpenFile;
 
     mlv_xref_hdr_t *index;
-    uint32_t videoFrameCount;
+    uint32_t videoFrameCount, audioFrameCount;
     FILE **chunks;
     uint32_t chunkCount;
     struct frame_headers *frameHeaders;
+    mlv_wavi_hdr_t audioHeader;
 
 #ifdef DEBUG
     void CheckConsistency(void);
@@ -360,31 +362,38 @@ int/*error*/ File::Read(uint64_t fileOffset,void* inBuffer,size_t requestedSize,
         // If a fake file (virtual DNG)
         if(fake)
         {
-            // DNG number should be fileId minus 2
+            // DNG number is fileId minus 2
             uint32_t frameNumber = fileId - 2;
-            FILE *file = volume->chunks[volume->frameHeaders[frameNumber].fileNumber];
-            
-            size_t header_size = dng_get_header_size(&volume->frameHeaders[frameNumber]);
-            if(startOffset >= header_size)
+            if(frameNumber < volume->videoFrameCount)
             {
-                get_image_data(&volume->frameHeaders[frameNumber],
-                    volume->chunks[volume->frameHeaders[frameNumber].fileNumber],
-                    buffer,
-                    startOffset - header_size,
-                    endOffset - startOffset);
-            }
-            else
-            {
-                size_t remaining = MIN(endOffset - startOffset, header_size - startOffset);
-                dng_get_header_data(&volume->frameHeaders[frameNumber], buffer, startOffset, remaining);
-                if(remaining < endOffset - startOffset)
+                FILE *file = volume->chunks[volume->frameHeaders[frameNumber].fileNumber];
+
+                size_t header_size = dng_get_header_size(&volume->frameHeaders[frameNumber]);
+                if(startOffset >= header_size)
                 {
                     get_image_data(&volume->frameHeaders[frameNumber],
                         volume->chunks[volume->frameHeaders[frameNumber].fileNumber],
-                        buffer + remaining,
-                        0,
-                        endOffset - startOffset - remaining);
+                        buffer,
+                        startOffset - header_size,
+                        endOffset - startOffset);
                 }
+                else
+                {
+                    size_t remaining = MIN(endOffset - startOffset, header_size - startOffset);
+                    dng_get_header_data(&volume->frameHeaders[frameNumber], buffer, startOffset, remaining);
+                    if(remaining < endOffset - startOffset)
+                    {
+                        get_image_data(&volume->frameHeaders[frameNumber],
+                            volume->chunks[volume->frameHeaders[frameNumber].fileNumber],
+                            buffer + remaining,
+                            0,
+                            endOffset - startOffset - remaining);
+                    }
+                }
+            }
+            else // Actually the WAV file
+            {
+                wav_get_data_direct(volume->chunks, volume->index, &volume->audioHeader, data.file.fileSize, buffer, startOffset, endOffset - startOffset);
             }
         }
         // Otherwise, it is a real file
@@ -1225,6 +1234,7 @@ Volume::Volume(void)
 
     index = NULL;
     videoFrameCount = 0;
+    audioFrameCount = 0;
     chunks = NULL;
     chunkCount = 0;
     frameHeaders = NULL;
@@ -1265,9 +1275,19 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)index)[sizeof(mlv_xref_hdr_t)]);
         for(uint32_t block_xref_pos = 0; block_xref_pos < index->entryCount; block_xref_pos++)
         {
-            if(xrefs[block_xref_pos].frameType == MLV_FRAME_VIDF)
+            switch(xrefs[block_xref_pos].frameType)
             {
-                videoFrameCount++;
+                case MLV_FRAME_VIDF:
+                    videoFrameCount++;
+                    break;
+
+                case MLV_FRAME_AUDF:
+                    audioFrameCount++;
+                    break;
+
+                case MLV_FRAME_UNSPECIFIED:
+                default:
+                    break;
             }
         }
 
@@ -1351,6 +1371,8 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
             }
         }
 
+        wav_get_wavi(mlvFileName_mbs, &audioHeader);
+
         File *outfile;
         File **sibPrev = &root.data.folder.firstChild;
         wchar_t filename[1024];
@@ -1378,6 +1400,15 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
             FileFactory(&root, sibPrev, filename, pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
             outfile->fake = 1;
             outfile->data.file.fileSize = dng_get_size(&frameHeaders[counter]);
+            sibPrev = &(outfile->sibNext);
+        }
+
+        // Create a virtual WAV
+        if(audioFrameCount > 0)
+        {
+            FileFactory(&root, sibPrev, L"_AUDIO.WAV", pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
+            outfile->fake = 1;
+            outfile->data.file.fileSize = wav_get_size(mlvFileName_mbs);
             sibPrev = &(outfile->sibNext);
         }
     }
