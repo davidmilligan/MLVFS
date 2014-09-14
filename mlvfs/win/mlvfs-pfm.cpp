@@ -978,6 +978,10 @@ int/*error*/ CCALL Volume::Replace(int64_t targetOpenId,int64_t targetParentFile
         {
             error = pfmErrorDeleted;
         }
+        else if(target->fake)
+        {
+            error = pfmErrorFailed;
+        }
         else
         {
             File* file;
@@ -998,12 +1002,14 @@ int/*error*/ CCALL Volume::Move(int64_t sourceOpenId,int64_t sourceParentFileId,
     int error = FindOpenFile(sourceOpenId,&file);
     if(!error)
     {
+        if(file->fake) return pfmErrorFailed;
         File* target;
         File* parent;
         File** sibPrev;
         error = FindFile(targetNameParts,targetNamePartCount,&target,&parent,&sibPrev);
         if(!error)
         {
+            if(target && target->fake) return pfmErrorFailed;
                 // Watch for and allow case change rename. ("FILE.TXT" -> "File.txt")
             if(target && (!targetNamePartCount || target != file))
             {
@@ -1037,10 +1043,12 @@ int/*error*/ CCALL Volume::MoveReplace(int64_t sourceOpenId,int64_t sourceParent
     int error = FindOpenFile(sourceOpenId,&file);
     if(!error)
     {
+        if(file->fake) return pfmErrorFailed;
         File* target;
         error = FindOpenFile(targetOpenId,&target);
         if(!error)
         {
+            if(target->fake) return pfmErrorFailed;
             if(target == &root)
             {
                     // Can't replace root.
@@ -1086,6 +1094,10 @@ int/*error*/ CCALL Volume::Delete(int64_t openId,int64_t parentFileId,const PfmN
         else if(!file->name)
         {
                 // Already deleted.
+        }
+        else if(file->fake)
+        {
+            error = pfmErrorFailed;
         }
         else if(file->fileType == pfmFileTypeFolder && file->data.folder.firstChild)
         {
@@ -1170,6 +1182,7 @@ int/*error*/ CCALL Volume::Write(int64_t openId,uint64_t fileOffset,const void* 
     int error = FindOpenFile(openId,&file);
     if(!error)
     {
+        if(file->fake) return pfmErrorFailed;
         error = file->Write(fileOffset,data,requestedSize,outActualSize);
     }
     return error;
@@ -1181,6 +1194,7 @@ int/*error*/ CCALL Volume::SetSize(int64_t openId,uint64_t fileSize)
     int error = FindOpenFile(openId,&file);
     if(!error)
     {
+        if(file->fake) return pfmErrorFailed;
         error = file->SetSize(fileSize);
     }
     return error;
