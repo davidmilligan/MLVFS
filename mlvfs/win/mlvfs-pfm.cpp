@@ -359,12 +359,14 @@ int/*error*/ File::Read(uint64_t fileOffset,void* inBuffer,size_t requestedSize,
                 endOffset = data.file.fileSize;
             }
         }
-        // If a fake file (virtual DNG)
+        // If a fake file
         if(fake)
         {
-            // DNG number is fileId minus 2
+            // By design, virtual files are distinguished by fileId, not name
+            //   2 to videoFrameCount+1: DNG frames
+            //   videoFrameCount+2: WAV audio (if present)
             uint32_t frameNumber = fileId - 2;
-            if(frameNumber < volume->videoFrameCount)
+            if(frameNumber < volume->videoFrameCount) // DNG frame
             {
                 FILE *file = volume->chunks[volume->frameHeaders[frameNumber].fileNumber];
 
@@ -391,9 +393,13 @@ int/*error*/ File::Read(uint64_t fileOffset,void* inBuffer,size_t requestedSize,
                     }
                 }
             }
-            else // Actually the WAV file
+            else if(frameNumber == volume->videoFrameCount) // WAV audio
             {
                 wav_get_data_direct(volume->chunks, volume->index, &volume->audioHeader, data.file.fileSize, buffer, startOffset, endOffset - startOffset);
+            }
+            else
+            {
+                return pfmErrorNotFound;
             }
         }
         // Otherwise, it is a real file
@@ -1279,10 +1285,19 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
     {
         marshaller->SetTrace(L"MLVFS");
 
-        // Retrieve the IDX index, generating one if necessary
+        // Get the base filename without the path or extension
+        wchar_t mlvBaseFileName[1024];
+        const wchar_t *start = wcsrchr(mlvFileName, L'\\') + 1;
+        const wchar_t *end = wcsrchr(mlvFileName, L'.');
+        wcsncpy(mlvBaseFileName, start, end - start);
+        mlvBaseFileName[MIN(end - start, 1024)] = L'\0';
+
+        // Get the file path as a multi-byte string
         char mlvFileName_mbs[1024];
         size_t count;
         wcstombs_s(&count, mlvFileName_mbs, 1024, mlvFileName, _TRUNCATE);
+
+        // Retrieve the IDX index, generating one if necessary
         index = force_index(mlvFileName_mbs);
 
         // Count the number of VIDF frames    
@@ -1396,7 +1411,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         for(uint32_t counter = 0; counter < videoFrameCount; counter++)
         {
             // Create a virtual DNG
-            wsprintfW(filename, L"%08d.DNG", counter);
+            wsprintfW(filename, L"%s_%06d.dng", mlvBaseFileName, counter);
 
             // Generate timestamp in Windows time
             st.wYear = frameHeaders[counter].rtci_hdr.tm_year + 1900;
@@ -1420,7 +1435,8 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         // Create a virtual WAV
         if(audioFrameCount > 0)
         {
-            FileFactory(&root, sibPrev, L"_AUDIO.WAV", pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
+            wsprintfW(filename, L"%s_audio.wav", mlvBaseFileName);
+            FileFactory(&root, sibPrev, filename, pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
             outfile->fake = 1;
             outfile->data.file.fileSize = wav_get_size(mlvFileName_mbs);
             sibPrev = &(outfile->sibNext);
