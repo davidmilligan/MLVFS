@@ -1435,7 +1435,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         // Create a virtual WAV
         if(audioFrameCount > 0)
         {
-            wsprintfW(filename, L"%s_audio.wav", mlvBaseFileName);
+            wsprintfW(filename, L"%s.wav", mlvBaseFileName);
             FileFactory(&root, sibPrev, filename, pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
             outfile->fake = 1;
             outfile->data.file.fileSize = wav_get_size(mlvFileName_mbs);

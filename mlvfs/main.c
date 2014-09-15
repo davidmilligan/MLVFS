@@ -371,7 +371,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
         filler(buf, "..", NULL, 0);
         if(has_audio(real_path))
         {
-            sprintf(filename, "%s_audio.wav", mlv_basename);
+            sprintf(filename, "%s.wav", mlv_basename);
             filler(buf, filename, NULL, 0);
         }
         int frame_count = mlv_get_frame_count(real_path);
