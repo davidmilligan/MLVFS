@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "raw.h"
 #include "mlv.h"
 #include "dng.h"
@@ -64,6 +65,20 @@ enum
     tcTStop                 = 51058,
     tcReelName              = 51081,
     tcCameraLabel           = 51105,
+};
+
+//MLV WB modes
+enum
+{
+    WB_AUTO         = 0,
+    WB_SUNNY        = 1,
+    WB_SHADE        = 8,
+    WB_CLOUDY       = 2,
+    WB_TUNGSTEN     = 3,
+    WB_FLUORESCENT  = 4,
+    WB_FLASH        = 5,
+    WB_CUSTOM       = 6,
+    WB_KELVIN       = 9
 };
 
 
@@ -143,6 +158,102 @@ static char * format_datetime(char * datetime, struct frame_headers * frame_head
     return datetime;
 }
 
+#define MATRIX_MULTIPLY(result,matA,matB,colsA,rowsA_colsB,rowsB) \
+for(i=0;i<colsA;i++){\
+    for(j=0;j<rowsB;j++){\
+        result[i][j]=0;\
+        for(k=0;k<rowsA_colsB;k++){\
+            result[i][j]+=matA[i][k]*matB[k][j];\
+        }\
+    }\
+}
+
+static void kelvin_to_xyz(float kelvin, float xyz[1][3])
+{
+    double x = 0;
+    double y = 0;
+    
+    x = -4.607e9 / pow(kelvin, 3) + 2.9678e6 / pow(kelvin, 2) + 0.09911e3 / kelvin + 0.244063;
+    y = -3 * pow(x, 2) + 2.870 * x - 0.275;
+    
+    xyz[0][0] = (float)(x / y);
+    xyz[0][1] = 1.0f;
+    xyz[0][2] = (float)((1 - x - y) / y);
+}
+
+//TODO: this is completely wrong, the colors are all screwy, I'm just coding out of my butt, I have little to no idea how this is supposed to work
+static void kelvin_to_rgb(int kelvin, int gm, int32_t *wbal)
+{
+    static const float xyz_to_rgb[3][3] = {
+        { 3.2404542, -1.5371385, -0.4985314},
+        {-0.9692660,  1.8760108,  0.0415560},
+        { 0.0556434, -0.2040259,  1.0572252}
+    };
+    static const float xyz_bradford[3][3] = {
+        { 0.8951000,  0.2664000, -0.1614000},
+        {-0.7502000,  1.7135000,  0.0367000},
+        { 0.0389000, -0.0685000,  1.0296000}
+    };
+    static const float xyz_bradford_inverse[3][3] = {
+        { 0.9869930, -0.1470540,  0.1599630},
+        { 0.4323050,  0.5183600,  0.0492912},
+        {-0.0085287,  0.0400428,  0.9684870}
+    };
+    
+    int i,j,k;
+    float dst[1][3];
+    float src[1][3];
+    float xyz_kelvin[1][3];
+    float xyz_d65[1][3];
+    float xyz_scale[3][3];
+    float temp[3][3];
+    float xyz_kelvin_wb[3][3];
+    float white[1][3] = {1,1,1};
+    float result[1][3];
+    
+    kelvin_to_xyz(kelvin, xyz_kelvin);
+    kelvin_to_xyz(6500, xyz_d65);
+    
+    MATRIX_MULTIPLY(dst, xyz_bradford, xyz_kelvin, 1, 3, 3);
+    MATRIX_MULTIPLY(src, xyz_bradford, xyz_d65, 1, 3, 3);
+    
+    xyz_scale[0][0] = dst[0][0] / src[0][0];
+    xyz_scale[1][1] = dst[0][1] / src[0][1];
+    xyz_scale[2][2] = dst[0][2] / src[0][2];
+    
+    MATRIX_MULTIPLY(temp, xyz_bradford_inverse, xyz_scale, 3, 3, 3);
+    MATRIX_MULTIPLY(xyz_kelvin_wb, temp, xyz_bradford, 3, 3, 3);
+    
+    MATRIX_MULTIPLY(temp, xyz_kelvin_wb, xyz_to_rgb, 3, 3, 3);
+    MATRIX_MULTIPLY(result, white, temp, 1, 3, 3);
+    
+    //convert to fixed point
+    wbal[0] = result[0][0] * 100000;
+    wbal[1] = 100000;
+    wbal[2] = result[0][1] * 100000;
+    wbal[3] = 100000;
+    wbal[4] = result[0][2] * 100000;
+    wbal[5] = 100000;
+}
+
+static void get_white_balance(mlv_wbal_hdr_t wbal_hdr, int32_t *wbal)
+{
+    if(wbal_hdr.wb_mode == WB_AUTO || wbal_hdr.wb_mode == WB_KELVIN)
+    {
+        kelvin_to_rgb(wbal_hdr.kelvin, wbal_hdr.wbs_gm, wbal);
+    }
+    else if(wbal_hdr.wb_mode == WB_CUSTOM)
+    {
+        wbal[0] = wbal_hdr.wbgain_r; wbal[1] = wbal_hdr.wbgain_g;
+        wbal[2] = wbal_hdr.wbgain_g; wbal[3] = wbal_hdr.wbgain_g;
+        wbal[4] = wbal_hdr.wbgain_b; wbal[5] = wbal_hdr.wbgain_g;
+    }
+    else
+    {
+        memcpy(wbal, daylight_wbal, sizeof(daylight_wbal));
+    }
+}
+
 /**
  * Generates the CDNG header (or some section of it). The result is written into output_buffer.
  * @param frame_headers The MLV blocks associated with the frame
@@ -189,12 +300,6 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_headers->rawi_hdr.raw_info.active_area.y2 = frame_headers->rawi_hdr.yRes;
         }
         int32_t frame_rate[2] = {frame_headers->file_hdr.sourceFpsNom, frame_headers->file_hdr.sourceFpsDenom};
-        //The CDNG spec recommends using 24000/1001 rather than 23976/1000
-        if(frame_rate[0] % 1000 == 976 && frame_rate[1] == 1000)
-        {
-            frame_rate[0] += 24;
-            frame_rate[1]++;
-        }
         char datetime[255];
         int32_t basline_exposure[2] = {frame_headers->rawi_hdr.raw_info.exposure_bias[0],frame_headers->rawi_hdr.raw_info.exposure_bias[1]};
         if(basline_exposure[1] == 0)
@@ -203,13 +308,8 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             basline_exposure[1] = 1;
         }
         
-        int32_t wbal[6] = {frame_headers->wbal_hdr.wbgain_r, frame_headers->wbal_hdr.wbgain_g,
-                           frame_headers->wbal_hdr.wbgain_g, frame_headers->wbal_hdr.wbgain_g,
-                           frame_headers->wbal_hdr.wbgain_b, frame_headers->wbal_hdr.wbgain_g};
-        
-        //If there aren't any RGB multipliers in the metadata, then use daylight
-        //Computing RGB multipliers from Kelvin is beyond my current understadning/ablities
-        if(frame_headers->wbal_hdr.wbgain_g == 0) memcpy(wbal, daylight_wbal, sizeof(wbal));
+        int32_t wbal[6];
+        get_white_balance(frame_headers->wbal_hdr, wbal);
         
         struct directory_entry IFD0[IFD0_COUNT] =
         {
