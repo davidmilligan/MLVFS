@@ -76,6 +76,22 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
 }
 
 /**
+ * Determines the MLV basename from the virtual path (should end in .MLV)
+ * @param path The virtual path
+ * @param mlv_basename [out] The MLV basename
+ * @return 1 if successful, 0 otherwise
+ */
+static int get_mlv_basename(const char *path, char * mlv_basename)
+{
+    if(!(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))) return 0;
+    char *start = strrchr(path, '/') + 1;
+    char *dot = strchr(path, '.');
+    strncpy(mlv_basename, start, dot - start);
+    mlv_basename[dot - start] = '\0';
+    return 1;
+}
+
+/**
  * Parse the frame number out of a file path and return it as an integer
  * @param path The virtual file path of the DNG
  * @return The frame number for that DNG
@@ -84,13 +100,11 @@ static int get_mlv_frame_number(const char *path)
 {
     char temp[1024];
     strncpy(temp, path, 1024);
-    char * str_number = strrchr(temp, '/');
-    if(str_number)
+    char *dot = strrchr(temp, '.');
+    if(dot > temp + 6)
     {
-        str_number+=3;
-        char * dot = strrchr(str_number, '.');
-        *dot = 0x0;
-        return atoi(str_number);
+        *dot = '\0';
+        return atoi(dot - 6);
     }
     return 0;
 }
@@ -217,6 +231,7 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
  */
 static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
+    size_t result = 0;
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
     uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
     uint64_t pixel_start_address = pixel_start_index * bpp / 16;
@@ -229,7 +244,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
         if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
         {
-            return dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
+            result = dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
         }
         else
         {
@@ -237,14 +252,14 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         }
         free(packed_bits);
     }
-    return 0;
+    return result;
 }
 
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
 
-    if (string_ends_with(path, ".DNG") || string_ends_with(path, ".WAV"))
+    if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav"))
     {
         char mlv_filename[1024];
         if(get_mlv_filename(path, mlv_filename))
@@ -253,7 +268,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             stbuf->st_nlink = 1;
                 
             struct frame_headers frame_headers;
-            int frame_number = string_ends_with(path, ".DNG") ? get_mlv_frame_number(path) : 0;
+            int frame_number = string_ends_with(path, ".dng") ? get_mlv_frame_number(path) : 0;
             if(mlv_get_frame_headers(path, frame_number, &frame_headers))
             {
                 struct tm tm_str;
@@ -281,7 +296,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
                 #endif
 
-                if(string_ends_with(path, ".DNG"))
+                if(string_ends_with(path, ".dng"))
                 {
                     stbuf->st_size = dng_get_size(&frame_headers);
                 }
@@ -334,7 +349,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
-    if (!(string_ends_with(path, ".DNG") || string_ends_with(path, ".WAV")))
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
         return -ENOENT;
     
     if ((fi->flags & O_ACCMODE) != O_RDONLY) /* Only reading allowed. */
@@ -349,17 +364,21 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
     sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
     if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
+        char filename[1024];
+        char mlv_basename[1024];
+        get_mlv_basename(path, mlv_basename);
         filler(buf, ".", NULL, 0);
         filler(buf, "..", NULL, 0);
         if(has_audio(real_path))
         {
-            filler(buf, "_AUDIO.WAV", NULL, 0);
+            sprintf(filename, "%s.wav", mlv_basename);
+            filler(buf, filename, NULL, 0);
         }
         int frame_count = mlv_get_frame_count(real_path);
         for (int i = 0; i < frame_count; i++)
         {
-            sprintf(real_path, "%08d.DNG", i);
-            filler(buf, real_path, NULL, 0);
+            sprintf(filename, "%s_%06d.dng", mlv_basename, i);
+            filler(buf, filename, NULL, 0);
         }
         return 0;
     }
@@ -400,7 +419,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     char mlv_filename[1024];
-    if(string_ends_with(path, ".DNG") && get_mlv_filename(path, mlv_filename))
+    if(string_ends_with(path, ".dng") && get_mlv_filename(path, mlv_filename))
     {
         int frame_number = get_mlv_frame_number(path);
         struct frame_headers frame_headers;
@@ -444,7 +463,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         }
         return (int)size;
     }
-    else if(string_ends_with(path, ".WAV") && get_mlv_filename(path, mlv_filename))
+    else if(string_ends_with(path, ".wav") && get_mlv_filename(path, mlv_filename))
     {
         return (int)wav_get_data(mlv_filename, (uint8_t*)buf, offset, size);
     }
@@ -508,6 +527,7 @@ int main(int argc, char **argv)
             res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
 
+        if(mlvfs.mlv_path != p.we_wordv[0]) free(mlvfs.mlv_path);
         wordfree(&p);
     }
     else

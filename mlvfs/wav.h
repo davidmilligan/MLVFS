@@ -25,7 +25,8 @@
 
 int has_audio(const char * path);
 size_t wav_get_data(const char * path, uint8_t * output_buffer, off_t offset, size_t max_size);
+size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv_wavi_hdr_t * header, size_t file_size, uint8_t * output_buffer, off_t offset, size_t max_size);
 size_t wav_get_size(const char * path);
-
+int wav_get_wavi(const char *path, mlv_wavi_hdr_t * wavi_hdr);
 
 #endif
