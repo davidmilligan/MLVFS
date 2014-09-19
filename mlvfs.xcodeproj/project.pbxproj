@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
+		63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */ = {isa = PBXBuildFile; fileRef = 63A7C6DE19CB9D6800B4363E /* kelvin.c */; };
 		63B6174219ACED9300F21CD0 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B6174119ACED9300F21CD0 /* main.c */; };
 		63DA867819B113A80065788E /* dng.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA867719B113A80065788E /* dng.c */; };
 		63DA868219B51C080065788E /* index.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA868019B51C080065788E /* index.c */; };
@@ -32,6 +33,8 @@
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
 		634B603219BBFED2008CF973 /* wav.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = wav.c; sourceTree = "<group>"; };
 		634B603419BBFEE4008CF973 /* wav.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wav.h; sourceTree = "<group>"; };
+		63A7C6DE19CB9D6800B4363E /* kelvin.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = kelvin.c; sourceTree = "<group>"; };
+		63A7C6E019CB9DBD00B4363E /* kelvin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = kelvin.h; sourceTree = "<group>"; };
 		63B6173E19ACED9300F21CD0 /* mlvfs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mlvfs; sourceTree = BUILT_PRODUCTS_DIR; };
 		63B6174119ACED9300F21CD0 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		63DA867719B113A80065788E /* dng.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dng.c; sourceTree = "<group>"; };
@@ -87,6 +90,8 @@
 				63DA867919B113B70065788E /* dng.h */,
 				634B603219BBFED2008CF973 /* wav.c */,
 				634B603419BBFEE4008CF973 /* wav.h */,
+				63A7C6DE19CB9D6800B4363E /* kelvin.c */,
+				63A7C6E019CB9DBD00B4363E /* kelvin.h */,
 			);
 			path = mlvfs;
 			sourceTree = "<group>";
@@ -142,6 +147,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */,
 				634B603319BBFED2008CF973 /* wav.c in Sources */,
 				63DA868219B51C080065788E /* index.c in Sources */,
 				63B6174219ACED9300F21CD0 /* main.c in Sources */,

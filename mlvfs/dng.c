@@ -26,6 +26,7 @@
 #include "raw.h"
 #include "mlv.h"
 #include "dng.h"
+#include "kelvin.h"
 
 #include "dng_tag_codes.h"
 #include "dng_tag_types.h"
@@ -47,8 +48,6 @@
 #define HEADER_SIZE 65536
 
 static uint16_t tiff_header[] = { byteOrderII, magicTIFF, 8, 0};
-
-static int32_t daylight_wbal[] = {473635,1000000,1000000,1000000,624000,1000000};
 
 struct directory_entry {
     uint16_t tag;
@@ -158,148 +157,53 @@ static char * format_datetime(char * datetime, struct frame_headers * frame_head
     return datetime;
 }
 
-#define MATRIX_MULTIPLY(result,matA,matB,colsA,rowsA_colsB,rowsB) \
-for(i=0;i<colsA;i++){\
-    for(j=0;j<rowsB;j++){\
-        result[i][j]=0;\
-        for(k=0;k<rowsA_colsB;k++){\
-            result[i][j]+=matA[i][k]*matB[k][j];\
-        }\
-    }\
-}
-
-#define MATRIX_INVERSE(result, matrix, n) \
-for(i = 0; i < n; i++){\
-    for(j = 0; j < n; j++){\
-        result[i][j] = matrix[i][j];\
-    }\
-    for(j = n; j < 2*n; j++){\
-        result[i][j] = i==(j-n) ? 1.0 : 0.0;\
-    }\
-}\
-for(i = 0; i < n; i++){\
-    for(j = 0; j < n; j++){\
-        if(i!=j){\
-            a = result[j][i]/result[i][i];\
-            for(k = 0; k < 2*n; k++){\
-                result[j][k] -= a * result[i][k];\
-            }\
-        }\
-    }\
-}\
-for(i = 0; i < n; i++){\
-    a = result[i][i];\
-    for(j = 0; j < 2*n; j++){\
-        result[i][j] /= a;\
-    }\
-}\
-for(i = 0; i < n; i++){\
-    for(j = 0; j < n; j++){\
-        result[i][j] = result[i][j + n];\
-    }\
-}
-
-static void kelvin_to_xyz(float kelvin, float xyz[3][1])
+static void get_white_balance(mlv_wbal_hdr_t wbal_hdr, int32_t *wbal, char *name)
 {
-    double x = 0;
-    double y = 0;
-    
-    x = -4.607e9 / pow(kelvin, 3) + 2.9678e6 / pow(kelvin, 2) + 0.09911e3 / kelvin + 0.244063;
-    y = -3 * pow(x, 2) + 2.870 * x - 0.275;
-    
-    xyz[0][0] = (float)(x / y);
-    xyz[1][0] = 1.0f;
-    xyz[2][0] = (float)((1 - x - y) / y);
-}
-
-//TODO: this is still wrong, I have little to no idea how this is supposed to work
-static void kelvin_to_rgb(int kelvin, int gm, int32_t *wbal, int32_t *color_matrix)
-{
-    static const float rgb_to_xyz[3][3] = {
-        {0.412456, 0.357576, 0.180437},
-        {0.212673, 0.715152, 0.072175},
-        {0.0193339, 0.119192, 0.950304}
-    };
-    static const float xyz_bradford[3][3] = {
-        { 0.8951000,  0.2664000, -0.1614000},
-        {-0.7502000,  1.7135000,  0.0367000},
-        { 0.0389000, -0.0685000,  1.0296000}
-    };
-    
-    int i,j,k;
-    float a;
-    float dst[3][1];
-    float src[3][1];
-    float xyz_kelvin[3][1];
-    float xyz_d65[3][1];
-    float xyz_scale[3][3];
-    float temp[3][3];
-    float temp2[3][3];
-    float xyz_kelvin_wb[3][3];
-    float neutral[3][1] = {{(float)wbal[0] / (float)wbal[1]}, {(float)wbal[2] / (float)wbal[3]}, {(float)wbal[4] / (float)wbal[5]}};
-    float cam_matrix[3][3] = {
-        {(float)color_matrix[0] / (float)color_matrix[1], (float)color_matrix[2] / (float)color_matrix[3], (float)color_matrix[4] / (float)color_matrix[5]},
-        {(float)color_matrix[6] / (float)color_matrix[7], (float)color_matrix[8] / (float)color_matrix[9], (float)color_matrix[10] / (float)color_matrix[11]},
-        {(float)color_matrix[12] / (float)color_matrix[13], (float)color_matrix[14] / (float)color_matrix[15], (float)color_matrix[16] / (float)color_matrix[17]}
-    };
-    float result[3][1];
-    float cam_matrix_inverse[3][6];
-    float xyz_to_rgb[3][6];
-    float xyz_bradford_inverse[3][6];
-    
-    memset(xyz_scale, 0, sizeof(xyz_scale));
-    memset(dst, 0, sizeof(dst));
-    memset(src, 0, sizeof(src));
-    memset(temp, 0, sizeof(temp));
-    memset(temp2, 0, sizeof(temp2));
-    memset(cam_matrix_inverse, 0, sizeof(cam_matrix_inverse));
-    memset(xyz_to_rgb, 0, sizeof(xyz_to_rgb));
-    memset(xyz_bradford_inverse, 0, sizeof(xyz_bradford_inverse));
-    
-    kelvin_to_xyz(kelvin, xyz_kelvin);
-    kelvin_to_xyz(6500, xyz_d65);
-    
-    MATRIX_MULTIPLY(src, xyz_bradford, xyz_d65, 3, 3, 1);
-    MATRIX_MULTIPLY(dst, xyz_bradford, xyz_kelvin, 3, 3, 1);
-    
-    xyz_scale[0][0] = dst[0][0] / src[0][0];
-    xyz_scale[1][1] = dst[1][0] / src[1][0];
-    xyz_scale[2][2] = dst[2][0] / src[2][0];
-    
-    MATRIX_INVERSE(xyz_bradford_inverse, xyz_bradford, 3);
-    
-    MATRIX_MULTIPLY(temp, xyz_bradford_inverse, xyz_scale, 3, 3, 3);
-    MATRIX_MULTIPLY(xyz_kelvin_wb, temp, xyz_bradford, 3, 3, 3);
-    
-    MATRIX_INVERSE(xyz_to_rgb, rgb_to_xyz, 3);
-    MATRIX_INVERSE(cam_matrix_inverse, cam_matrix, 3);
-    
-    MATRIX_MULTIPLY(temp, xyz_to_rgb, xyz_kelvin_wb, 3, 3, 3);
-    MATRIX_MULTIPLY(temp2, temp, cam_matrix_inverse, 3, 3, 3);
-    MATRIX_MULTIPLY(result, temp2, neutral, 3, 3, 1);
-    
-    //convert to fixed point
-    wbal[0] = result[0][0] * 100000;
-    wbal[1] = 100000;
-    wbal[2] = result[1][0] * 100000;
-    wbal[3] = 100000;
-    wbal[4] = result[2][0] * 100000;
-    wbal[5] = 100000;
-}
-
-static void get_white_balance(mlv_wbal_hdr_t wbal_hdr, int32_t *wbal, int32_t *color_matrix)
-{
-    wbal[0] = wbal_hdr.wbgain_r; wbal[1] = wbal_hdr.wbgain_g;
-    wbal[2] = wbal_hdr.wbgain_g; wbal[3] = wbal_hdr.wbgain_g;
-    wbal[4] = wbal_hdr.wbgain_b; wbal[5] = wbal_hdr.wbgain_g;
-    
-    if(wbal_hdr.wb_mode == WB_AUTO || wbal_hdr.wb_mode == WB_KELVIN)
+    if(wbal_hdr.wb_mode == WB_CUSTOM)
     {
-        kelvin_to_rgb(wbal_hdr.kelvin, wbal_hdr.wbs_gm, wbal, color_matrix);
+        wbal[0] = wbal_hdr.wbgain_r; wbal[1] = wbal_hdr.wbgain_g;
+        wbal[2] = wbal_hdr.wbgain_g; wbal[3] = wbal_hdr.wbgain_g;
+        wbal[4] = wbal_hdr.wbgain_b; wbal[5] = wbal_hdr.wbgain_g;
     }
-    else if(wbal_hdr.wb_mode != WB_CUSTOM)
+    else
     {
-        memcpy(wbal, daylight_wbal, sizeof(daylight_wbal));
+        double kelvin = 5500;
+        double green = 1.0;
+        
+        //TODO: G/M shift, not sure how this relates to "green" parameter
+        if(wbal_hdr.wb_mode == WB_AUTO || wbal_hdr.wb_mode == WB_KELVIN)
+        {
+            kelvin = wbal_hdr.kelvin;
+        }
+        else if(wbal_hdr.wb_mode == WB_SUNNY)
+        {
+            kelvin = 5500;
+        }
+        else if(wbal_hdr.wb_mode == WB_SHADE)
+        {
+            kelvin = 7000;
+        }
+        else if(wbal_hdr.wb_mode == WB_CLOUDY)
+        {
+            kelvin = 6000;
+        }
+        else if(wbal_hdr.wb_mode == WB_TUNGSTEN)
+        {
+            kelvin = 3200;
+        }
+        else if(wbal_hdr.wb_mode == WB_FLUORESCENT)
+        {
+            kelvin = 4000;
+        }
+        else if(wbal_hdr.wb_mode == WB_FLASH)
+        {
+            kelvin = 5500;
+        }
+        double chanMulArray[3];
+        ufraw_kelvin_green_to_multipliers(kelvin, green, chanMulArray, name);
+        wbal[0] = 1000000; wbal[1] = chanMulArray[0] * 1000000;
+        wbal[2] = 1000000; wbal[3] = chanMulArray[1] * 1000000;
+        wbal[4] = 1000000; wbal[5] = chanMulArray[2] * 1000000;
     }
 }
 
@@ -358,7 +262,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         }
         
         int32_t wbal[6];
-        get_white_balance(frame_headers->wbal_hdr, wbal, frame_headers->rawi_hdr.raw_info.color_matrix1);
+        get_white_balance(frame_headers->wbal_hdr, wbal, (char*)frame_headers->idnt_hdr.cameraName);
         
         struct directory_entry IFD0[IFD0_COUNT] =
         {
