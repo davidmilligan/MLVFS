@@ -337,6 +337,14 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
         struct stat mld_stat;
         int mlv_status = stat(mlv_filename, &mlv_stat);
         int mld_status = stat(mld_filename, &mld_stat);
+        
+        if(mld && mld_status != 0 && string_ends_with(mld_filename, ".MLD"))
+        {
+            //the MLD directory doesn't exist, try to create it
+            mkdir(mld_filename, 0777);
+            mld_status = stat(mld_filename, &mld_stat);
+        }
+        
         if(mlv_status == 0 || mld_status == 0)
         {
             if ((string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")) && mlv_status == 0)
