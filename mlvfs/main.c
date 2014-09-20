@@ -253,7 +253,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         }
         else
         {
-            fprintf(stderr, "Error reading source data");
+            fprintf(stderr, "Error reading source data\n");
         }
         free(packed_bits);
     }
