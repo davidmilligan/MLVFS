@@ -38,6 +38,10 @@
 #include "index.h"
 #include "wav.h"
 
+//Let the DNGs be "writeable" for AE, even though they're not actually writable
+//You'll get an error if you actually try to write to them
+#define ALLOW_WRITEABLE_DNGS
+
 struct mlvfs
 {
     char * mlv_path;
@@ -283,7 +287,11 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     {
         if(get_mlv_filename(path, mlv_filename))
         {
+            #ifdef ALLOW_WRITEABLE_DNGS
+            stbuf->st_mode = S_IFREG | 0666;
+            #else
             stbuf->st_mode = S_IFREG | 0444;
+            #endif
             stbuf->st_nlink = 1;
                 
             struct frame_headers frame_headers;
@@ -419,9 +427,10 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
         }
     }
     
+    #ifndef ALLOW_WRITEABLE_DNGS
     if ((fi->flags & O_ACCMODE) != O_RDONLY) /* Only reading allowed. */
         return -EACCES;
-    
+    #endif
     
     return 0;
 }
