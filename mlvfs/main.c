@@ -263,8 +263,8 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
 static int get_real_path(char * real_path, const char *path)
 {
     sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
-    char * mlv_ext = strstr(real_path, ".MLV/");
-    if(mlv_ext == NULL) mlv_ext = strstr(real_path, ".mlv/");
+    char * mlv_ext = strstr(real_path, ".MLV");
+    if(mlv_ext == NULL) mlv_ext = strstr(real_path, ".mlv");
     if(mlv_ext != NULL)
     {
         //replace .MLV in the path with .MLD
@@ -276,11 +276,11 @@ static int get_real_path(char * real_path, const char *path)
 
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
+    char mlv_filename[1024];
     memset(stbuf, 0, sizeof(struct stat));
 
     if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav"))
     {
-        char mlv_filename[1024];
         if(get_mlv_filename(path, mlv_filename))
         {
             stbuf->st_mode = S_IFREG | 0444;
@@ -330,42 +330,58 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     }
     else
     {
-        char real_path[1024];
-        get_real_path(real_path, path);
+        char mld_filename[1024];
+        int mld = get_real_path(mld_filename, path);
+        sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, path);
         struct stat mlv_stat;
-        if(stat(real_path, &mlv_stat) == 0)
+        struct stat mld_stat;
+        int mlv_status = stat(mlv_filename, &mlv_stat);
+        int mld_status = stat(mld_filename, &mld_stat);
+        if(mlv_status == 0 || mld_status == 0)
         {
-            if (string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
+            if ((string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")) && mlv_status == 0)
             {
-                stbuf->st_mode = S_IFDIR | 0555;
-                stbuf->st_nlink = 3;
-                stbuf->st_size = mlv_get_frame_count(real_path);
-            }
-            else
-            {
-                if((mlv_stat.st_mode & S_IFMT) == S_IFDIR) //directory
+                if(mld && mld_status == 0) //there's an MLD directory, use it's stats
+                {
+                    memcpy(stbuf, &mld_stat, sizeof(struct stat));
+                    stbuf->st_size = mld_stat.st_size + mlv_get_frame_count(mlv_filename);
+                }
+                else //there's no MLD directory -> read only
                 {
                     stbuf->st_mode = S_IFDIR | 0555;
                     stbuf->st_nlink = 3;
+                    stbuf->st_size = mlv_get_frame_count(mlv_filename);
+                
+                    // OS-specific timestamps
+                    #if __DARWIN_UNIX03
+                    memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
+                    memcpy(&stbuf->st_birthtimespec, &mlv_stat.st_birthtimespec, sizeof(struct timespec));
+                    memcpy(&stbuf->st_ctimespec, &mlv_stat.st_ctimespec, sizeof(struct timespec));
+                    memcpy(&stbuf->st_mtimespec, &mlv_stat.st_mtimespec, sizeof(struct timespec));
+                    #else
+                    memcpy(&stbuf->st_atim, &mlv_stat.st_atim, sizeof(struct timespec));
+                    memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
+                    memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
+                    #endif
                 }
-                else //file
-                {
-                    stbuf->st_mode = (mlv_stat.st_mode & S_IFMT) | 0555;
-                }
-                stbuf->st_size = mlv_stat.st_size;
             }
-            
-            // OS-specific timestamps
-            #if __DARWIN_UNIX03
-            memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
-            memcpy(&stbuf->st_birthtimespec, &mlv_stat.st_birthtimespec, sizeof(struct timespec));
-            memcpy(&stbuf->st_ctimespec, &mlv_stat.st_ctimespec, sizeof(struct timespec));
-            memcpy(&stbuf->st_mtimespec, &mlv_stat.st_mtimespec, sizeof(struct timespec));
-            #else
-            memcpy(&stbuf->st_atim, &mlv_stat.st_atim, sizeof(struct timespec));
-            memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
-            memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
-            #endif
+            else
+            {
+                if(!mld && mlv_status == 0 && (mlv_stat.st_mode & S_IFMT) == S_IFDIR) //directory
+                {
+                    stbuf->st_mode = S_IFDIR | 0555;
+                    stbuf->st_nlink = 3;
+                    stbuf->st_size = mlv_stat.st_size;
+                }
+                else if(mld && mld_status == 0)
+                {
+                    memcpy(stbuf, &mld_stat, sizeof(struct stat));
+                }
+                else
+                {
+                    return -ENOENT;
+                }
+            }
             
             return 0; // MLV or directory found
         }
@@ -376,7 +392,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
     {
         char real_path[1024];
         if(get_real_path(real_path, path))
@@ -528,13 +544,90 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
     else
     {
         int res = (int)pread((int)fi->fh, buf, size, offset);
-        if (res == -1) {
-            res = -errno;
-        }
-        
+        if (res == -1) res = -errno;
         return res;
     }
     
+    return -ENOENT;
+}
+
+static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    {
+        char real_path[1024];
+        if(get_real_path(real_path, path))
+        {
+            int fd = open(real_path, fi->flags, mode);
+            if (fd == -1) return -errno;
+            fi->fh = fd;
+            return 0;
+        }
+    }
+    return -ENOENT;
+}
+
+static int mlvfs_flush(const char *path, struct fuse_file_info *fi)
+{
+    int res = close(dup((int)fi->fh));
+    if (res == -1) return -errno;
+    return 0;
+}
+
+static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
+{
+    int res = fsync((int)fi->fh);
+    if (res == -1) return -errno;
+    return 0;
+}
+
+static int mlvfs_mkdir(const char *path, mode_t mode)
+{
+    char real_path[1024];
+    if(get_real_path(real_path, path))
+    {
+        mkdir(real_path, mode);
+        return 0;
+    }
+    return -ENOENT;
+}
+
+static int mlvfs_release(const char *path, struct fuse_file_info *fi)
+{
+    close((int)fi->fh);
+    return 0;
+}
+
+static int mlvfs_rmdir(const char *path)
+{
+    char real_path[1024];
+    if(get_real_path(real_path, path))
+    {
+        rmdir(real_path);
+        return 0;
+    }
+    return -ENOENT;
+}
+
+static int mlvfs_truncate(const char *path, off_t offset)
+{
+    char real_path[1024];
+    if(get_real_path(real_path, path))
+    {
+        truncate(real_path, offset);
+        return 0;
+    }
+    return -ENOENT;
+}
+
+static int mlvfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+{
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    {
+        int res = (int)pwrite((int)fi->fh, buf, size, offset);
+        if (res == -1) res = -errno;
+        return res;
+    }
     return -ENOENT;
 }
 
@@ -544,6 +637,15 @@ static struct fuse_operations mlvfs_filesystem_operations =
     .open    = mlvfs_open,
     .read    = mlvfs_read,
     .readdir = mlvfs_readdir,
+    
+    .create      = mlvfs_create,
+    .flush       = mlvfs_flush,
+    .fsync       = mlvfs_fsync,
+    .mkdir       = mlvfs_mkdir,
+    .release     = mlvfs_release,
+    .rmdir       = mlvfs_rmdir,
+    .truncate    = mlvfs_truncate,
+    .write       = mlvfs_write,
 };
 
 static const struct fuse_opt mlvfs_opts[] =
