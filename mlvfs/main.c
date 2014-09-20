@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <stddef.h>
 #include <wordexp.h>
 #include <fuse.h>
@@ -255,6 +256,24 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
     return result;
 }
 
+/**
+ * Converts a path in the MLVFS file system to a path in the real filesystem
+ * @return 1 if the real path is inside a .MLD directory, 0 otherwise
+ */
+static int get_real_path(char * real_path, const char *path)
+{
+    sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
+    char * mlv_ext = strstr(real_path, ".MLV/");
+    if(mlv_ext == NULL) mlv_ext = strstr(real_path, ".mlv/");
+    if(mlv_ext != NULL)
+    {
+        //replace .MLV in the path with .MLD
+        mlv_ext[1] = 'M';mlv_ext[2] = 'L';mlv_ext[3] = 'D';
+        return 1;
+    }
+    return 0;
+}
+
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(struct stat));
@@ -312,12 +331,29 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     else
     {
         char real_path[1024];
-        sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
+        get_real_path(real_path, path);
         struct stat mlv_stat;
         if(stat(real_path, &mlv_stat) == 0)
         {
-            stbuf->st_mode = S_IFDIR | 0555;
-            stbuf->st_nlink = 3;
+            if (string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
+            {
+                stbuf->st_mode = S_IFDIR | 0555;
+                stbuf->st_nlink = 3;
+                stbuf->st_size = mlv_get_frame_count(real_path);
+            }
+            else
+            {
+                if((mlv_stat.st_mode & S_IFMT) == S_IFDIR) //directory
+                {
+                    stbuf->st_mode = S_IFDIR | 0555;
+                    stbuf->st_nlink = 3;
+                }
+                else //file
+                {
+                    stbuf->st_mode = (mlv_stat.st_mode & S_IFMT) | 0555;
+                }
+                stbuf->st_size = mlv_stat.st_size;
+            }
             
             // OS-specific timestamps
             #if __DARWIN_UNIX03
@@ -331,15 +367,6 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
             #endif
             
-            if (string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
-            {
-                stbuf->st_size = mlv_get_frame_count(real_path);
-            }
-            else
-            {
-                stbuf->st_size = mlv_stat.st_size;
-            }
-            
             return 0; // MLV or directory found
         }
     }
@@ -350,17 +377,37 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
-        return -ENOENT;
+    {
+        char real_path[1024];
+        if(get_real_path(real_path, path))
+        {
+            int fd;
+            fd = open(real_path, fi->flags);
+            if (fd == -1) {
+                return -errno;
+            }
+            fi->fh = fd;
+            return 0;
+        }
+        else
+        {
+            return -ENOENT;
+        }
+    }
     
     if ((fi->flags & O_ACCMODE) != O_RDONLY) /* Only reading allowed. */
         return -EACCES;
+    
     
     return 0;
 }
 
 static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
+    int result = -ENOENT;
+    int mld = 0;
     char real_path[1024];
+    if(string_ends_with(path, ".MLD")) return -ENOENT;
     sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
     if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
@@ -380,21 +427,31 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
             sprintf(filename, "%s_%06d.dng", mlv_basename, i);
             filler(buf, filename, NULL, 0);
         }
-        return 0;
+        result = 0;
+        
+        char *dot = strchr(real_path, '.');
+        if(dot)
+        {
+            strcpy(dot, ".MLD");
+            mld = 1;
+        }
     }
-    else
+    
+    DIR * dir = opendir(real_path);
+    if (dir != NULL)
     {
-        DIR * dir = opendir(real_path);
-        if (dir != NULL)
+        if(!mld)
         {
             filler(buf, ".", NULL, 0);
             filler(buf, "..", NULL, 0);
-            
-            struct dirent * child;
-            
-            while ((child = readdir(dir)) != NULL)
+        }
+        struct dirent * child;
+        
+        while ((child = readdir(dir)) != NULL)
+        {
+            if(!string_ends_with(child->d_name, ".MLD") && strcmp(child->d_name, "..") && strcmp(child->d_name, "."))
             {
-                if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
+                if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || mld)
                 {
                     filler(buf, child->d_name, NULL, 0);
                 }
@@ -409,11 +466,12 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
                     }
                 }
             }
-            closedir(dir);
-            return 0;
         }
+        closedir(dir);
+        result = 0;
     }
-    return -ENOENT;
+    
+    return result;
 }
 
 static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
@@ -466,6 +524,15 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
     else if(string_ends_with(path, ".wav") && get_mlv_filename(path, mlv_filename))
     {
         return (int)wav_get_data(mlv_filename, (uint8_t*)buf, offset, size);
+    }
+    else
+    {
+        int res = (int)pread((int)fi->fh, buf, size, offset);
+        if (res == -1) {
+            res = -errno;
+        }
+        
+        return res;
     }
     
     return -ENOENT;
