@@ -153,7 +153,7 @@ mlv_xref_hdr_t *load_index(const char *base_filename)
     return block_hdr;
 }
 
-void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fileCount, frame_xref_t *index, int entries)
+void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fileCount, mlv_xref_hdr_t *index)
 {
     char filename[128];
     FILE *out_file = NULL;
@@ -179,43 +179,14 @@ void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fil
 
     fwrite(&file_hdr, sizeof(mlv_file_hdr_t), 1, out_file);
 
-    /* now write XREF block */
-    mlv_xref_hdr_t hdr;
-
-    memset(&hdr, 0x00, sizeof(mlv_xref_hdr_t));
-    memcpy(hdr.blockType, "XREF", 4);
-    hdr.blockSize = sizeof(mlv_xref_hdr_t) + entries * sizeof(mlv_xref_t);
-    hdr.entryCount = entries;
-
-    if(fwrite(&hdr, sizeof(mlv_xref_hdr_t), 1, out_file) != 1)
-    {
-        fclose(out_file);
-        return;
-    }
-
-    /* and then the single entries */
-    for(int entry = 0; entry < entries; entry++)
-    {
-        mlv_xref_t field;
-
-        memset(&field, 0x00, sizeof(mlv_xref_t));
-
-        field.frameOffset = index[entry].frameOffset;
-        field.fileNumber = index[entry].fileNumber;
-        field.frameType = index[entry].frameType;
-
-        if(fwrite(&field, sizeof(mlv_xref_t), 1, out_file) != 1)
-        {
-            fclose(out_file);
-            return;
-        }
-    }
+    fwrite(index, index->blockSize, 1, out_file);
 
     fclose(out_file);
 }
 
-void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_count)
+mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
 {
+    mlv_xref_hdr_t *index = NULL;
     frame_xref_t *frame_xref_table = NULL;
     uint32_t frame_xref_entries = 0;
     uint32_t frame_xref_allocated = 0;
@@ -307,9 +278,40 @@ void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_c
     }
 
     xref_sort(frame_xref_table, frame_xref_entries);
-    save_index(base_filename, &main_header, chunk_count, frame_xref_table, frame_xref_entries);
+
+    size_t size = sizeof(mlv_xref_hdr_t) + frame_xref_entries * sizeof(mlv_xref_t);
+    index = (mlv_xref_hdr_t *)malloc(size);
+    mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)index)[sizeof(mlv_xref_hdr_t)]);
+
+    memset(index, 0, size);
+    memcpy(index->blockType, "XREF", 4);
+    index->blockSize = size;
+    index->entryCount = frame_xref_entries;
+
+    for(int entry = 0; entry < frame_xref_entries; entry++)
+    {
+        xrefs[entry].frameOffset = frame_xref_table[entry].frameOffset;
+        xrefs[entry].fileNumber = frame_xref_table[entry].fileNumber;
+        xrefs[entry].frameType = frame_xref_table[entry].frameType;
+    }
 
     free(frame_xref_table);
+
+    return index;
+}
+
+void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_count)
+{
+    // read the MLVI header from the first file
+    // TODO: add some error checking
+    mlv_file_hdr_t main_header;
+    file_set_pos(chunk_files[0], 0, SEEK_SET);
+    fread(&main_header, sizeof(mlv_file_hdr_t), 1, chunk_files[0]);
+
+    mlv_xref_hdr_t *index = make_index(chunk_files, chunk_count);
+    save_index(base_filename, &main_header, chunk_count, index);
+
+    free(index);
 }
 
 FILE **load_chunks(const char *base_filename, uint32_t *entries)
@@ -405,6 +407,23 @@ mlv_xref_hdr_t *get_index(const char *base_filename)
     }
 
     return table;
+}
+
+mlv_xref_hdr_t *get_new_index(const char *base_filename)
+{
+    FILE **chunk_files = NULL;
+    uint32_t chunk_count = 0;
+
+    chunk_files = load_chunks(base_filename, &chunk_count);
+    if(!chunk_files || !chunk_count)
+    {
+        return NULL;
+    }
+
+    mlv_xref_hdr_t *index = make_index(chunk_files, chunk_count);
+    close_chunks(chunk_files, chunk_count);
+
+    return index;
 }
 
 int mlv_get_frame_count(const char *real_path)
