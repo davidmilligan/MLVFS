@@ -586,16 +586,24 @@ static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
 
 static int mlvfs_flush(const char *path, struct fuse_file_info *fi)
 {
-    int res = close(dup((int)fi->fh));
-    if (res == -1) return -errno;
-    return 0;
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    {
+        int res = close(dup((int)fi->fh));
+        if (res == -1) return -errno;
+        return 0;
+    }
+    return -ENOENT;
 }
 
 static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
-    int res = fsync((int)fi->fh);
-    if (res == -1) return -errno;
-    return 0;
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    {
+        int res = fsync((int)fi->fh);
+        if (res == -1) return -errno;
+        return 0;
+    }
+    return -ENOENT;
 }
 
 static int mlvfs_mkdir(const char *path, mode_t mode)
@@ -611,8 +619,12 @@ static int mlvfs_mkdir(const char *path, mode_t mode)
 
 static int mlvfs_release(const char *path, struct fuse_file_info *fi)
 {
-    close((int)fi->fh);
-    return 0;
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    {
+        close((int)fi->fh);
+        return 0;
+    }
+    return -ENOENT;
 }
 
 static int mlvfs_rmdir(const char *path)
