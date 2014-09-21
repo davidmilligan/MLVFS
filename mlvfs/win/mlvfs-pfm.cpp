@@ -1297,8 +1297,8 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         size_t count;
         wcstombs_s(&count, mlvFileName_mbs, 1024, mlvFileName, _TRUNCATE);
 
-        // Retrieve the IDX index, generating one if necessary
-        index = force_index(mlvFileName_mbs);
+        // Retrieve the index (does not generate IDX file)
+        index = get_new_index(mlvFileName_mbs);
 
         // Count the number of VIDF frames    
         mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)index)[sizeof(mlv_xref_hdr_t)]);
@@ -1397,10 +1397,13 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
                         hdr_size = MIN(sizeof(mlv_wbal_hdr_t), mlv_hdr.blockSize);
                         fread(&frameHeaders[vidf_counter].wbal_hdr, hdr_size, 1, in_file);
                     }
+                    else if(!memcmp(mlv_hdr.blockType, "WAVI", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_wavi_hdr_t), mlv_hdr.blockSize);
+                        fread(&audioHeader, hdr_size, 1, in_file);
+                    }
             }
         }
-
-        wav_get_wavi(mlvFileName_mbs, &audioHeader);
 
         File *outfile;
         File **sibPrev = &root.data.folder.firstChild;

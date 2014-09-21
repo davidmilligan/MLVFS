@@ -27,8 +27,11 @@
 #include "raw.h"
 #include "mlv.h"
 
+//Retrieves the index from an IDX file, generating the file if necessary
 mlv_xref_hdr_t *get_index(const char *base_filename);
-mlv_xref_hdr_t *force_index(const char *base_filename);
+
+//Retrieves the index without using an IDX file
+mlv_xref_hdr_t *get_new_index(const char *base_filename);
 
 FILE **load_chunks(const char *base_filename, uint32_t *entries);
 void close_chunks(FILE **chunk_files, uint32_t chunk_count);
