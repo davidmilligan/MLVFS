@@ -1426,7 +1426,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
             time = (((uint64_t)ftl.dwHighDateTime) << 32 | ftl.dwLowDateTime) +
                 (frameHeaders[counter].vidf_hdr.timestamp - frameHeaders[counter].rtci_hdr.timestamp) * 10;
 
-            FileFactory(&root, sibPrev, filename, pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
+            FileFactory(&root, sibPrev, filename, pfmFileTypeFile, 0, time, &outfile);
             outfile->fake = 1;
             outfile->data.file.fileSize = dng_get_size(&frameHeaders[counter]);
             sibPrev = &(outfile->sibNext);
@@ -1436,7 +1436,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         if(audioFrameCount > 0)
         {
             wsprintfW(filename, L"%s.wav", mlvBaseFileName);
-            FileFactory(&root, sibPrev, filename, pfmFileTypeFile, pfmFileFlagReadOnly, time, &outfile);
+            FileFactory(&root, sibPrev, filename, pfmFileTypeFile, 0, time, &outfile);
             outfile->fake = 1;
             outfile->data.file.fileSize = wav_get_size(mlvFileName_mbs);
             sibPrev = &(outfile->sibNext);
