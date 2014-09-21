@@ -1345,6 +1345,8 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
                     frameHeaders[vidf_counter].fileNumber = in_file_num;
                     frameHeaders[vidf_counter].position = position;
                     file_set_pos(in_file, position, SEEK_SET);
+                    fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
+                    file_set_pos(in_file, position, SEEK_SET);
                     hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
                     fread(&frameHeaders[vidf_counter].vidf_hdr, hdr_size, 1, in_file);
                     vidf_counter++;
