@@ -586,17 +586,6 @@ static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
     return -ENOENT;
 }
 
-static int mlvfs_flush(const char *path, struct fuse_file_info *fi)
-{
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
-    {
-        int res = close(dup((int)fi->fh));
-        if (res == -1) return -errno;
-        return 0;
-    }
-    return -ENOENT;
-}
-
 static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
@@ -670,7 +659,6 @@ static struct fuse_operations mlvfs_filesystem_operations =
     .readdir = mlvfs_readdir,
     
     .create      = mlvfs_create,
-    .flush       = mlvfs_flush,
     .fsync       = mlvfs_fsync,
     .mkdir       = mlvfs_mkdir,
     .release     = mlvfs_release,
