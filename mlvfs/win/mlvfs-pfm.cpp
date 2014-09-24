@@ -60,6 +60,8 @@
 static const char mlvfsFormatterName[] = "MLVFS";
 static const char mlvFileTypeTag[] = "MLV";
 
+enum Type { TEMPORARY, VIRTUAL };
+
 struct File;
 
 struct FileList
@@ -114,7 +116,7 @@ struct File
             FileList* firstList;
         } folder;
     } data;
-    bool fake;
+    Type type;
 
 #ifdef DEBUG
     void CheckConsistency(void);
@@ -186,6 +188,8 @@ struct Volume: PfmFormatterOps
     Volume(void);
     ~Volume(void);
     int/*systemError*/ Init(const wchar_t* mlvFileName);
+    size_t ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize);
+    size_t ReadVirtualWAV(uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize);
 };
 
 struct MlvFormatter: PfmFormatter
@@ -359,73 +363,26 @@ int/*error*/ File::Read(uint64_t fileOffset,void* inBuffer,size_t requestedSize,
                 endOffset = data.file.fileSize;
             }
         }
-        // If a fake file
-        if(fake)
+        uint64_t offset = startOffset;
+        while(offset < endOffset)
         {
-            // By design, virtual files are distinguished by fileId, not name
-            //   2 to videoFrameCount+1: DNG frames
-            //   videoFrameCount+2: WAV audio (if present)
-            uint32_t frameNumber = fileId - 2;
-            if(frameNumber < volume->videoFrameCount) // DNG frame
+            size_t blockIndex = static_cast<size_t>(offset/blockSize);
+            size_t blockOffset = static_cast<size_t>(offset%blockSize);
+            size_t partSize = blockSize-blockOffset;
+            if(offset+partSize > endOffset)
             {
-                FILE *file = volume->chunks[volume->frameHeaders[frameNumber].fileNumber];
-
-                size_t header_size = dng_get_header_size(&volume->frameHeaders[frameNumber]);
-                if(startOffset >= header_size)
-                {
-                    get_image_data(&volume->frameHeaders[frameNumber],
-                        volume->chunks[volume->frameHeaders[frameNumber].fileNumber],
-                        buffer,
-                        startOffset - header_size,
-                        endOffset - startOffset);
-                }
-                else
-                {
-                    size_t remaining = MIN(endOffset - startOffset, header_size - startOffset);
-                    dng_get_header_data(&volume->frameHeaders[frameNumber], buffer, startOffset, remaining);
-                    if(remaining < endOffset - startOffset)
-                    {
-                        get_image_data(&volume->frameHeaders[frameNumber],
-                            volume->chunks[volume->frameHeaders[frameNumber].fileNumber],
-                            buffer + remaining,
-                            0,
-                            endOffset - startOffset - remaining);
-                    }
-                }
+                partSize = static_cast<size_t>(endOffset-offset);
             }
-            else if(frameNumber == volume->videoFrameCount) // WAV audio
+            uint8_t* block = data.file.blockList[blockIndex];
+            if(block)
             {
-                wav_get_data_direct(volume->chunks, volume->index, &volume->audioHeader, data.file.fileSize, buffer, startOffset, endOffset - startOffset);
+                memcpy(buffer+static_cast<size_t>(offset-startOffset),block+blockOffset,partSize);
             }
             else
             {
-                return pfmErrorNotFound;
+                memset(buffer+static_cast<size_t>(offset-startOffset),0,partSize);
             }
-        }
-        // Otherwise, it is a real file
-        else
-        {
-            uint64_t offset = startOffset;
-            while(offset < endOffset)
-            {
-                size_t blockIndex = static_cast<size_t>(offset/blockSize);
-                size_t blockOffset = static_cast<size_t>(offset%blockSize);
-                size_t partSize = blockSize-blockOffset;
-                if(offset+partSize > endOffset)
-                {
-                    partSize = static_cast<size_t>(endOffset-offset);
-                }
-                uint8_t* block = data.file.blockList[blockIndex];
-                if(block)
-                {
-                    memcpy(buffer+static_cast<size_t>(offset-startOffset),block+blockOffset,partSize);
-                }
-                else
-                {
-                    memset(buffer+static_cast<size_t>(offset-startOffset),0,partSize);
-                }
-                offset += partSize;
-            }
+            offset += partSize;
         }
     }
     *outActualSize = static_cast<size_t>(endOffset-startOffset);
@@ -695,7 +652,7 @@ File::File(Volume* inVolume)
     fileType = 0;
     fileFlags = 0;
     memset(&data,0,sizeof(data));
-    fake = 0;
+    type = TEMPORARY;
 }
 
 File::~File(void)
@@ -984,7 +941,7 @@ int/*error*/ CCALL Volume::Replace(int64_t targetOpenId,int64_t targetParentFile
         {
             error = pfmErrorDeleted;
         }
-        else if(target->fake)
+        else if(target->type == VIRTUAL)
         {
             error = pfmErrorFailed;
         }
@@ -1008,14 +965,14 @@ int/*error*/ CCALL Volume::Move(int64_t sourceOpenId,int64_t sourceParentFileId,
     int error = FindOpenFile(sourceOpenId,&file);
     if(!error)
     {
-        if(file->fake) return pfmErrorFailed;
+        if(file->type == VIRTUAL) return pfmErrorFailed;
         File* target;
         File* parent;
         File** sibPrev;
         error = FindFile(targetNameParts,targetNamePartCount,&target,&parent,&sibPrev);
         if(!error)
         {
-            if(target && target->fake) return pfmErrorFailed;
+            if(target && (target->type == VIRTUAL)) return pfmErrorFailed;
                 // Watch for and allow case change rename. ("FILE.TXT" -> "File.txt")
             if(target && (!targetNamePartCount || target != file))
             {
@@ -1049,12 +1006,12 @@ int/*error*/ CCALL Volume::MoveReplace(int64_t sourceOpenId,int64_t sourceParent
     int error = FindOpenFile(sourceOpenId,&file);
     if(!error)
     {
-        if(file->fake) return pfmErrorFailed;
+        if(file->type == VIRTUAL) return pfmErrorFailed;
         File* target;
         error = FindOpenFile(targetOpenId,&target);
         if(!error)
         {
-            if(target->fake) return pfmErrorFailed;
+            if(target->type == VIRTUAL) return pfmErrorFailed;
             if(target == &root)
             {
                     // Can't replace root.
@@ -1101,7 +1058,7 @@ int/*error*/ CCALL Volume::Delete(int64_t openId,int64_t parentFileId,const PfmN
         {
                 // Already deleted.
         }
-        else if(file->fake)
+        else if(file->type == VIRTUAL)
         {
             error = pfmErrorFailed;
         }
@@ -1171,13 +1128,82 @@ int/*error*/ CCALL Volume::ListEnd(int64_t openId,int64_t listId)
     return error;
 }
 
+size_t Volume::ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize)
+{
+    uint64_t read = 0;
+    uint64_t startOffset = fileOffset;
+    uint64_t endOffset = fileOffset;
+    if(fileOffset < fileSize)
+    {
+        endOffset = fileOffset+requestedSize;
+        if(endOffset < startOffset || endOffset > fileSize)
+        {
+            endOffset = fileSize;
+        }
+    }
+
+    FILE *file = chunks[frameHeaders[frameNumber].fileNumber];
+
+    size_t header_size = dng_get_header_size(&frameHeaders[frameNumber]);
+    if(startOffset >= header_size)
+    {
+        read += get_image_data(&frameHeaders[frameNumber],
+            chunks[frameHeaders[frameNumber].fileNumber],
+            buffer,
+            startOffset - header_size,
+            endOffset - startOffset);
+    }
+    else
+    {
+        size_t remaining = MIN(endOffset - startOffset, header_size - startOffset);
+        read += dng_get_header_data(&frameHeaders[frameNumber], buffer, startOffset, remaining);
+        if(remaining < endOffset - startOffset)
+        {
+            read += get_image_data(&frameHeaders[frameNumber],
+                chunks[frameHeaders[frameNumber].fileNumber],
+                buffer + remaining,
+                0,
+                endOffset - startOffset - remaining);
+        }
+    }
+    return static_cast<size_t>(read);
+}
+
+size_t Volume::ReadVirtualWAV(uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize)
+{
+    return wav_get_data_direct(chunks, index, &audioHeader, fileSize, buffer, fileOffset, requestedSize);
+}
+
 int/*error*/ CCALL Volume::Read(int64_t openId,uint64_t fileOffset,void* data,size_t requestedSize,size_t* outActualSize)
 {
     File* file;
     int error = FindOpenFile(openId,&file);
     if(!error)
     {
-        file->Read(fileOffset,data,requestedSize,outActualSize);
+        if(file->type == VIRTUAL)
+        {
+            uint8_t* buffer = static_cast<uint8_t*>(data);
+            // By design, virtual files are distinguished by fileId, not name
+            //   2 to videoFrameCount+1: DNG frames
+            //   videoFrameCount+2: WAV audio (if present)
+            uint32_t frameNumber = file->fileId - 2;
+            if(frameNumber < videoFrameCount) // DNG frame
+            {
+                *outActualSize = ReadVirtualDNG(frameNumber, fileOffset, file->data.file.fileSize, buffer, requestedSize);
+            }
+            else if(frameNumber == videoFrameCount) // WAV audio
+            {
+                *outActualSize = ReadVirtualWAV(fileOffset, file->data.file.fileSize, buffer, requestedSize);
+            }
+            else
+            {
+                return pfmErrorNotFound;
+            }
+        }
+        else
+        {
+            error = file->Read(fileOffset,data,requestedSize,outActualSize);
+        }
     }
     return error;
 }
@@ -1188,7 +1214,7 @@ int/*error*/ CCALL Volume::Write(int64_t openId,uint64_t fileOffset,const void* 
     int error = FindOpenFile(openId,&file);
     if(!error)
     {
-        if(file->fake) return pfmErrorFailed;
+        if(file->type == VIRTUAL) return pfmErrorFailed;
         error = file->Write(fileOffset,data,requestedSize,outActualSize);
     }
     return error;
@@ -1200,7 +1226,7 @@ int/*error*/ CCALL Volume::SetSize(int64_t openId,uint64_t fileSize)
     int error = FindOpenFile(openId,&file);
     if(!error)
     {
-        if(file->fake) return pfmErrorFailed;
+        if(file->type == VIRTUAL) return pfmErrorFailed;
         error = file->SetSize(fileSize);
     }
     return error;
@@ -1432,7 +1458,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
                 (frameHeaders[counter].vidf_hdr.timestamp - frameHeaders[counter].rtci_hdr.timestamp) * 10;
 
             FileFactory(&root, sibPrev, filename, pfmFileTypeFile, 0, time, &outfile);
-            outfile->fake = 1;
+            outfile->type = VIRTUAL;
             outfile->data.file.fileSize = dng_get_size(&frameHeaders[counter]);
             sibPrev = &(outfile->sibNext);
         }
@@ -1442,7 +1468,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         {
             wsprintfW(filename, L"%s.wav", mlvBaseFileName);
             FileFactory(&root, sibPrev, filename, pfmFileTypeFile, 0, time, &outfile);
-            outfile->fake = 1;
+            outfile->type = VIRTUAL;
             outfile->data.file.fileSize = wav_get_size(mlvFileName_mbs);
             sibPrev = &(outfile->sibNext);
         }
