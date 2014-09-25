@@ -37,6 +37,7 @@
 #include "dng.h"
 #include "index.h"
 #include "wav.h"
+#include "hdr.h"
 
 //Let the DNGs be "writeable" for AE, even though they're not actually writable
 //You'll get an error if you actually try to write to them
@@ -537,6 +538,11 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
             if(offset >= header_size)
             {
                 get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf, offset - header_size, size);
+                
+                if(strstr(path, "DUAL") != NULL)
+                {
+                    hdr_convert_data(&frame_headers, (uint16_t*) buf, offset - header_size, size);
+                }
             }
             else
             {
@@ -545,6 +551,11 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                 if(remaining < size)
                 {
                     get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)buf + remaining, 0, size - remaining);
+                    
+                    if(strstr(path, "DUAL") != NULL)
+                    {
+                        hdr_convert_data(&frame_headers, (uint16_t*) (buf + remaining), 0, size - remaining);
+                    }
                 }
             }
 
