@@ -48,6 +48,8 @@
 #include "pfmformatter.h"
 #include "pfmmarshaller.h"
 
+#include "files.h"
+
 #undef INT64_C
 #undef UINT64_C
 #include "index.h"
@@ -160,6 +162,7 @@ struct Volume: PfmFormatterOps
     File root;
     File* firstOpenFile;
 
+    wchar_t *mlvBaseFileName;
     wchar_t *mappedDirectory;
     mlv_xref_hdr_t *index;
     uint32_t videoFrameCount, audioFrameCount;
@@ -927,7 +930,29 @@ int/*error*/ CCALL Volume::Open(const PfmNamePart* nameParts,size_t namePartCoun
             }
             else
             {
-                error = FileFactory(parent,sibPrev,nameParts[namePartCount-1].name,createFileType,createFileFlags,writeTime,&file);
+                if((wcsncmp(nameParts[namePartCount-1].name, mlvBaseFileName, wcslen(mlvBaseFileName)) == 0) &&
+                   (wcslen(nameParts[namePartCount-1].name) >= 4) &&
+                   (wcsncmp(&nameParts[namePartCount-1].name[wcslen(nameParts[namePartCount-1].name) - 4], L".xmp", 4) == 0))
+                {
+                    wchar_t *mappedFileName = concatenate(mappedDirectory, L"\\", nameParts[namePartCount - 1].name);
+                    HANDLE mappedFile;
+                    mappedFile = CreateFileW(mappedFileName, 0, 0, NULL, CREATE_ALWAYS, 0, NULL);
+                    if(mappedFile != INVALID_HANDLE_VALUE)
+                    {
+                        FileClose(mappedFile);
+                        error = FileFactory(parent,sibPrev,nameParts[namePartCount-1].name,createFileType,createFileFlags,writeTime,&file);
+                        file->type = MAPPED;
+                    }
+                    else
+                    {
+                        error = pfmErrorFailed;
+                    }
+                    free(mappedFileName);
+                }
+                else
+                {
+                    error = FileFactory(parent,sibPrev,nameParts[namePartCount-1].name,createFileType,createFileFlags,writeTime,&file);
+                }
                 if(!error)
                 {
                     file->Open(newCreateOpenId,openAttribs,parentFileId,endName);
@@ -1084,7 +1109,12 @@ int/*error*/ CCALL Volume::Delete(int64_t openId,int64_t parentFileId,const PfmN
         }
         else if(file->type == MAPPED)
         {
-            error = pfmErrorFailed;
+            wchar_t *mappedFileName = concatenate(mappedDirectory, L"\\", file->name);
+            if(!DeleteFileW(mappedFileName))
+            {
+                error = pfmErrorFailed;
+            }
+            free(mappedFileName);
             file->Delete(writeTime,false/*leaveChildren*/);
         }
         else if(file->fileType == pfmFileTypeFolder && file->data.folder.firstChild)
@@ -1227,6 +1257,13 @@ int/*error*/ CCALL Volume::Read(int64_t openId,uint64_t fileOffset,void* data,si
         }
         else if(file->type == MAPPED)
         {
+            wchar_t *mappedFileName = concatenate(mappedDirectory, L"\\", file->name);
+            HANDLE mappedFile;
+            FileOpenRead(mappedFileName, &mappedFile);
+            FileSetPointer(mappedFile, fileOffset);
+            FileRead(mappedFile, data, requestedSize, outActualSize);
+            FileClose(mappedFile);
+            free(mappedFileName);
         }
         else
         {
@@ -1242,9 +1279,24 @@ int/*error*/ CCALL Volume::Write(int64_t openId,uint64_t fileOffset,const void* 
     int error = FindOpenFile(openId,&file);
     if(!error)
     {
-        if(file->type == VIRTUAL) return pfmErrorFailed;
-        if(file->type == MAPPED) return pfmErrorFailed;
-        error = file->Write(fileOffset,data,requestedSize,outActualSize);
+        if(file->type == VIRTUAL)
+        {
+            error = pfmErrorFailed;
+        }
+        else if(file->type == MAPPED)
+        {
+            wchar_t *mappedFileName = concatenate(mappedDirectory, L"\\", file->name);
+            HANDLE mappedFile;
+            FileOpenWrite(mappedFileName, &mappedFile);
+            FileSetPointer(mappedFile, fileOffset);
+            FileWrite(mappedFile, data, requestedSize, outActualSize);
+            FileClose(mappedFile);
+            free(mappedFileName);
+        }
+        else
+        {
+            error = file->Write(fileOffset,data,requestedSize,outActualSize);
+        }
     }
     return error;
 }
@@ -1255,9 +1307,24 @@ int/*error*/ CCALL Volume::SetSize(int64_t openId,uint64_t fileSize)
     int error = FindOpenFile(openId,&file);
     if(!error)
     {
-        if(file->type == VIRTUAL) return pfmErrorFailed;
-        if(file->type == MAPPED) return pfmErrorFailed;
-        error = file->SetSize(fileSize);
+        if(file->type == VIRTUAL)
+        {
+            error = pfmErrorFailed;
+        }
+        else if(file->type == MAPPED)
+        {
+            wchar_t *mappedFileName = concatenate(mappedDirectory, L"\\", file->name);
+            HANDLE mappedFile;
+            FileOpenWrite(mappedFileName, &mappedFile);
+            FileSetSize(mappedFile, fileSize);
+            FileClose(mappedFile);
+            free(mappedFileName);
+            error = file->SetSize(fileSize);
+        }
+        else
+        {
+            error = file->SetSize(fileSize);
+        }
     }
     return error;
 }
@@ -1308,6 +1375,7 @@ Volume::Volume(void)
     root.createTime = root.accessTime = root.writeTime = root.changeTime = 0;
     firstOpenFile = 0;
 
+    mlvBaseFileName = NULL;
     mappedDirectory = NULL;
     index = NULL;
     videoFrameCount = 0;
@@ -1339,6 +1407,7 @@ Volume::~Volume(void)
 
     marshaller->Release();
 
+    if(mlvBaseFileName) free(mlvBaseFileName);
     if(mappedDirectory) free(mappedDirectory);
     if(chunks) close_chunks(chunks, chunkCount);
     if(index) free(index);
@@ -1367,11 +1436,11 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         marshaller->Printf(L"mappedDirectory: %s\n", mappedDirectory);
 
         // Get the base filename without the path or extension
-        wchar_t mlvBaseFileName[1024];
         const wchar_t *start = wcsrchr(mlvFileName, L'\\') + 1;
         const wchar_t *end = wcsrchr(mlvFileName, L'.');
+        mlvBaseFileName = static_cast<wchar_t *>(malloc((end - start + 1) * sizeof(wchar_t)));
         wcsncpy(mlvBaseFileName, start, end - start);
-        mlvBaseFileName[MIN(end - start, 1024)] = L'\0';
+        mlvBaseFileName[end - start] = L'\0';
 
         // Get the file path as a multi-byte string
         char mlvFileName_mbs[1024];

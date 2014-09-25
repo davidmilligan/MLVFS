@@ -1,7 +1,7 @@
 
 BASE = mlvfs
 EXEC = $(BASE).dll
-CPP_OBJS = mlvfs-pfm.obj dng.obj index.obj kelvin.obj wav.obj
+CPP_OBJS = mlvfs-pfm.obj files.obj dng.obj index.obj kelvin.obj wav.obj
 RES = mlvfs.res
 LIBS = advapi32.lib user32.lib
 
