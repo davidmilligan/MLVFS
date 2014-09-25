@@ -60,7 +60,18 @@
 static const char mlvfsFormatterName[] = "MLVFS";
 static const char mlvFileTypeTag[] = "MLV";
 
-enum Type { TEMPORARY, VIRTUAL };
+enum Type { TEMPORARY, VIRTUAL, MAPPED };
+
+wchar_t *concatenate(const wchar_t *a, const wchar_t *b, const wchar_t *c = NULL, const wchar_t *d = NULL)
+{
+    uint32_t len = wcslen(a) + wcslen(b) + (c != NULL ? wcslen(c) : 0) + (d != NULL ? wcslen(d) : 0);
+    wchar_t *out = static_cast<wchar_t *>(malloc((len + 1) * sizeof(wchar_t)));
+    wcscpy(out, a);
+    wcscat(out, b);
+    if(c != NULL) wcscat(out, c);
+    if(d != NULL) wcscat(out, d);
+    return out;
+}
 
 struct File;
 
@@ -149,6 +160,7 @@ struct Volume: PfmFormatterOps
     File root;
     File* firstOpenFile;
 
+    wchar_t *mappedDirectory;
     mlv_xref_hdr_t *index;
     uint32_t videoFrameCount, audioFrameCount;
     FILE **chunks;
@@ -945,6 +957,10 @@ int/*error*/ CCALL Volume::Replace(int64_t targetOpenId,int64_t targetParentFile
         {
             error = pfmErrorFailed;
         }
+        else if(target->type == MAPPED)
+        {
+            error = pfmErrorFailed;
+        }
         else
         {
             File* file;
@@ -966,6 +982,7 @@ int/*error*/ CCALL Volume::Move(int64_t sourceOpenId,int64_t sourceParentFileId,
     if(!error)
     {
         if(file->type == VIRTUAL) return pfmErrorFailed;
+        if(file->type == MAPPED) return pfmErrorFailed;
         File* target;
         File* parent;
         File** sibPrev;
@@ -973,6 +990,7 @@ int/*error*/ CCALL Volume::Move(int64_t sourceOpenId,int64_t sourceParentFileId,
         if(!error)
         {
             if(target && (target->type == VIRTUAL)) return pfmErrorFailed;
+            if(target && (target->type == MAPPED)) return pfmErrorFailed;
                 // Watch for and allow case change rename. ("FILE.TXT" -> "File.txt")
             if(target && (!targetNamePartCount || target != file))
             {
@@ -1007,11 +1025,13 @@ int/*error*/ CCALL Volume::MoveReplace(int64_t sourceOpenId,int64_t sourceParent
     if(!error)
     {
         if(file->type == VIRTUAL) return pfmErrorFailed;
+        if(file->type == MAPPED) return pfmErrorFailed;
         File* target;
         error = FindOpenFile(targetOpenId,&target);
         if(!error)
         {
             if(target->type == VIRTUAL) return pfmErrorFailed;
+            if(target->type == MAPPED) return pfmErrorFailed;
             if(target == &root)
             {
                     // Can't replace root.
@@ -1061,6 +1081,11 @@ int/*error*/ CCALL Volume::Delete(int64_t openId,int64_t parentFileId,const PfmN
         else if(file->type == VIRTUAL)
         {
             error = pfmErrorFailed;
+        }
+        else if(file->type == MAPPED)
+        {
+            error = pfmErrorFailed;
+            file->Delete(writeTime,false/*leaveChildren*/);
         }
         else if(file->fileType == pfmFileTypeFolder && file->data.folder.firstChild)
         {
@@ -1200,6 +1225,9 @@ int/*error*/ CCALL Volume::Read(int64_t openId,uint64_t fileOffset,void* data,si
                 return pfmErrorNotFound;
             }
         }
+        else if(file->type == MAPPED)
+        {
+        }
         else
         {
             error = file->Read(fileOffset,data,requestedSize,outActualSize);
@@ -1215,6 +1243,7 @@ int/*error*/ CCALL Volume::Write(int64_t openId,uint64_t fileOffset,const void* 
     if(!error)
     {
         if(file->type == VIRTUAL) return pfmErrorFailed;
+        if(file->type == MAPPED) return pfmErrorFailed;
         error = file->Write(fileOffset,data,requestedSize,outActualSize);
     }
     return error;
@@ -1227,6 +1256,7 @@ int/*error*/ CCALL Volume::SetSize(int64_t openId,uint64_t fileSize)
     if(!error)
     {
         if(file->type == VIRTUAL) return pfmErrorFailed;
+        if(file->type == MAPPED) return pfmErrorFailed;
         error = file->SetSize(fileSize);
     }
     return error;
@@ -1278,6 +1308,7 @@ Volume::Volume(void)
     root.createTime = root.accessTime = root.writeTime = root.changeTime = 0;
     firstOpenFile = 0;
 
+    mappedDirectory = NULL;
     index = NULL;
     videoFrameCount = 0;
     audioFrameCount = 0;
@@ -1297,8 +1328,18 @@ Volume::~Volume(void)
     {
         root.data.folder.firstChild->Delete(pfmTimeInvalid,false/*leaveChildren*/);
     }
+
+    if(!RemoveDirectoryW(mappedDirectory))
+    {
+        if(GetLastError() == ERROR_DIR_NOT_EMPTY)
+        {
+            marshaller->Printf(L"mappedDirectory: not empty\n");
+        }
+    }
+
     marshaller->Release();
 
+    if(mappedDirectory) free(mappedDirectory);
     if(chunks) close_chunks(chunks, chunkCount);
     if(index) free(index);
     if(frameHeaders) free(frameHeaders);
@@ -1310,6 +1351,20 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
     if(!error)
     {
         marshaller->SetTrace(L"MLVFS");
+
+        mappedDirectory = sswdup(mlvFileName);
+        wchar_t *loc = NULL;
+        if(sswcmpf(loc = wcsrchr(mappedDirectory, '.'), L".mlv") == 0)
+        {
+            wcsncpy(loc, L".MLD", 4);
+        }
+        else
+        {
+            wchar_t *temp = concatenate(mappedDirectory, L".MLD");
+            free(mappedDirectory);
+            mappedDirectory = temp;
+        }
+        marshaller->Printf(L"mappedDirectory: %s\n", mappedDirectory);
 
         // Get the base filename without the path or extension
         wchar_t mlvBaseFileName[1024];
@@ -1433,6 +1488,14 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
             }
         }
 
+        if(!CreateDirectoryW(mappedDirectory, NULL))
+        {
+            if(GetLastError() == ERROR_ALREADY_EXISTS)
+            {
+                marshaller->Printf(L"mappedDirectory: already exists\n");
+            }
+        }
+
         File *outfile;
         File **sibPrev = &root.data.folder.firstChild;
         wchar_t filename[1024];
@@ -1472,6 +1535,29 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
             outfile->data.file.fileSize = wav_get_size(mlvFileName_mbs);
             sibPrev = &(outfile->sibNext);
         }
+
+        // Create mapped XMP files
+        wchar_t *searchPath = concatenate(mappedDirectory, L"\\", mlvBaseFileName, L"_*.xmp");
+        WIN32_FIND_DATAW FindFileData;
+        HANDLE hFind;
+        hFind = FindFirstFileW(searchPath, &FindFileData);
+        while(hFind != INVALID_HANDLE_VALUE)
+        {
+            marshaller->Printf(L"%s\n", FindFileData.cFileName);
+
+            time = (((uint64_t)FindFileData.ftLastWriteTime.dwHighDateTime) << 32 | FindFileData.ftLastWriteTime.dwLowDateTime);
+            FileFactory(&root, sibPrev, FindFileData.cFileName, pfmFileTypeFile, 0, time, &outfile);
+            outfile->type = MAPPED;
+            outfile->data.file.fileSize = (FindFileData.nFileSizeHigh * (MAXDWORD + 1)) + FindFileData.nFileSizeLow;
+
+            if(!FindNextFileW(hFind, &FindFileData))
+            {
+                FindClose(hFind);
+                hFind = INVALID_HANDLE_VALUE;
+            }
+        }
+
+        free(searchPath);
     }
     return error;
 }
@@ -1492,7 +1578,7 @@ int/*systemError*/ CCALL MlvFormatter::Identify(
     if(!error)
     {
         // Mount any file with an .mlv extension
-        if(_wcsicmp(wcsrchr(mountFileName,'.'),L".mlv") != 0)
+        if(sswcmpf(wcsrchr(mountFileName,'.'),L".mlv") != 0)
         {
             // Or mount any file with "MLVI" as the first four bytes
             error = (mountFileDataSize/sizeof(char) < 4 ||
