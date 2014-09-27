@@ -13,6 +13,7 @@
 		63B6174219ACED9300F21CD0 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B6174119ACED9300F21CD0 /* main.c */; };
 		63DA867819B113A80065788E /* dng.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA867719B113A80065788E /* dng.c */; };
 		63DA868219B51C080065788E /* index.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA868019B51C080065788E /* index.c */; };
+		63E9DBA319D4BF1E00E70CAA /* stripes.c in Sources */ = {isa = PBXBuildFile; fileRef = 63E9DBA119D4BF1E00E70CAA /* stripes.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -44,6 +45,8 @@
 		63DA867F19B417290065788E /* dng_tag_values.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_values.h; sourceTree = "<group>"; };
 		63DA868019B51C080065788E /* index.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = index.c; sourceTree = "<group>"; };
 		63DA868119B51C080065788E /* index.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = index.h; sourceTree = "<group>"; };
+		63E9DBA119D4BF1E00E70CAA /* stripes.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = stripes.c; sourceTree = "<group>"; };
+		63E9DBA219D4BF1E00E70CAA /* stripes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = stripes.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +95,8 @@
 				634B603419BBFEE4008CF973 /* wav.h */,
 				63A7C6DE19CB9D6800B4363E /* kelvin.c */,
 				63A7C6E019CB9DBD00B4363E /* kelvin.h */,
+				63E9DBA119D4BF1E00E70CAA /* stripes.c */,
+				63E9DBA219D4BF1E00E70CAA /* stripes.h */,
 			);
 			path = mlvfs;
 			sourceTree = "<group>";
@@ -150,6 +155,7 @@
 				63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */,
 				634B603319BBFED2008CF973 /* wav.c in Sources */,
 				63DA868219B51C080065788E /* index.c in Sources */,
+				63E9DBA319D4BF1E00E70CAA /* stripes.c in Sources */,
 				63B6174219ACED9300F21CD0 /* main.c in Sources */,
 				63DA867819B113A80065788E /* dng.c in Sources */,
 			);
