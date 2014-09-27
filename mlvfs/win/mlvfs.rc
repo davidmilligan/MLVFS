@@ -6,11 +6,11 @@
 
 #include <windows.h>
 
-#define VER_FILEVERSION             0,3,0,0
+#define VER_FILEVERSION             0,3,1,0
 #ifdef GIT_COMMIT
-#define VER_FILEVERSION_STR         "0.3.0.0 (" GIT_COMMIT ")\0"
+#define VER_FILEVERSION_STR         "0.3.1.0 (" GIT_COMMIT ")\0"
 #else
-#define VER_FILEVERSION_STR         "0.3.0.0\0"
+#define VER_FILEVERSION_STR         "0.3.1.0\0"
 #endif
 
 #define VER_PRODUCTVERSION          VER_FILEVERSION

@@ -1319,7 +1319,7 @@ int/*error*/ CCALL Volume::SetSize(int64_t openId,uint64_t fileSize)
             FileSetSize(mappedFile, fileSize);
             FileClose(mappedFile);
             free(mappedFileName);
-            error = file->SetSize(fileSize);
+            file->data.file.fileSize = fileSize;
         }
         else
         {
@@ -1618,6 +1618,7 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
             FileFactory(&root, sibPrev, FindFileData.cFileName, pfmFileTypeFile, 0, time, &outfile);
             outfile->type = MAPPED;
             outfile->data.file.fileSize = (FindFileData.nFileSizeHigh * (MAXDWORD + 1)) + FindFileData.nFileSizeLow;
+            sibPrev = &(outfile->sibNext);
 
             if(!FindNextFileW(hFind, &FindFileData))
             {
