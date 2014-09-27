@@ -301,12 +301,18 @@ void CLASS adobe_coeff (const char *name, int * black, int * maximum, float cam_
             { 6806,-179,-1020,-8097,16415,1687,-3267,4236,7690 } },
         { "Canon EOS", 0, 0,
             { 8197,-2000,-1118,-6714,14335,2592,-2536,3178,8266 } },
+        //default to 5D3 if no cam model
+        { "default", 0, 0x3c80,
+            { 6722,-635,-963,-4287,12460,2028,-908,2162,5668 } },
     };
     double cam_xyz[4][3];
     int i, j;
     
     for (i=0; i < sizeof table / sizeof *table; i++)
-        if (!strncmp (name, table[i].prefix, strlen(table[i].prefix))) {
+    {
+        if (!strncmp (name, table[i].prefix, strlen(table[i].prefix)) || !strncmp ("default", table[i].prefix, strlen(table[i].prefix)))
+        {
+            if(!strncmp ("default", table[i].prefix, strlen(table[i].prefix))) fprintf(stderr, "WARNING: Camera model not found: '%s'\n", name);
             if (table[i].black)   *black   = (ushort) table[i].black;
             if (table[i].maximum) *maximum = (ushort) table[i].maximum;
             if (table[i].trans[0]) {
@@ -316,4 +322,5 @@ void CLASS adobe_coeff (const char *name, int * black, int * maximum, float cam_
             }
             break;
         }
+    }
 }
