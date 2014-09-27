@@ -147,7 +147,7 @@ static void add_pixel(int hist[8][FIXP_RANGE], int num[8], int offset, int pa, i
 
 void stripes_compute_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size)
 {
-    int hist[8][FIXP_RANGE];
+    static int hist[8][FIXP_RANGE];
     int num[8];
     struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
     

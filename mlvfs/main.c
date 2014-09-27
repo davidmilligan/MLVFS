@@ -32,6 +32,7 @@
 #include <wordexp.h>
 #include <fuse.h>
 #include <sys/param.h>
+#include <pthread.h>
 #include "raw.h"
 #include "mlv.h"
 #include "dng.h"
@@ -42,6 +43,10 @@
 //Let the DNGs be "writeable" for AE, even though they're not actually writable
 //You'll get an error if you actually try to write to them
 #define ALLOW_WRITEABLE_DNGS
+
+//some macros for simple thread synchronization
+#define LOCK(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER; pthread_mutex_lock(&x);
+#define UNLOCK(x) pthread_mutex_unlock(&x);
 
 struct mlvfs
 {
@@ -554,23 +559,30 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                 
                 if(stripes_correction_check_needed(&frame_headers))
                 {
-                    struct stripes_correction * correction = stripes_get_correction(mlv_filename);
-                    if(correction == NULL)
+                    struct stripes_correction * correction;
+                    
+                    LOCK(stripes)
                     {
-                        correction = stripes_new_correction(mlv_filename);
-                        size_t image_size = dng_get_image_size(&frame_headers);
-                        uint16_t * image_buf = malloc(image_size);
-                        if(image_buf && correction)
+                        correction = stripes_get_correction(mlv_filename);
+                        if(correction == NULL)
                         {
-                            get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)image_buf, 0, image_size);
-                            stripes_compute_correction(&frame_headers, correction, image_buf, 0, image_size / 2);
-                            free(image_buf);
-                        }
-                        else
-                        {
-                            fprintf(stderr, "MLVFS: malloc error\n");
+                            correction = stripes_new_correction(mlv_filename);
+                            size_t image_size = dng_get_image_size(&frame_headers);
+                            uint16_t * image_buf = malloc(image_size);
+                            if(image_buf && correction)
+                            {
+                                get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)image_buf, 0, image_size);
+                                stripes_compute_correction(&frame_headers, correction, image_buf, 0, image_size / 2);
+                                free(image_buf);
+                            }
+                            else
+                            {
+                                fprintf(stderr, "MLVFS: malloc error\n");
+                            }
                         }
                     }
+                    UNLOCK(stripes)
+                    
                     stripes_apply_correction(&frame_headers, correction, (uint16_t*)image_output_buf, image_offset, (size - remaining) / 2);
                 }
             }
