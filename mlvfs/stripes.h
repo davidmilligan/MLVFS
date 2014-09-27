@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 David Milligan
+ * Copyright (C) 2014 The Magic Lantern Team
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,21 +26,20 @@
 #include "mlv.h"
 #include "dng.h"
 
-struct correction
+struct stripes_correction
 {
-    struct correction * next;
+    struct stripes_correction * next;
     char * mlv_filename;
     int correction_needed;
-    uint16_t white;
     int coeffficients[8];
 };
 
-struct correction * stripes_get_correction(const char * mlv_filename);
-struct correction * stripes_new_correction(const char * mlv_filename);
+struct stripes_correction * stripes_get_correction(const char * mlv_filename);
+struct stripes_correction * stripes_new_correction(const char * mlv_filename);
 void stripes_free_corrections();
 
 int stripes_correction_check_needed(struct frame_headers * frame_headers);
-void stripes_compute_correction(struct frame_headers * frame_headers, struct correction * correction, uint16_t * image_data, off_t offset, size_t size);
-void stripes_apply_correction(struct frame_headers * frame_headers, struct correction * correction, uint16_t * image_data, off_t offset, size_t size);
+void stripes_compute_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size);
+void stripes_apply_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size);
 
 #endif

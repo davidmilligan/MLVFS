@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 David Milligan
+ * Copyright (C) 2014 The Magic Lantern Team
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,38 +25,26 @@
 
 #include "stripes.h"
 
-#define MIN(a,b) \
-   ({ __typeof__ ((a)+(b)) _a = (a); \
-      __typeof__ ((a)+(b)) _b = (b); \
-      _a < _b ? _a : _b; })
-
-#define MAX(a,b) \
-   ({ __typeof__ ((a)+(b)) _a = (a); \
-      __typeof__ ((a)+(b)) _b = (b); \
-      _a > _b ? _a : _b; })
-
-#define ABS(a) \
-   ({ __typeof__ (a) _a = (a); \
-      _a > 0 ? _a : -_a; })
-
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 #define COERCE(x,lo,hi) MAX(MIN((x),(hi)),(lo))
 
 #define CAM_5D3 "Canon EOS 5D Mark III"
 
-static struct correction * corrections = NULL;
+static struct stripes_correction * corrections = NULL;
 
-struct correction * stripes_get_correction(const char * mlv_filename)
+struct stripes_correction * stripes_get_correction(const char * mlv_filename)
 {
-    for(struct correction * current = corrections; current != NULL; current = current->next)
+    for(struct stripes_correction * current = corrections; current != NULL; current = current->next)
     {
         if(!strcmp(current->mlv_filename, mlv_filename)) return current;
     }
     return NULL;
 }
 
-struct correction * stripes_new_correction(const char * mlv_filename)
+struct stripes_correction * stripes_new_correction(const char * mlv_filename)
 {
-    struct correction * new_correction = malloc(sizeof(struct correction));
+    struct stripes_correction * new_correction = malloc(sizeof(struct stripes_correction));
     if(new_correction == NULL) return NULL;
     
     if(corrections == NULL)
@@ -65,7 +53,7 @@ struct correction * stripes_new_correction(const char * mlv_filename)
     }
     else
     {
-        struct correction * current = corrections;
+        struct stripes_correction * current = corrections;
         while(current->next != NULL)
         {
             current = current->next;
@@ -82,8 +70,8 @@ struct correction * stripes_new_correction(const char * mlv_filename)
 
 void stripes_free_corrections()
 {
-    struct correction * next = NULL;
-    struct correction * current = corrections;
+    struct stripes_correction * next = NULL;
+    struct stripes_correction * current = corrections;
     while(current != NULL)
     {
         next = current->next;
@@ -99,6 +87,7 @@ int stripes_correction_check_needed(struct frame_headers * frame_headers)
     return !strcmp((char*)frame_headers->idnt_hdr.cameraName, CAM_5D3);
 }
 
+/* Vertical stripes correction code from raw2dng, credits: a1ex */
 
 /**
  * Fix vertical stripes (banding) from 5D Mark III (and maybe others).
@@ -156,10 +145,10 @@ static void add_pixel(int hist[8][FIXP_RANGE], int num[8], int offset, int pa, i
 }
 
 
-void stripes_compute_correction(struct frame_headers * frame_headers, struct correction * correction, uint16_t * image_data, off_t offset, size_t size)
+void stripes_compute_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size)
 {
-    static int hist[8][FIXP_RANGE];
-    static int num[8];
+    int hist[8][FIXP_RANGE];
+    int num[8];
     struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
     
     memset(hist, 0, sizeof(hist));
@@ -224,8 +213,12 @@ void stripes_compute_correction(struct frame_headers * frame_headers, struct cor
     
     int max[8] = {0};
     for (j = 0; j < 8; j++)
+    {
         for (k = 1; k < FIXP_RANGE-1; k++)
+        {
             max[j] = MAX(max[j], hist[j][k]);
+        }
+    }
     
     /* compute the median correction factor (this will reject outliers) */
     for (j = 0; j < 8; j++)
@@ -255,46 +248,20 @@ void stripes_compute_correction(struct frame_headers * frame_headers, struct cor
         if (c < 0.998 || c > 1.002)
             correction->correction_needed = 1;
     }
-    
-    if(correction->correction_needed)
-    {
-        
-        /**
-         * inexact white level will result in banding in highlights, especially if some channels are clipped
-         *
-         * so... we'll try to use a better estimation of white level *for this particular purpose*
-         * start with a gross under-estimation, then consider white = max(all pixels)
-         * just in case the exif one is way off
-         * reason:
-         *   - if there are no pixels above the true white level, it shouldn't hurt;
-         *     worst case, the brightest pixel(s) will be underexposed by 0.1 EV or so
-         *   - if there are, we will choose the true white level
-         */
-        
-        int white = raw_info.white_level * 2 / 3;
-        
-        struct raw_pixblock * row;
-        
-        for (size_t i = 0; i < size; i++)
-        {
-            white = MAX(white, image_data[i]);
-        }
-        correction->white = (uint16_t)white;
-    }
 }
 
-void stripes_apply_correction(struct frame_headers * frame_headers, struct correction * correction, uint16_t * image_data, off_t offset, size_t size)
+void stripes_apply_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size)
 {
     if(correction == NULL || !correction->correction_needed) return;
     if(frame_headers->rawi_hdr.xRes % 8 != 0) return;
     
     uint16_t black = frame_headers->rawi_hdr.raw_info.black_level;
-    uint16_t white = correction->white;
+    uint16_t white = frame_headers->rawi_hdr.raw_info.white_level;
     size_t start = offset % 8;
     for(size_t i = 0; i < size; i++)
     {
         double correction_coeffficient = correction->coeffficients[(i + start) % 8];
-        if((correction_coeffficient > 1.02 || correction_coeffficient < 0.98) && image_data[i] > black + 64)
+        if(correction_coeffficient && image_data[i] > black + 64)
         {
             image_data[i] = MIN(white, (image_data[i] - black) * correction_coeffficient / FIXP_ONE + black);
         }

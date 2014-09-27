@@ -554,13 +554,13 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                 
                 if(stripes_correction_check_needed(&frame_headers))
                 {
-                    struct correction * correction = stripes_get_correction(mlv_filename);
+                    struct stripes_correction * correction = stripes_get_correction(mlv_filename);
                     if(correction == NULL)
                     {
                         correction = stripes_new_correction(mlv_filename);
                         size_t image_size = dng_get_image_size(&frame_headers);
                         uint16_t * image_buf = malloc(image_size);
-                        if(image_buf)
+                        if(image_buf && correction)
                         {
                             get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)image_buf, 0, image_size);
                             stripes_compute_correction(&frame_headers, correction, image_buf, 0, image_size / 2);
