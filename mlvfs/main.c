@@ -537,7 +537,6 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
             size_t header_size = dng_get_header_size(&frame_headers);
             size_t remaining = 0;
             off_t image_offset = 0;
-            uint8_t* image_output_buf = (uint8_t*)buf + remaining;
             if(offset >= header_size)
             {
                 image_offset = offset - header_size;
@@ -547,6 +546,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                 remaining = MIN(size, header_size - offset);
                 dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
             }
+            uint8_t* image_output_buf = (uint8_t*)buf + remaining;
             
             if(remaining < size)
             {
