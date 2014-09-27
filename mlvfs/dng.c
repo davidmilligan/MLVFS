@@ -27,17 +27,14 @@
 #include "mlv.h"
 #include "dng.h"
 #include "kelvin.h"
+#include "mlvfs.h"
 
 #include "dng_tag_codes.h"
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
-
 #define IFD0_COUNT 34
 #define EXIF_IFD_COUNT 8
-#define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
 #define STRING_ENTRY(a,b,c) (uint32_t)(strlen(a) + 1), add_string(a, b, c)

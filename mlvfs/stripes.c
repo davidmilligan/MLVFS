@@ -23,11 +23,8 @@
 #include <string.h>
 #include <math.h>
 
+#include "mlvfs.h"
 #include "stripes.h"
-
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define COERCE(x,lo,hi) MAX(MIN((x),(hi)),(lo))
 
 #define CAM_5D3 "Canon EOS 5D Mark III"
 

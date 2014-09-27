@@ -36,6 +36,7 @@
 		634B603419BBFEE4008CF973 /* wav.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wav.h; sourceTree = "<group>"; };
 		63A7C6DE19CB9D6800B4363E /* kelvin.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = kelvin.c; sourceTree = "<group>"; };
 		63A7C6E019CB9DBD00B4363E /* kelvin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = kelvin.h; sourceTree = "<group>"; };
+		63B5F88019D761490028614C /* mlvfs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mlvfs.h; sourceTree = "<group>"; };
 		63B6173E19ACED9300F21CD0 /* mlvfs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mlvfs; sourceTree = BUILT_PRODUCTS_DIR; };
 		63B6174119ACED9300F21CD0 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		63DA867719B113A80065788E /* dng.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dng.c; sourceTree = "<group>"; };
@@ -97,6 +98,7 @@
 				63A7C6E019CB9DBD00B4363E /* kelvin.h */,
 				63E9DBA119D4BF1E00E70CAA /* stripes.c */,
 				63E9DBA219D4BF1E00E70CAA /* stripes.h */,
+				63B5F88019D761490028614C /* mlvfs.h */,
 			);
 			path = mlvfs;
 			sourceTree = "<group>";

@@ -39,14 +39,7 @@
 #include "index.h"
 #include "wav.h"
 #include "stripes.h"
-
-//Let the DNGs be "writeable" for AE, even though they're not actually writable
-//You'll get an error if you actually try to write to them
-#define ALLOW_WRITEABLE_DNGS
-
-//some macros for simple thread synchronization
-#define LOCK(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER; pthread_mutex_lock(&x);
-#define UNLOCK(x) pthread_mutex_unlock(&x);
+#include "mlvfs.h"
 
 struct mlvfs
 {
