@@ -156,6 +156,7 @@ static int string_ends_with(const char *source, const char *ending)
  */
 static int get_mlv_filename(const char *path, char * mlv_filename)
 {
+    if(strstr(path,"/._")) return 0;
     char temp[1024];
     char *split;
     strncpy(temp, path, 1024);
@@ -602,46 +603,48 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
     char mlv_filename[1024];
     if(string_ends_with(path, ".dng") && get_mlv_filename(path, mlv_filename))
     {
-        int frame_number = get_mlv_frame_number(path);
-        struct frame_headers frame_headers;
-        if(mlv_get_frame_headers(path, frame_number, &frame_headers))
+        size_t header_size = dng_get_header_size();
+        size_t remaining = 0;
+        off_t image_offset = 0;
+        struct image_buffer * image_buffer;
+        
+        //TODO: lock based on path name, instead of locking all threads (really we only need to synchronize per frame)
+        //we will need some sort of 'named' mutexes for this
+        LOCK(image_buffer_mutex)
         {
-            FILE **chunk_files = NULL;
-            uint32_t chunk_count = 0;
-
-            chunk_files = load_chunks(mlv_filename, &chunk_count);
-            if(!chunk_files || !chunk_count)
+            image_buffer = get_image_buffer(path);
+            /** 
+             * Only read from the MLV file if needed
+             * We may have already completly loaded this frame, if so, we don't need to open the MLV file again
+             * This greatly improves performance on OSX with exFAT
+             */
+            if(offset < header_size || !image_buffer)
             {
-                return -1;
-            }
-
-            size_t dng_size = dng_get_size(&frame_headers);
-            if(offset + size > dng_size)
-            {
-                size = (size_t)(dng_size - offset);
-            }
-
-            size_t header_size = dng_get_header_size(&frame_headers);
-            size_t remaining = 0;
-            off_t image_offset = 0;
-            if(offset >= header_size)
-            {
-                image_offset = offset - header_size;
-            }
-            else
-            {
-                remaining = MIN(size, header_size - offset);
-                dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
-            }
-            uint8_t* image_output_buf = (uint8_t*)buf + remaining;
-            
-            if(remaining < size)
-            {
-                struct image_buffer * image_buffer;
-                
-                LOCK(image_buffer_mutex)
+                int frame_number = get_mlv_frame_number(path);
+                struct frame_headers frame_headers;
+                if(mlv_get_frame_headers(path, frame_number, &frame_headers))
                 {
-                    image_buffer = get_image_buffer(path);
+                    FILE **chunk_files = NULL;
+                    uint32_t chunk_count = 0;
+                    
+                    chunk_files = load_chunks(mlv_filename, &chunk_count);
+                    if(!chunk_files || !chunk_count)
+                    {
+                        return -1;
+                    }
+                    
+                    size_t dng_size = dng_get_size(&frame_headers);
+                    if(offset + size > dng_size)
+                    {
+                        size = (size_t)(dng_size - offset);
+                    }
+                    
+                    if(offset < header_size)
+                    {
+                        remaining = MIN(size, header_size - offset);
+                        dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
+                    }
+                    
                     if(!image_buffer)
                     {
                         size_t image_size = dng_get_image_size(&frame_headers);
@@ -651,43 +654,41 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                         {
                             chroma_smooth(&frame_headers, image_buffer->data, mlvfs.chroma_smooth);
                         }
-                    }
-                }
-                UNLOCK(image_buffer_mutex)
-                
-                memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(size - remaining, image_buffer->size - image_offset));
-                
-                if(stripes_correction_check_needed(&frame_headers))
-                {
-                    struct stripes_correction * correction;
-                    
-                    LOCK(stripes)
-                    {
-                        correction = stripes_get_correction(mlv_filename);
-                        if(correction == NULL)
+                        
+                        if(stripes_correction_check_needed(&frame_headers))
                         {
-                            correction = stripes_new_correction(mlv_filename);
-                            if(correction)
+                            struct stripes_correction * correction = stripes_get_correction(mlv_filename);
+                            if(correction == NULL)
                             {
-                                stripes_compute_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
+                                correction = stripes_new_correction(mlv_filename);
+                                if(correction)
+                                {
+                                    stripes_compute_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
+                                }
+                                else
+                                {
+                                    fprintf(stderr, "MLVFS: malloc error\n");
+                                }
                             }
-                            else
-                            {
-                                fprintf(stderr, "MLVFS: malloc error\n");
-                            }
+                            stripes_apply_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
                         }
                     }
-                    UNLOCK(stripes)
-                    
-                    stripes_apply_correction(&frame_headers, correction, (uint16_t*)image_output_buf, image_offset, (size - remaining) / 2);
+                    close_chunks(chunk_files, chunk_count);
                 }
             }
-
-            close_chunks(chunk_files, chunk_count);
         }
-        else
+        UNLOCK(image_buffer_mutex)
+        
+        if(offset >= header_size)
         {
-            size = 0;
+            image_offset = offset - header_size;
+        }
+        
+        uint8_t* image_output_buf = (uint8_t*)buf + remaining;
+        
+        if(remaining < size)
+        {
+            memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(size - remaining, image_buffer->size - image_offset));
         }
         return (int)size;
     }

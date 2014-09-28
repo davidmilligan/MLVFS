@@ -329,10 +329,9 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
  * Computes the size of the DNG header (all the IFDs, metadata, and whatnot). 
  * This is hardcoded to 64kB, which should be plenty large enough. This also
  * lines up with requests from FUSE, which are typically (but not always) 64kB
- * @param frame_headers The MLV blocks associated with the frame
  * @return The size of the DNG header
  */
-size_t dng_get_header_size(struct frame_headers * frame_headers)
+size_t dng_get_header_size()
 {
     return HEADER_SIZE;
 }
