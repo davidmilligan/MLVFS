@@ -288,7 +288,7 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
     index->blockSize = size;
     index->entryCount = frame_xref_entries;
 
-    for(int entry = 0; entry < frame_xref_entries; entry++)
+    for(uint32_t entry = 0; entry < frame_xref_entries; entry++)
     {
         xrefs[entry].frameOffset = frame_xref_table[entry].frameOffset;
         xrefs[entry].fileNumber = frame_xref_table[entry].fileNumber;

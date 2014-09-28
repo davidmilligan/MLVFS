@@ -59,6 +59,8 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
+#define BUILD64(a,b) (((uint64_t)(a)) << 32 | (b))
+
 static const char mlvfsFormatterName[] = "MLVFS";
 static const char mlvFileTypeTag[] = "MLV";
 
@@ -1614,10 +1616,10 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
         {
             marshaller->Printf(L"%s\n", FindFileData.cFileName);
 
-            time = (((uint64_t)FindFileData.ftLastWriteTime.dwHighDateTime) << 32 | FindFileData.ftLastWriteTime.dwLowDateTime);
+            time = BUILD64(FindFileData.ftLastWriteTime.dwHighDateTime, FindFileData.ftLastWriteTime.dwLowDateTime);
             FileFactory(&root, sibPrev, FindFileData.cFileName, pfmFileTypeFile, 0, time, &outfile);
             outfile->type = MAPPED;
-            outfile->data.file.fileSize = (FindFileData.nFileSizeHigh * (MAXDWORD + 1)) + FindFileData.nFileSizeLow;
+            outfile->data.file.fileSize = BUILD64(FindFileData.nFileSizeHigh, FindFileData.nFileSizeLow);
             sibPrev = &(outfile->sibNext);
 
             if(!FindNextFileW(hFind, &FindFileData))
