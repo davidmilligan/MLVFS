@@ -21,7 +21,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include <math.h>
 
 #include "raw.h"
@@ -60,19 +59,19 @@ void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, 
             int i;
             for (i = 0; i < 16384; i++)
             {
-                raw2ev[i] = log2(MAX(1, i - black)) * EV_RESOLUTION;
+                raw2ev[i] = (int)(log2(MAX(1, i - black)) * EV_RESOLUTION);
             }
             
             for (i = -10*EV_RESOLUTION; i < 14*EV_RESOLUTION; i++)
             {
-                ev2raw[i] = black + pow(2, (float)i / EV_RESOLUTION);
+                ev2raw[i] = (int)(black + pow(2, (float)i / EV_RESOLUTION));
             }
         }
         
         int w = frame_headers->rawi_hdr.xRes;
         int h = frame_headers->rawi_hdr.yRes;
         
-        uint16_t * buf = malloc(w*h*sizeof(uint16_t));
+        uint16_t * buf = (uint16_t *)malloc(w*h*sizeof(uint16_t));
         memcpy(buf, image_data, w*h*sizeof(uint16_t));
         
         switch (method) {

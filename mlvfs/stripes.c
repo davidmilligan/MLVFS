@@ -41,7 +41,7 @@ struct stripes_correction * stripes_get_correction(const char * mlv_filename)
 
 struct stripes_correction * stripes_new_correction(const char * mlv_filename)
 {
-    struct stripes_correction * new_correction = malloc(sizeof(struct stripes_correction));
+    struct stripes_correction * new_correction = (struct stripes_correction *)malloc(sizeof(struct stripes_correction));
     if(new_correction == NULL) return NULL;
     
     if(corrections == NULL)
@@ -57,7 +57,7 @@ struct stripes_correction * stripes_new_correction(const char * mlv_filename)
         }
         current->next = new_correction;
     }
-    new_correction->mlv_filename = malloc((sizeof(char) * (strlen(mlv_filename) + 2)));
+    new_correction->mlv_filename = (char *)malloc((sizeof(char) * (strlen(mlv_filename) + 2)));
     strcpy(new_correction->mlv_filename, mlv_filename);
     new_correction->correction_needed = 0;
     new_correction->next = NULL;
@@ -227,7 +227,7 @@ void stripes_compute_correction(struct frame_headers * frame_headers, struct str
             t += hist[j][k];
             if (t >= num[j]/2)
             {
-                int c = pow(2, H2F(k)) * FIXP_ONE;
+                int c = (int)(pow(2, H2F(k)) * FIXP_ONE);
                 correction->coeffficients[j] = c;
                 break;
             }
@@ -260,7 +260,7 @@ void stripes_apply_correction(struct frame_headers * frame_headers, struct strip
         double correction_coeffficient = correction->coeffficients[(i + start) % 8];
         if(correction_coeffficient && image_data[i] > black + 64)
         {
-            image_data[i] = MIN(white, (image_data[i] - black) * correction_coeffficient / FIXP_ONE + black);
+            image_data[i] = (uint16_t)MIN(white, (image_data[i] - black) * correction_coeffficient / FIXP_ONE + black);
         }
     }
 }

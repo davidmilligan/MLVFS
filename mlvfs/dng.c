@@ -198,9 +198,9 @@ static void get_white_balance(mlv_wbal_hdr_t wbal_hdr, int32_t *wbal, char *name
         }
         double chanMulArray[3];
         ufraw_kelvin_green_to_multipliers(kelvin, green, chanMulArray, name);
-        wbal[0] = 1000000; wbal[1] = (uint32_t)(chanMulArray[0] * 1000000);
-        wbal[2] = 1000000; wbal[3] = (uint32_t)(chanMulArray[1] * 1000000);
-        wbal[4] = 1000000; wbal[5] = (uint32_t)(chanMulArray[2] * 1000000);
+        wbal[0] = 1000000; wbal[1] = (int32_t)(chanMulArray[0] * 1000000);
+        wbal[2] = 1000000; wbal[3] = (int32_t)(chanMulArray[1] * 1000000);
+        wbal[4] = 1000000; wbal[5] = (int32_t)(chanMulArray[2] * 1000000);
     }
 }
 
