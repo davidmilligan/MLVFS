@@ -13,7 +13,7 @@ CFLAGS = -Wall -D__DARWIN_64_BIT_INO_T=1 -D__FreeBSD__=10 -D_FILE_OFFSET_BITS=64
 LIBS = -L/usr/local/lib/ -losxfuse -pthread
 else
 CFLAGS = -Wall -std=gnu99 -D_FILE_OFFSET_BITS=64
-LIBS = -pthread -lfuse
+LIBS = -pthread -lfuse -lm
 endif
 
 EXEC = mlvfs

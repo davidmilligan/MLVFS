@@ -22,6 +22,7 @@
 #define mlvfs_stripes_h
 
 #include <stdio.h>
+#include <stdint.h>
 #include "raw.h"
 #include "mlv.h"
 #include "dng.h"
