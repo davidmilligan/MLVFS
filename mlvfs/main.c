@@ -39,14 +39,103 @@
 #include "index.h"
 #include "wav.h"
 #include "stripes.h"
+#include "cs.h"
 #include "mlvfs.h"
 
 struct mlvfs
 {
     char * mlv_path;
+    int chroma_smooth;
 };
 
 static struct mlvfs mlvfs;
+
+
+struct image_buffer
+{
+    struct image_buffer * next;
+    char * dng_filename;
+    size_t size;
+    uint16_t * data;
+};
+
+static struct image_buffer * image_buffers = NULL;
+
+static struct image_buffer * get_image_buffer(const char * dng_filename)
+{
+    for(struct image_buffer * current = image_buffers; current != NULL; current = current->next)
+    {
+        if(!strcmp(current->dng_filename, dng_filename)) return current;
+    }
+    return NULL;
+}
+
+static struct image_buffer * new_image_buffer(const char * dng_filename, size_t size)
+{
+    //TODO: limit the total amount of buffer memory in case programs don't call fclose in a timely manner
+    //though this doesn't seem to be an issue with any programs I've used
+    struct image_buffer * new_buffer = malloc(sizeof(struct stripes_correction));
+    if(new_buffer == NULL) return NULL;
+    
+    if(image_buffers == NULL)
+    {
+        image_buffers = new_buffer;
+    }
+    else
+    {
+        struct image_buffer * current = image_buffers;
+        while(current->next != NULL)
+        {
+            current = current->next;
+        }
+        current->next = new_buffer;
+    }
+    new_buffer->dng_filename = malloc((sizeof(char) * (strlen(dng_filename) + 2)));
+    strcpy(new_buffer->dng_filename, dng_filename);
+    new_buffer->next = NULL;
+    new_buffer->size = size;
+    new_buffer->data = malloc(size);
+    
+    return new_buffer;
+}
+
+static void free_image_buffer(struct image_buffer * image_buffer)
+{
+    if(!image_buffer) return;
+    
+    if(image_buffer == image_buffers)
+    {
+        image_buffers = image_buffer->next;
+    }
+    else
+    {
+        struct image_buffer * current = image_buffers;
+        while(current->next != NULL)
+        {
+            if(current->next == image_buffer) break;
+            current = current->next;
+        }
+        current->next = image_buffer->next;
+    }
+    
+    free(image_buffer->dng_filename);
+    free(image_buffer->data);
+    free(image_buffer);
+}
+
+static void free_all_image_buffers()
+{
+    struct image_buffer * next = NULL;
+    struct image_buffer * current = image_buffers;
+    while(current != NULL)
+    {
+        next = current->next;
+        free(current->dng_filename);
+        free(current->data);
+        free(current);
+        current = next;
+    }
+}
 
 /**
  * Determines if a string ends in some string
@@ -548,7 +637,25 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
             
             if(remaining < size)
             {
-                get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], image_output_buf, image_offset, size - remaining);
+                struct image_buffer * image_buffer;
+                
+                LOCK(image_buffer_mutex)
+                {
+                    image_buffer = get_image_buffer(path);
+                    if(!image_buffer)
+                    {
+                        size_t image_size = dng_get_image_size(&frame_headers);
+                        image_buffer = new_image_buffer(path, image_size);
+                        get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_buffer->data, 0, image_size);
+                        if(mlvfs.chroma_smooth)
+                        {
+                            chroma_smooth(&frame_headers, image_buffer->data, mlvfs.chroma_smooth);
+                        }
+                    }
+                }
+                UNLOCK(image_buffer_mutex)
+                
+                memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(size - remaining, image_buffer->size - image_offset));
                 
                 if(stripes_correction_check_needed(&frame_headers))
                 {
@@ -560,13 +667,9 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                         if(correction == NULL)
                         {
                             correction = stripes_new_correction(mlv_filename);
-                            size_t image_size = dng_get_image_size(&frame_headers);
-                            uint16_t * image_buf = malloc(image_size);
-                            if(image_buf && correction)
+                            if(correction)
                             {
-                                get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*)image_buf, 0, image_size);
-                                stripes_compute_correction(&frame_headers, correction, image_buf, 0, image_size / 2);
-                                free(image_buf);
+                                stripes_compute_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
                             }
                             else
                             {
@@ -645,9 +748,12 @@ static int mlvfs_release(const char *path, struct fuse_file_info *fi)
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
     {
         close((int)fi->fh);
-        return 0;
     }
-    return -ENOENT;
+    else if (string_ends_with(path, ".dng"))
+    {
+        free_image_buffer(get_image_buffer(path));
+    }
+    return 0;
 }
 
 static int mlvfs_rmdir(const char *path)
@@ -702,12 +808,16 @@ static struct fuse_operations mlvfs_filesystem_operations =
 static const struct fuse_opt mlvfs_opts[] =
 {
     { "--mlv_dir=%s", offsetof(struct mlvfs, mlv_path), 0 },
+    { "--cs2x2", offsetof(struct mlvfs, chroma_smooth), 2 },
+    { "--cs3x3", offsetof(struct mlvfs, chroma_smooth), 3 },
+    { "--cs5x5", offsetof(struct mlvfs, chroma_smooth), 5 },
     FUSE_OPT_END
 };
 
 int main(int argc, char **argv)
 {
     mlvfs.mlv_path = NULL;
+    mlvfs.chroma_smooth = 0;
 
     int res = 1;
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
@@ -757,5 +867,6 @@ int main(int argc, char **argv)
 
     fuse_opt_free_args(&args);
     stripes_free_corrections();
+    free_all_image_buffers();
     return res;
 }

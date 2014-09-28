@@ -17,7 +17,7 @@ LIBS = -pthread -lfuse
 endif
 
 EXEC = mlvfs
-OBJS = dng.o index.o wav.o kelvin.o stripes.o
+OBJS = dng.o index.o wav.o kelvin.o stripes.o cs.o
 
 default: $(EXEC)
 
