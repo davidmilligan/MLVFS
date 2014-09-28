@@ -1201,7 +1201,7 @@ size_t Volume::ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, uint64_
 
     FILE *file = chunks[frameHeaders[frameNumber].fileNumber];
 
-    size_t header_size = dng_get_header_size(&frameHeaders[frameNumber]);
+    size_t header_size = dng_get_header_size();
     if(startOffset >= header_size)
     {
         read += get_image_data(&frameHeaders[frameNumber],

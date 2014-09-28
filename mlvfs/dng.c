@@ -219,7 +219,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
     entire header will be requested all at once anyway, since typically the 
     requested size is at least 64kB)
     */
-    size_t header_size = dng_get_header_size(frame_headers);
+    size_t header_size = dng_get_header_size();
     uint8_t * header = (uint8_t *)malloc(header_size);
     size_t position = 0;
     if(header)
@@ -386,5 +386,5 @@ size_t dng_get_image_size(struct frame_headers * frame_headers)
  */
 size_t dng_get_size(struct frame_headers * frame_headers)
 {
-    return dng_get_header_size(frame_headers) + dng_get_image_size(frame_headers);
+    return dng_get_header_size() + dng_get_image_size(frame_headers);
 }
