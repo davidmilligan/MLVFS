@@ -25,10 +25,8 @@
 #include "raw.h"
 #include "mlv.h"
 #include "index.h"
+#include "mlvfs.h"
 #include "wav.h"
-
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
 
 struct wav_header {
     //file header

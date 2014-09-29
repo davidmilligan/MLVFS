@@ -41,7 +41,7 @@ struct frame_headers
 };
 
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size);
-size_t dng_get_header_size(struct frame_headers * frame_headers);
+size_t dng_get_header_size();
 size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packed_bits, uint8_t * output_buffer, off_t offset, size_t max_size);
 size_t dng_get_image_size(struct frame_headers * frame_headers);
 size_t dng_get_size(struct frame_headers * frame_headers);

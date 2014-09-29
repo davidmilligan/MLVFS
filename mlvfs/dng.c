@@ -27,17 +27,14 @@
 #include "mlv.h"
 #include "dng.h"
 #include "kelvin.h"
+#include "mlvfs.h"
 
 #include "dng_tag_codes.h"
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
-
 #define IFD0_COUNT 34
 #define EXIF_IFD_COUNT 8
-#define MLVFS_SOFTWARE_NAME "MLVFS"
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
 #define STRING_ENTRY(a,b,c) (uint32_t)(strlen(a) + 1), add_string(a, b, c)
@@ -201,9 +198,9 @@ static void get_white_balance(mlv_wbal_hdr_t wbal_hdr, int32_t *wbal, char *name
         }
         double chanMulArray[3];
         ufraw_kelvin_green_to_multipliers(kelvin, green, chanMulArray, name);
-        wbal[0] = 1000000; wbal[1] = chanMulArray[0] * 1000000;
-        wbal[2] = 1000000; wbal[3] = chanMulArray[1] * 1000000;
-        wbal[4] = 1000000; wbal[5] = chanMulArray[2] * 1000000;
+        wbal[0] = 1000000; wbal[1] = (int32_t)(chanMulArray[0] * 1000000);
+        wbal[2] = 1000000; wbal[3] = (int32_t)(chanMulArray[1] * 1000000);
+        wbal[4] = 1000000; wbal[5] = (int32_t)(chanMulArray[2] * 1000000);
     }
 }
 
@@ -222,7 +219,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
     entire header will be requested all at once anyway, since typically the 
     requested size is at least 64kB)
     */
-    size_t header_size = dng_get_header_size(frame_headers);
+    size_t header_size = dng_get_header_size();
     uint8_t * header = (uint8_t *)malloc(header_size);
     size_t position = 0;
     if(header)
@@ -332,10 +329,9 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
  * Computes the size of the DNG header (all the IFDs, metadata, and whatnot). 
  * This is hardcoded to 64kB, which should be plenty large enough. This also
  * lines up with requests from FUSE, which are typically (but not always) 64kB
- * @param frame_headers The MLV blocks associated with the frame
  * @return The size of the DNG header
  */
-size_t dng_get_header_size(struct frame_headers * frame_headers)
+size_t dng_get_header_size()
 {
     return HEADER_SIZE;
 }
@@ -390,5 +386,5 @@ size_t dng_get_image_size(struct frame_headers * frame_headers)
  */
 size_t dng_get_size(struct frame_headers * frame_headers)
 {
-    return dng_get_header_size(frame_headers) + dng_get_image_size(frame_headers);
+    return dng_get_header_size() + dng_get_image_size(frame_headers);
 }
