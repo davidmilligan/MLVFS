@@ -11,6 +11,8 @@
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
 		63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */ = {isa = PBXBuildFile; fileRef = 63A7C6DE19CB9D6800B4363E /* kelvin.c */; };
 		63B5F88319D76F240028614C /* cs.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88119D76F240028614C /* cs.c */; };
+		63B5F88A19DA0B9E0028614C /* hdr.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88819DA0B9E0028614C /* hdr.c */; };
+		63B5F88D19DA0BBF0028614C /* histogram.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88B19DA0BBF0028614C /* histogram.c */; };
 		63B6174219ACED9300F21CD0 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B6174119ACED9300F21CD0 /* main.c */; };
 		63DA867819B113A80065788E /* dng.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA867719B113A80065788E /* dng.c */; };
 		63DA868219B51C080065788E /* index.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA868019B51C080065788E /* index.c */; };
@@ -43,6 +45,10 @@
 		63B5F88419D779F40028614C /* opt_med.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = opt_med.h; sourceTree = "<group>"; };
 		63B5F88519D797730028614C /* chroma_smooth.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = chroma_smooth.c; sourceTree = "<group>"; };
 		63B5F88719D79C510028614C /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
+		63B5F88819DA0B9E0028614C /* hdr.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hdr.c; sourceTree = "<group>"; };
+		63B5F88919DA0B9E0028614C /* hdr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hdr.h; sourceTree = "<group>"; };
+		63B5F88B19DA0BBF0028614C /* histogram.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = histogram.c; sourceTree = "<group>"; };
+		63B5F88C19DA0BBF0028614C /* histogram.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = histogram.h; sourceTree = "<group>"; };
 		63B6173E19ACED9300F21CD0 /* mlvfs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mlvfs; sourceTree = BUILT_PRODUCTS_DIR; };
 		63B6174119ACED9300F21CD0 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		63DA867719B113A80065788E /* dng.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dng.c; sourceTree = "<group>"; };
@@ -109,6 +115,10 @@
 				63B5F88519D797730028614C /* chroma_smooth.c */,
 				63B5F88119D76F240028614C /* cs.c */,
 				63B5F88219D76F240028614C /* cs.h */,
+				63B5F88819DA0B9E0028614C /* hdr.c */,
+				63B5F88919DA0B9E0028614C /* hdr.h */,
+				63B5F88B19DA0BBF0028614C /* histogram.c */,
+				63B5F88C19DA0BBF0028614C /* histogram.h */,
 				63B5F88719D79C510028614C /* Makefile */,
 			);
 			path = mlvfs;
@@ -169,7 +179,9 @@
 				634B603319BBFED2008CF973 /* wav.c in Sources */,
 				63DA868219B51C080065788E /* index.c in Sources */,
 				63E9DBA319D4BF1E00E70CAA /* stripes.c in Sources */,
+				63B5F88A19DA0B9E0028614C /* hdr.c in Sources */,
 				63B6174219ACED9300F21CD0 /* main.c in Sources */,
+				63B5F88D19DA0BBF0028614C /* histogram.c in Sources */,
 				63B5F88319D76F240028614C /* cs.c in Sources */,
 				63DA867819B113A80065788E /* dng.c in Sources */,
 			);

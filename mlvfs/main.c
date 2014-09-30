@@ -40,6 +40,7 @@
 #include "wav.h"
 #include "stripes.h"
 #include "cs.h"
+#include "hdr.h"
 #include "mlvfs.h"
 
 struct mlvfs
@@ -650,6 +651,12 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                         size_t image_size = dng_get_image_size(&frame_headers);
                         image_buffer = new_image_buffer(path, image_size);
                         get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_buffer->data, 0, image_size);
+                        
+                        if(strstr(path, "DUAL") != NULL)
+                        {
+                            hdr_convert_data(&frame_headers, image_buffer->data, 0, image_size);
+                        }
+                        
                         if(mlvfs.chroma_smooth)
                         {
                             chroma_smooth(&frame_headers, image_buffer->data, mlvfs.chroma_smooth);

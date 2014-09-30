@@ -21,68 +21,101 @@
 #include <math.h>
 #include "raw.h"
 #include "mlv.h"
+#include "mlvfs.h"
+#include "histogram.h"
 #include "hdr.h"
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
-
-#define SCALE_PIXEL(data, index, ev, black) (ev >= 0 ? (((data[index] - black) << ev) + black) : (((data[index] - black) >> -ev) + black))
-
-#define INTERPOLATE_PIXEL(data, index, width, ev, black, count) {\
-if(index + width * 2 < count){\
-    if(index >= width * 2) \
-        data[index] = (uint16_t)(((uint32_t)SCALE_PIXEL(data, index + width * 2, ev, black) + (uint32_t)data[index - width * 2]) / 2);\
-    else \
-        data[index] = SCALE_PIXEL(data, index + width * 2, ev, black);\
-}\
-else if(index >= width * 2) data[index] = data[index - width * 2]; }\
+#define FIXP_ONE 65536
 
 //this is just meant to be fast
 void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, off_t offset, size_t max_size)
 {
-    uint64_t pixel_start_index = MAX(0, offset) / 2;
-    size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
-    uint64_t pixel_count = output_size / 2;
-    
-    //TODO: autodetect this stuff -> compute and compare medians of the rows like cr2hdr
-    uint16_t iso1 = 100;
-    uint16_t iso2 = 1600;
-    //it appears that this can change from frame to frame, so will have to figure it out for each frame (not just each sequence)
-    uint16_t dark_row_start = 3;
-    
-    int16_t iso_difference_ev = (int16_t)log2((MAX(iso1, iso2) / MIN(iso1, iso2)));
-    
-    //we have 2 extra bits to spare, so scale the lower ISO up by max of 2 bits, and scale the high ISO down by the remainder
-    int16_t iso1_ev = iso1 < iso2 ? MIN(2, iso_difference_ev) : MIN(0, 2 - iso_difference_ev);
-    int16_t iso2_ev = iso2 < iso1 ? MIN(2, iso_difference_ev) : MIN(0, 2 - iso_difference_ev);
     uint16_t width = frame_headers->rawi_hdr.xRes;
+    uint16_t height = frame_headers->rawi_hdr.yRes;
     uint16_t black = frame_headers->rawi_hdr.raw_info.black_level;
     uint16_t white = frame_headers->rawi_hdr.raw_info.white_level;
-    uint16_t shadow = (1 << (iso_difference_ev * 2)) + black;
     
-    for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
+    //compute the median of the green channel for each multiple of 4 rows
+    uint16_t median[4];
+    struct histogram * hist[4];
+    for(int i = 0; i < 4; i++)
+        hist[i] = hist_create(white);
+    
+    for(uint16_t y = 4; y < height - 4; y ++)
     {
-        uint16_t y = (pixel_index + pixel_start_index) / width + dark_row_start;
-        if (y % 4 < 2)
+        hist_add(hist[y % 4], &(image_data[y * width + (y + 1) % 2]), width - (y + 1) % 2, 1);
+    }
+    
+    for(int i = 0; i < 4; i++)
+    {
+        median[i] = hist_median(hist[i]);
+        hist_destroy(hist[i]);
+    }
+    
+    uint32_t correction = FIXP_ONE;
+    uint16_t dark_row_start = -1;
+    if((median[2] - black) > ((median[0] - black) * 2) &&
+       (median[2] - black) > ((median[1] - black) * 2) &&
+       (median[3] - black) > ((median[0] - black) * 2) &&
+       (median[3] - black) > ((median[1] - black) * 2))
+    {
+        dark_row_start = 0;
+        correction = (median[2] - black + median[3] - black) * FIXP_ONE / ((median[0] - black + median[1] - black));
+    }
+    else if((median[0] - black) > ((median[1] - black) * 2) &&
+            (median[0] - black) > ((median[2] - black) * 2) &&
+            (median[3] - black) > ((median[1] - black) * 2) &&
+            (median[3] - black) > ((median[2] - black) * 2))
+    {
+        dark_row_start = 1;
+        correction = (median[0] - black + median[3] - black) * FIXP_ONE / ((median[1] - black + median[2] - black));
+    }
+    else if((median[0] - black) > ((median[2] - black) * 2) &&
+            (median[0] - black) > ((median[3] - black) * 2) &&
+            (median[1] - black) > ((median[2] - black) * 2) &&
+            (median[1] - black) > ((median[3] - black) * 2))
+    {
+        dark_row_start = 2;
+        correction = (median[0] - black + median[1] - black) * FIXP_ONE / ((median[2] - black + median[3] - black));
+    }
+    else if((median[1] - black) > ((median[0] - black) * 2) &&
+            (median[1] - black) > ((median[3] - black) * 2) &&
+            (median[2] - black) > ((median[0] - black) * 2) &&
+            (median[2] - black) > ((median[3] - black) * 2))
+    {
+        dark_row_start = 3;
+        correction = (median[1] - black + median[2] - black) * FIXP_ONE / ((median[0] - black + median[3] - black));
+    }
+    uint16_t shadow = black + correction * 4 / FIXP_ONE;
+    
+    for(int y = 0; y < height; y++)
+    {
+        int row_start = y * width;
+        if (((y - dark_row_start) % 4) >= 2)
         {
-            if(image_data[pixel_index] <= shadow)
+            //bright row
+            for(int i = row_start; i < row_start + width; i++)
             {
-                INTERPOLATE_PIXEL(image_data, pixel_index, width, iso2_ev, black, pixel_count);
-            }
-            else
-            {
-                image_data[pixel_index] = SCALE_PIXEL(image_data, pixel_index, iso1_ev, black);
+                if(image_data[i] >= white)
+                {
+                    image_data[i] = y > 2 ? (y < height - 2 ? (image_data[i-width*2] + image_data[i+width*2]) / 2 : image_data[i-width*2]) : image_data[i+width*2];
+                }
+                else
+                {
+                    image_data[i] = MIN(white,((image_data[i] - black) * FIXP_ONE / correction) + black);
+                }
             }
         }
         else
         {
-            if(image_data[pixel_index] >= white)
+            //dark row
+            for(int i = row_start; i < row_start + width; i++)
             {
-                INTERPOLATE_PIXEL(image_data, pixel_index, width, iso1_ev, black, pixel_count);
-            }
-            else
-            {
-                image_data[pixel_index] = SCALE_PIXEL(image_data, pixel_index, iso2_ev, black);
+                if(image_data[i] < shadow)
+                {
+                    image_data[i] = y > 2 ? (y < height - 2 ? (image_data[i-width*2] + MIN(white,((image_data[i+width*2] - black) * FIXP_ONE / correction) + black)) / 2 : image_data[i-width*2]) : MIN(white,((image_data[i+width*2] - black) * FIXP_ONE / correction) + black);
+                }
+                
             }
         }
     }
