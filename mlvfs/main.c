@@ -56,7 +56,9 @@ struct image_buffer
 {
     struct image_buffer * next;
     char * dng_filename;
+    size_t header_size;
     size_t size;
+    uint8_t * header;
     uint16_t * data;
 };
 
@@ -71,11 +73,11 @@ static struct image_buffer * get_image_buffer(const char * dng_filename)
     return NULL;
 }
 
-static struct image_buffer * new_image_buffer(const char * dng_filename, size_t size)
+static struct image_buffer * new_image_buffer(const char * dng_filename, size_t header_size, size_t size)
 {
     //TODO: limit the total amount of buffer memory in case programs don't call fclose in a timely manner
     //though this doesn't seem to be an issue with any programs I've used
-    struct image_buffer * new_buffer = malloc(sizeof(struct stripes_correction));
+    struct image_buffer * new_buffer = malloc(sizeof(struct image_buffer));
     if(new_buffer == NULL) return NULL;
     
     if(image_buffers == NULL)
@@ -96,6 +98,8 @@ static struct image_buffer * new_image_buffer(const char * dng_filename, size_t 
     new_buffer->next = NULL;
     new_buffer->size = size;
     new_buffer->data = malloc(size);
+    new_buffer->header_size = header_size;
+    new_buffer->header = malloc(header_size);
     
     return new_buffer;
 }
@@ -133,6 +137,65 @@ static void free_all_image_buffers()
         next = current->next;
         free(current->dng_filename);
         free(current->data);
+        free(current->header);
+        free(current);
+        current = next;
+    }
+}
+
+struct attr_cache
+{
+    struct attr_cache * next;
+    char *path;
+    struct stat *stbuf;
+};
+
+static struct attr_cache * attr_cache = NULL;
+
+static struct attr_cache * get_attr_cache(const char * path)
+{
+    for(struct attr_cache * current = attr_cache; current != NULL; current = current->next)
+    {
+        if(!strcmp(current->path, path)) return current;
+    }
+    return NULL;
+}
+
+static struct attr_cache * new_attr_cache(const char * path, struct stat *stbuf)
+{
+    struct attr_cache * new_buffer = malloc(sizeof(struct attr_cache));
+    if(new_buffer == NULL) return NULL;
+    
+    if(attr_cache == NULL)
+    {
+        attr_cache = new_buffer;
+    }
+    else
+    {
+        struct attr_cache * current = attr_cache;
+        while(current->next != NULL)
+        {
+            current = current->next;
+        }
+        current->next = new_buffer;
+    }
+    new_buffer->path = malloc((sizeof(char) * (strlen(path) + 2)));
+    strcpy(new_buffer->path, path);
+    new_buffer->next = NULL;
+    new_buffer->stbuf = malloc(sizeof(struct stat));
+    memcpy(new_buffer->stbuf, stbuf, sizeof(struct stat));
+    return new_buffer;
+}
+
+static void free_attr_cache()
+{
+    struct attr_cache * next = NULL;
+    struct attr_cache * current = attr_cache;
+    while(current != NULL)
+    {
+        next = current->next;
+        free(current->path);
+        free(current->stbuf);
         free(current);
         current = next;
     }
@@ -379,6 +442,26 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     {
         if(get_mlv_filename(path, mlv_filename))
         {
+            int new_cache = 0;
+            struct attr_cache * cache;
+            
+            LOCK(getattr_mutex)
+            {
+                cache = get_attr_cache(path);
+                if(!cache)
+                {
+                    new_cache = 1;
+                    cache = new_attr_cache(path, stbuf);
+                }
+            }
+            UNLOCK(getattr_mutex)
+            
+            if(!new_cache)
+            {
+                memcpy(stbuf, cache->stbuf, sizeof(struct stat));
+                return 0;
+            }
+            
             #ifdef ALLOW_WRITEABLE_DNGS
             stbuf->st_mode = S_IFREG | 0666;
             #else
@@ -423,7 +506,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 {
                     stbuf->st_size = wav_get_size(mlv_filename);
                 }
-
+                memcpy(cache->stbuf, stbuf, sizeof(struct stat));
                 return 0; // DNG frame found
             }
         }
@@ -640,16 +723,12 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                         size = (size_t)(dng_size - offset);
                     }
                     
-                    if(offset < header_size)
-                    {
-                        remaining = MIN(size, header_size - offset);
-                        dng_get_header_data(&frame_headers, (uint8_t*)buf, offset, remaining);
-                    }
                     
                     if(!image_buffer)
                     {
                         size_t image_size = dng_get_image_size(&frame_headers);
-                        image_buffer = new_image_buffer(path, image_size);
+                        image_buffer = new_image_buffer(path, header_size, image_size);
+                        dng_get_header_data(&frame_headers, image_buffer->header, 0, header_size);
                         get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_buffer->data, 0, image_size);
                         
                         if(strstr(path, "DUAL") != NULL)
@@ -686,7 +765,12 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         }
         UNLOCK(image_buffer_mutex)
         
-        if(offset >= header_size)
+        if(offset < header_size)
+        {
+            remaining = MIN(size, header_size - offset);
+            memcpy(buf, image_buffer->header + offset, remaining);
+        }
+        else
         {
             image_offset = offset - header_size;
         }
@@ -876,5 +960,6 @@ int main(int argc, char **argv)
     fuse_opt_free_args(&args);
     stripes_free_corrections();
     free_all_image_buffers();
+    free_attr_cache();
     return res;
 }
