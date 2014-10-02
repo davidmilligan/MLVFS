@@ -32,12 +32,12 @@
  */
 struct histogram * hist_create(uint16_t white)
 {
-    struct histogram * hist = malloc(sizeof(struct histogram));
+    struct histogram * hist = (struct histogram *)malloc(sizeof(struct histogram));
     if(hist != NULL)
     {
         hist->white = white;
         hist->count = 0;
-        hist->data = malloc((white + 1) * sizeof(uint16_t));
+        hist->data = (uint16_t *)malloc((white + 1) * sizeof(uint16_t));
         if(hist->data != NULL)
         {
             memset(hist->data, 0, (white + 1) * sizeof(uint16_t));

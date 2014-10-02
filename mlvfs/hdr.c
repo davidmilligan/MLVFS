@@ -100,9 +100,9 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
     /* compare the two histograms and plot the curve between the two exposures (dark as a function of bright) */
     const int min_pix = 100;                                /* extract a data point every N image pixels */
     int data_size = (width * height / min_pix + 1);                  /* max number of data points */
-    int* data_x = malloc(data_size * sizeof(data_x[0]));
-    int* data_y = malloc(data_size * sizeof(data_y[0]));
-    double* data_w = malloc(data_size * sizeof(data_w[0]));
+    int* data_x = (int *)malloc(data_size * sizeof(data_x[0]));
+    int* data_y = (int *)malloc(data_size * sizeof(data_y[0]));
+    double* data_w = (double *)malloc(data_size * sizeof(data_w[0]));
     int data_num = 0;
     
     int acc_lo = 0;
@@ -169,7 +169,7 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
     }
     
     //TODO: what's a better way to pick a value for this?
-    uint16_t shadow = black + 1 / (a * a) + b;
+    uint16_t shadow = (uint16_t)(black + 1 / (a * a) + b);
     
     for(int y = 0; y < height; y++)
     {
@@ -185,7 +185,7 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
                 }
                 else
                 {
-                    image_data[i] = MIN(white,(image_data[i] - black) * a + black + b);
+                    image_data[i] = (uint16_t)(MIN(white,(image_data[i] - black) * a + black + b));
                 }
             }
         }
@@ -196,7 +196,7 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
             {
                 if(image_data[i] < shadow)
                 {
-                    image_data[i] = y > 2 ? (y < height - 2 ? (image_data[i-width*2] + MIN(white,(image_data[i+width*2]  - black) * a + black + b)) / 2 : image_data[i-width*2]) : MIN(white,(image_data[i+width*2]  - black) * a + black + b);
+                    image_data[i] = (uint16_t)(y > 2 ? (y < height - 2 ? (image_data[i-width*2] + MIN(white,(image_data[i+width*2]  - black) * a + black + b)) / 2 : image_data[i-width*2]) : MIN(white,(image_data[i+width*2]  - black) * a + black + b));
                 }
                 
             }
