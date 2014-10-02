@@ -51,6 +51,7 @@ struct mlvfs
 
 static struct mlvfs mlvfs;
 
+CREATE_MUTEX(image_buffer_mutex)
 
 struct image_buffer
 {
@@ -694,7 +695,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         
         //TODO: lock based on path name, instead of locking all threads (really we only need to synchronize per frame)
         //we will need some sort of 'named' mutexes for this
-        LOCK(image_buffer_mutex)
+        RELOCK(image_buffer_mutex)
         {
             image_buffer = get_image_buffer(path);
             /** 
@@ -843,7 +844,11 @@ static int mlvfs_release(const char *path, struct fuse_file_info *fi)
     }
     else if (string_ends_with(path, ".dng"))
     {
-        free_image_buffer(get_image_buffer(path));
+        RELOCK(image_buffer_mutex)
+        {
+            free_image_buffer(get_image_buffer(path));
+        }
+        UNLOCK(image_buffer_mutex)
     }
     return 0;
 }
