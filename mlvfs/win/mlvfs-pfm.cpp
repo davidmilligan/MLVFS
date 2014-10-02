@@ -205,8 +205,8 @@ struct Volume: PfmFormatterOps
     Volume(void);
     ~Volume(void);
     int/*systemError*/ Init(const wchar_t* mlvFileName);
-    size_t ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize);
-    size_t ReadVirtualWAV(uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize);
+    size_t ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, File *file, uint8_t *buffer, size_t requestedSize);
+    size_t ReadVirtualWAV(uint64_t fileOffset, File *file, uint8_t *buffer, size_t requestedSize);
 };
 
 struct MlvFormatter: PfmFormatter
@@ -1185,21 +1185,19 @@ int/*error*/ CCALL Volume::ListEnd(int64_t openId,int64_t listId)
     return error;
 }
 
-size_t Volume::ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize)
+size_t Volume::ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, File *file, uint8_t *buffer, size_t requestedSize)
 {
     uint64_t read = 0;
     uint64_t startOffset = fileOffset;
     uint64_t endOffset = fileOffset;
-    if(fileOffset < fileSize)
+    if(fileOffset < file->data.file.fileSize)
     {
         endOffset = fileOffset+requestedSize;
-        if(endOffset < startOffset || endOffset > fileSize)
+        if(endOffset < startOffset || endOffset > file->data.file.fileSize)
         {
-            endOffset = fileSize;
+            endOffset = file->data.file.fileSize;
         }
     }
-
-    FILE *file = chunks[frameHeaders[frameNumber].fileNumber];
 
     size_t header_size = dng_get_header_size();
     if(startOffset >= header_size)
@@ -1226,9 +1224,9 @@ size_t Volume::ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, uint64_
     return static_cast<size_t>(read);
 }
 
-size_t Volume::ReadVirtualWAV(uint64_t fileOffset, uint64_t fileSize, uint8_t *buffer, size_t requestedSize)
+size_t Volume::ReadVirtualWAV(uint64_t fileOffset, File *file, uint8_t *buffer, size_t requestedSize)
 {
-    return wav_get_data_direct(chunks, index, &audioHeader, fileSize, buffer, fileOffset, requestedSize);
+    return wav_get_data_direct(chunks, index, &audioHeader, file->data.file.fileSize, buffer, fileOffset, requestedSize);
 }
 
 int/*error*/ CCALL Volume::Read(int64_t openId,uint64_t fileOffset,void* data,size_t requestedSize,size_t* outActualSize)
@@ -1246,11 +1244,11 @@ int/*error*/ CCALL Volume::Read(int64_t openId,uint64_t fileOffset,void* data,si
             uint32_t frameNumber = file->fileId - 2;
             if(frameNumber < videoFrameCount) // DNG frame
             {
-                *outActualSize = ReadVirtualDNG(frameNumber, fileOffset, file->data.file.fileSize, buffer, requestedSize);
+                *outActualSize = ReadVirtualDNG(frameNumber, fileOffset, file, buffer, requestedSize);
             }
             else if(frameNumber == videoFrameCount) // WAV audio
             {
-                *outActualSize = ReadVirtualWAV(fileOffset, file->data.file.fileSize, buffer, requestedSize);
+                *outActualSize = ReadVirtualWAV(fileOffset, file, buffer, requestedSize);
             }
             else
             {
