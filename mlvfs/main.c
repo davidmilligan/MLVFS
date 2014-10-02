@@ -144,62 +144,95 @@ static void free_all_image_buffers()
     }
 }
 
-struct attr_cache
+struct mlv_chunks
 {
-    struct attr_cache * next;
+    struct mlv_chunks * next;
     char *path;
-    struct stat *stbuf;
+    THREAD_T thread_id;
+    uint32_t chunk_count;
+    FILE** chunks;
 };
 
-static struct attr_cache * attr_cache = NULL;
+static struct mlv_chunks * loaded_chunks = NULL;
 
-static struct attr_cache * get_attr_cache(const char * path)
+static struct mlv_chunks * get_chunks(const char * path)
 {
-    for(struct attr_cache * current = attr_cache; current != NULL; current = current->next)
+    for(struct mlv_chunks * current = loaded_chunks; current != NULL; current = current->next)
     {
-        if(!strcmp(current->path, path)) return current;
+        if(current->thread_id == CURRENT_THREAD && !strcmp(current->path, path)) return current;
     }
     return NULL;
 }
 
-static struct attr_cache * new_attr_cache(const char * path, struct stat *stbuf)
+static struct mlv_chunks * new_chunks(const char * path, FILE** files, uint32_t chunk_count)
 {
-    struct attr_cache * new_buffer = malloc(sizeof(struct attr_cache));
+    struct mlv_chunks * new_buffer = (struct mlv_chunks *)malloc(sizeof(struct mlv_chunks));
     if(new_buffer == NULL) return NULL;
     
-    if(attr_cache == NULL)
+    if(loaded_chunks == NULL)
     {
-        attr_cache = new_buffer;
+        loaded_chunks = new_buffer;
     }
     else
     {
-        struct attr_cache * current = attr_cache;
+        struct mlv_chunks * current = loaded_chunks;
         while(current->next != NULL)
         {
             current = current->next;
         }
         current->next = new_buffer;
     }
-    new_buffer->path = malloc((sizeof(char) * (strlen(path) + 2)));
+    new_buffer->path = (char*)malloc((sizeof(char) * (strlen(path) + 2)));
     strcpy(new_buffer->path, path);
     new_buffer->next = NULL;
-    new_buffer->stbuf = malloc(sizeof(struct stat));
-    memcpy(new_buffer->stbuf, stbuf, sizeof(struct stat));
+    new_buffer->chunks = files;
+    new_buffer->chunk_count = chunk_count;
+    new_buffer->thread_id = CURRENT_THREAD;
     return new_buffer;
 }
 
-static void free_attr_cache()
+static void close_all_chunks()
 {
-    struct attr_cache * next = NULL;
-    struct attr_cache * current = attr_cache;
+    struct mlv_chunks * next = NULL;
+    struct mlv_chunks * current = loaded_chunks;
     while(current != NULL)
     {
         next = current->next;
         free(current->path);
-        free(current->stbuf);
+        close_chunks(current->chunks, current->chunk_count);
         free(current);
         current = next;
     }
+}
+
+static FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count)
+{
+    FILE **chunk_files = NULL;
+    *chunk_count = 0;
+    
+    LOCK(chunk_load_mutex)
+    {
+        struct mlv_chunks * mlv_chunks = get_chunks(path);
+        if(!mlv_chunks)
+        {
+            chunk_files = load_chunks(path, chunk_count);
+            new_chunks(path, chunk_files, *chunk_count);
+        }
+        else
+        {
+            chunk_files = mlv_chunks->chunks;
+            *chunk_count = mlv_chunks->chunk_count;
+        }
+    }
+    UNLOCK(chunk_load_mutex)
+    if(chunk_files && chunk_count)
+    {
+        for(uint32_t i = 0; i < *chunk_count; i++)
+        {
+            file_set_pos(chunk_files[i], 0, SEEK_SET);
+        }
+    }
+    return chunk_files;
 }
 
 /**
@@ -283,7 +316,7 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
     FILE **chunk_files = NULL;
     uint32_t chunk_count = 0;
 
-    chunk_files = load_chunks(mlv_filename, &chunk_count);
+    chunk_files = mlvfs_load_chunks(mlv_filename, &chunk_count);
     if(!chunk_files || !chunk_count)
     {
         return 0;
@@ -376,7 +409,6 @@ static int mlv_get_frame_headers(const char *path, int index, struct frame_heade
     }
 
     free(block_xref);
-    close_chunks(chunk_files, chunk_count);
 
     return found;
 }
@@ -443,26 +475,6 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     {
         if(get_mlv_filename(path, mlv_filename))
         {
-            int new_cache = 0;
-            struct attr_cache * cache;
-            
-            LOCK(getattr_mutex)
-            {
-                cache = get_attr_cache(path);
-                if(!cache)
-                {
-                    new_cache = 1;
-                    cache = new_attr_cache(path, stbuf);
-                }
-            }
-            UNLOCK(getattr_mutex)
-            
-            if(!new_cache)
-            {
-                memcpy(stbuf, cache->stbuf, sizeof(struct stat));
-                return 0;
-            }
-            
             #ifdef ALLOW_WRITEABLE_DNGS
             stbuf->st_mode = S_IFREG | 0666;
             #else
@@ -507,7 +519,6 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 {
                     stbuf->st_size = wav_get_size(mlv_filename);
                 }
-                memcpy(cache->stbuf, stbuf, sizeof(struct stat));
                 return 0; // DNG frame found
             }
         }
@@ -712,7 +723,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                     FILE **chunk_files = NULL;
                     uint32_t chunk_count = 0;
                     
-                    chunk_files = load_chunks(mlv_filename, &chunk_count);
+                    chunk_files = mlvfs_load_chunks(mlv_filename, &chunk_count);
                     if(!chunk_files || !chunk_count)
                     {
                         return -1;
@@ -760,7 +771,6 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                             stripes_apply_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
                         }
                     }
-                    close_chunks(chunk_files, chunk_count);
                 }
             }
         }
@@ -965,6 +975,6 @@ int main(int argc, char **argv)
     fuse_opt_free_args(&args);
     stripes_free_corrections();
     free_all_image_buffers();
-    free_attr_cache();
+    close_all_chunks();
     return res;
 }
