@@ -55,6 +55,7 @@
 #include "index.h"
 #include "dng.h"
 #include "wav.h"
+#include "hdr.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -63,6 +64,11 @@
 
 static const char mlvfsFormatterName[] = "MLVFS";
 static const char mlvFileTypeTag[] = "MLV";
+
+#define PROCESSING_NONE             0
+#define PROCESSING_DUAL_ISO         1
+#define PROCESSING_VERTICAL_STRIPES 2
+#define PROCESSING_CHROMA_SMOOTHING 4
 
 enum Type { TEMPORARY, VIRTUAL, MAPPED };
 
@@ -132,6 +138,7 @@ struct File
         } folder;
     } data;
     Type type;
+    uint8_t *workspace;
 
 #ifdef DEBUG
     void CheckConsistency(void);
@@ -172,6 +179,7 @@ struct Volume: PfmFormatterOps
     uint32_t chunkCount;
     struct frame_headers *frameHeaders;
     mlv_wavi_hdr_t audioHeader;
+    uint16_t processing;
 
 #ifdef DEBUG
     void CheckConsistency(void);
@@ -670,6 +678,7 @@ File::File(Volume* inVolume)
     fileFlags = 0;
     memset(&data,0,sizeof(data));
     type = TEMPORARY;
+    workspace = NULL;
 }
 
 File::~File(void)
@@ -702,6 +711,7 @@ File::~File(void)
         }
         break;
     }
+    if(workspace) free(workspace);
 }
 
 int/*error*/ File::Init(File* inParent,File** inSibPrev,const wchar_t* inName,int8_t inFileType,uint8_t inFileFlags,int64_t inWriteTime)
@@ -732,6 +742,14 @@ int/*error*/ File::Init(File* inParent,File** inSibPrev,const wchar_t* inName,in
 
 void File::Close(int64_t checkOpenSequence)
 {
+    if(checkOpenSequence >= openSequence)
+    {
+        if(workspace)
+        {
+            free(workspace);
+            workspace = NULL;
+        }
+    }
     if(openPrev && checkOpenSequence >= openSequence)
     {
         ASSERT(*openPrev == this);
@@ -1188,39 +1206,66 @@ int/*error*/ CCALL Volume::ListEnd(int64_t openId,int64_t listId)
 size_t Volume::ReadVirtualDNG(uint32_t frameNumber, uint64_t fileOffset, File *file, uint8_t *buffer, size_t requestedSize)
 {
     uint64_t read = 0;
-    uint64_t startOffset = fileOffset;
-    uint64_t endOffset = fileOffset;
-    if(fileOffset < file->data.file.fileSize)
+    size_t header_size = dng_get_header_size();
+    size_t image_size = file->data.file.fileSize - header_size;
+
+    if(fileOffset + requestedSize > file->data.file.fileSize)
     {
-        endOffset = fileOffset+requestedSize;
-        if(endOffset < startOffset || endOffset > file->data.file.fileSize)
-        {
-            endOffset = file->data.file.fileSize;
-        }
+        requestedSize = file->data.file.fileSize - fileOffset;
     }
 
-    size_t header_size = dng_get_header_size();
-    if(startOffset >= header_size)
+    if(processing == PROCESSING_NONE)
     {
-        read += get_image_data(&frameHeaders[frameNumber],
-            chunks[frameHeaders[frameNumber].fileNumber],
-            buffer,
-            startOffset - header_size,
-            endOffset - startOffset);
-    }
-    else
-    {
-        size_t remaining = MIN(endOffset - startOffset, header_size - startOffset);
-        read += dng_get_header_data(&frameHeaders[frameNumber], buffer, startOffset, remaining);
-        if(remaining < endOffset - startOffset)
+        if(fileOffset >= header_size)
         {
             read += get_image_data(&frameHeaders[frameNumber],
                 chunks[frameHeaders[frameNumber].fileNumber],
-                buffer + remaining,
-                0,
-                endOffset - startOffset - remaining);
+                buffer,
+                fileOffset - header_size,
+                requestedSize);
+        }
+        else
+        {
+            size_t remaining = MIN(requestedSize, header_size - fileOffset);
+            read += dng_get_header_data(&frameHeaders[frameNumber], buffer, fileOffset, remaining);
+            if(remaining < requestedSize)
+            {
+                read += get_image_data(&frameHeaders[frameNumber],
+                    chunks[frameHeaders[frameNumber].fileNumber],
+                    buffer + remaining,
+                    0,
+                    requestedSize - remaining);
+            }
         }
     }
+    else
+    {
+        if(!file->workspace)
+        {
+            file->workspace = static_cast<uint8_t *>(malloc(file->data.file.fileSize));
+            dng_get_header_data(&frameHeaders[frameNumber], file->workspace, 0, header_size);
+            get_image_data(&frameHeaders[frameNumber],
+                chunks[frameHeaders[frameNumber].fileNumber],
+                file->workspace + header_size,
+                0,
+                image_size);
+
+            if(processing & PROCESSING_DUAL_ISO)
+            {
+                marshaller->Printf(L"Processing for dual ISO\n");
+                hdr_convert_data(&frameHeaders[frameNumber], (uint16_t *)(file->workspace + header_size), 0, image_size);
+            }
+            if(processing & PROCESSING_CHROMA_SMOOTHING)
+            {
+            }
+            if(processing & PROCESSING_VERTICAL_STRIPES)
+            {
+            }
+        }
+        memcpy(buffer, file->workspace + fileOffset, requestedSize);
+        read = requestedSize;
+    }
+
     return static_cast<size_t>(read);
 }
 
@@ -1383,6 +1428,7 @@ Volume::Volume(void)
     chunks = NULL;
     chunkCount = 0;
     frameHeaders = NULL;
+    processing = PROCESSING_NONE;
 }
 
 Volume::~Volume(void)
@@ -1563,6 +1609,12 @@ int/*systemError*/ Volume::Init(const wchar_t* mlvFileName)
             {
                 marshaller->Printf(L"mappedDirectory: already exists\n");
             }
+        }
+
+        // Determine processing
+        if(wcsstr(mlvFileName, L"DUAL") || wcsstr(mlvFileName, L"Dual") || wcsstr(mlvFileName, L"dual"))
+        {
+            processing |= PROCESSING_DUAL_ISO;
         }
 
         File *outfile;
