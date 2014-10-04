@@ -863,6 +863,18 @@ static int mlvfs_release(const char *path, struct fuse_file_info *fi)
     return 0;
 }
 
+static int mlvfs_rename(const char *from, const char *to)
+{
+    char real_from[1024];
+    char real_to[1024];
+    if(get_real_path(real_from, from) && get_real_path(real_to, to))
+    {
+        rename(real_from, real_to);
+        return 0;
+    }
+    return -ENOENT;
+}
+
 static int mlvfs_rmdir(const char *path)
 {
     char real_path[1024];
@@ -907,6 +919,7 @@ static struct fuse_operations mlvfs_filesystem_operations =
     .fsync       = mlvfs_fsync,
     .mkdir       = mlvfs_mkdir,
     .release     = mlvfs_release,
+    .rename      = mlvfs_rename,
     .rmdir       = mlvfs_rmdir,
     .truncate    = mlvfs_truncate,
     .write       = mlvfs_write,
