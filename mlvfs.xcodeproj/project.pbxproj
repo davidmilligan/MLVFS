@@ -51,6 +51,7 @@
 		63B5F88C19DA0BBF0028614C /* histogram.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = histogram.h; sourceTree = "<group>"; };
 		63B6173E19ACED9300F21CD0 /* mlvfs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mlvfs; sourceTree = BUILT_PRODUCTS_DIR; };
 		63B6174119ACED9300F21CD0 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		63C9CCE119E5C8680034ED97 /* wirth.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wirth.h; sourceTree = "<group>"; };
 		63DA867719B113A80065788E /* dng.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dng.c; sourceTree = "<group>"; };
 		63DA867919B113B70065788E /* dng.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dng.h; sourceTree = "<group>"; };
 		63DA867D19B417290065788E /* dng_tag_codes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dng_tag_codes.h; sourceTree = "<group>"; };
@@ -112,6 +113,7 @@
 				63E9DBA119D4BF1E00E70CAA /* stripes.c */,
 				63E9DBA219D4BF1E00E70CAA /* stripes.h */,
 				63B5F88419D779F40028614C /* opt_med.h */,
+				63C9CCE119E5C8680034ED97 /* wirth.h */,
 				63B5F88519D797730028614C /* chroma_smooth.c */,
 				63B5F88119D76F240028614C /* cs.c */,
 				63B5F88219D76F240028614C /* cs.h */,

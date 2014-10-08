@@ -47,6 +47,7 @@ struct mlvfs
 {
     char * mlv_path;
     int chroma_smooth;
+    int fix_bad_pixels;
 };
 
 static struct mlvfs mlvfs;
@@ -743,6 +744,11 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                         dng_get_header_data(&frame_headers, image_buffer->header, 0, header_size);
                         get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_buffer->data, 0, image_size);
                         
+                        if(mlvfs.fix_bad_pixels)
+                        {
+                            fix_bad_pixels(&frame_headers, image_buffer->data);
+                        }
+                        
                         if(strstr(path, "DUAL") != NULL)
                         {
                             hdr_convert_data(&frame_headers, image_buffer->data, 0, image_size);
@@ -931,6 +937,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--cs2x2", offsetof(struct mlvfs, chroma_smooth), 2 },
     { "--cs3x3", offsetof(struct mlvfs, chroma_smooth), 3 },
     { "--cs5x5", offsetof(struct mlvfs, chroma_smooth), 5 },
+    { "--bad-pix", offsetof(struct mlvfs, fix_bad_pixels), 1 },
     FUSE_OPT_END
 };
 
