@@ -41,14 +41,8 @@
 #include "stripes.h"
 #include "cs.h"
 #include "hdr.h"
+#include "webgui.h"
 #include "mlvfs.h"
-
-struct mlvfs
-{
-    char * mlv_path;
-    int chroma_smooth;
-    int fix_bad_pixels;
-};
 
 static struct mlvfs mlvfs;
 
@@ -980,6 +974,7 @@ int main(int argc, char **argv)
 
         if(!res)
         {
+            webgui_start(&mlvfs);
             umask(0);
             res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
@@ -993,6 +988,7 @@ int main(int argc, char **argv)
     }
 
     fuse_opt_free_args(&args);
+    webgui_stop();
     stripes_free_corrections();
     free_all_image_buffers();
     close_all_chunks();

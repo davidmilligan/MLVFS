@@ -23,6 +23,13 @@
 
 #include <math.h>
 
+struct mlvfs
+{
+    char * mlv_path;
+    int chroma_smooth;
+    int fix_bad_pixels;
+};
+
 #define MLVFS_SOFTWARE_NAME "MLVFS"
 
 //Let the DNGs be "writeable" for AE, even though they're not actually writable
