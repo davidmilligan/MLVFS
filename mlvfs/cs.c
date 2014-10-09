@@ -136,6 +136,8 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
                 int p = image_data[x + y * w];
                 
                 int neighbours[10];
+                int max1 = 0;
+                int max2 = 0;
                 int k = 0;
                 for (int i = -2; i <= 2; i+=2)
                 {
@@ -143,19 +145,25 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
                     {
                         if (i == 0 && j == 0)
                             continue;
-                        
-                        neighbours[k++] = -(int)image_data[(x + j) + (y + i) * w];
+                        int q = -(int)image_data[(x + j) + (y + i) * w];
+                        neighbours[k++] = q;
+                        if(q <= max1)
+                        {
+                            max2 = max1;
+                            max1 = q;
+                        }
+                        else if(q <= max2)
+                        {
+                            max2 = q;
+                        }
                     }
                 }
-                
-                //TODO: I think this could be faster since we are always looking for the second largest value, not some variable k
-                int max = -kth_smallest_int(neighbours, k, 1);
                 
                 if (p < black - dark_noise * 8) //cold pixel
                 {
                     image_data[x + y * w] = -median_int_wirth(neighbours, k);
                 }
-                else if ((raw2ev[p] - raw2ev[max] > EV_RESOLUTION) && (max > black + 8 * dark_noise)) //hot pixel
+                else if ((raw2ev[p] - raw2ev[max2] > EV_RESOLUTION) && (max2 > black + 8 * dark_noise)) //hot pixel
                 {
                     image_data[x + y * w] = -kth_smallest_int(neighbours, k, 2);
                 }
