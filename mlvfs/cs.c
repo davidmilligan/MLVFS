@@ -126,7 +126,7 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
         int h = frame_headers->rawi_hdr.yRes;
         
         //just guess the dark noise for speed reasons
-        int dark_noise = 16;
+        int dark_noise = 12;
         
         int x,y;
         for (y = 6; y < h - 6; y ++)
@@ -163,7 +163,7 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
                 {
                     image_data[x + y * w] = -median_int_wirth(neighbours, k);
                 }
-                else if ((raw2ev[p] - raw2ev[max2] > EV_RESOLUTION) && (max2 > black + 8 * dark_noise)) //hot pixel
+                else if ((raw2ev[p] - raw2ev[max2] > EV_RESOLUTION) && (p > black + 8 * dark_noise)) //hot pixel
                 {
                     image_data[x + y * w] = -kth_smallest_int(neighbours, k, 2);
                 }
