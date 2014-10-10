@@ -743,7 +743,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                             fix_bad_pixels(&frame_headers, image_buffer->data);
                         }
                         
-                        if(strstr(path, "DUAL") != NULL)
+                        if(mlvfs.dual_iso)
                         {
                             hdr_convert_data(&frame_headers, image_buffer->data, 0, image_size);
                         }
@@ -753,7 +753,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                             chroma_smooth(&frame_headers, image_buffer->data, mlvfs.chroma_smooth);
                         }
                         
-                        if(stripes_correction_check_needed(&frame_headers))
+                        if(mlvfs.fix_stripes)
                         {
                             struct stripes_correction * correction = stripes_get_correction(mlv_filename);
                             if(correction == NULL)
@@ -932,6 +932,8 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--cs3x3", offsetof(struct mlvfs, chroma_smooth), 3 },
     { "--cs5x5", offsetof(struct mlvfs, chroma_smooth), 5 },
     { "--bad-pix", offsetof(struct mlvfs, fix_bad_pixels), 1 },
+    { "--stripes", offsetof(struct mlvfs, fix_stripes), 1 },
+    { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso), 1 },
     FUSE_OPT_END
 };
 

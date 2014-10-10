@@ -28,6 +28,8 @@ struct mlvfs
     char * mlv_path;
     int chroma_smooth;
     int fix_bad_pixels;
+    int fix_stripes;
+    int dual_iso;
 };
 
 #define MLVFS_SOFTWARE_NAME "MLVFS"

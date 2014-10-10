@@ -26,8 +26,6 @@
 #include "mlvfs.h"
 #include "stripes.h"
 
-#define CAM_5D3 "Canon EOS 5D Mark III"
-
 static struct stripes_correction * corrections = NULL;
 
 struct stripes_correction * stripes_get_correction(const char * mlv_filename)
@@ -77,11 +75,6 @@ void stripes_free_corrections()
         current = next;
     }
     
-}
-
-int stripes_correction_check_needed(struct frame_headers * frame_headers)
-{
-    return !strcmp((char*)frame_headers->idnt_hdr.cameraName, CAM_5D3);
 }
 
 /* Vertical stripes correction code from raw2dng, credits: a1ex */

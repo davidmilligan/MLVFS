@@ -39,7 +39,6 @@ struct stripes_correction * stripes_get_correction(const char * mlv_filename);
 struct stripes_correction * stripes_new_correction(const char * mlv_filename);
 void stripes_free_corrections();
 
-int stripes_correction_check_needed(struct frame_headers * frame_headers);
 void stripes_compute_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size);
 void stripes_apply_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size);
 

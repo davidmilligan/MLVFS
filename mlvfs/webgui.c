@@ -37,10 +37,12 @@ static const char * HTML =
 "      $('#dir').val(d.dir);"
 "      $('input:radio[name=\"badpix\"][value=' + d.badpix + ']').prop('checked', true);"
 "      $('input:radio[name=\"chroma_smooth\"][value=' + d.chroma_smooth + ']').prop('checked', true);"
+"      $('input:radio[name=\"stripes\"][value=' + d.stripes + ']').prop('checked', true);"
+"      $('input:radio[name=\"dual_iso\"][value=' + d.dual_iso + ']').prop('checked', true);"
 "    }});"
 "    $(document).on('click', '#button', function() {"
 "      $.ajax({ url: '/set_value', dataType: 'json', "
-"      data: { \"badpix\": $('input:radio[name=badpix]:checked').val(), \"chroma_smooth\": $('input:radio[name=chroma_smooth]:checked').val() } });"
+"      data: { \"badpix\": $('input:radio[name=badpix]:checked').val(), \"chroma_smooth\": $('input:radio[name=chroma_smooth]:checked').val(), \"stripes\": $('input:radio[name=stripes]:checked').val(), \"dual_iso\": $('input:radio[name=dual_iso]:checked').val() } });"
 "      return false; });"
 "    });"
 "  </script>"
@@ -48,15 +50,21 @@ static const char * HTML =
 "<body>"
 "  <h1>MLVFS Configuration Options</h1>"
 "  <form>"
-"    Source Directory: <input type=text id=dir readonly/><br/><br/>"
+"    Source Directory: <input type=text id=dir size=64 readonly/><br/><br/>"
 "    Bad Pixel Fix: "
 "    <input type=radio name=badpix value=0 >Off</input>"
 "    <input type=radio name=badpix value=1 >On</input><br/><br/>"
+"    Vertical Stripes Fix: "
+"    <input type=radio name=stripes value=0 >Off</input>"
+"    <input type=radio name=stripes value=1 >On</input><br/><br/>"
 "    Chroma Smoothing: "
 "    <input type=radio name=chroma_smooth value=0 >None</input>"
 "    <input type=radio name=chroma_smooth value=2 >2x2</input>"
 "    <input type=radio name=chroma_smooth value=3 >3x3</input>"
 "    <input type=radio name=chroma_smooth value=5 >5x5</input><br/><br/>"
+"    Dual ISO: "
+"    <input type=radio name=dual_iso value=0 >Off</input>"
+"    <input type=radio name=dual_iso value=1 >Preview</input><br/><br/>"
 "    <input type=submit id=button value=Save />"
 "  </form>"
 "</body>"
@@ -69,7 +77,13 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
     {
         if (strcmp(conn->uri, "/get_value") == 0)
         {
-            mg_printf_data(conn, "{\"dir\": \"%s\", \"badpix\": %d, \"chroma_smooth\": %d}", mlvfs_config->mlv_path, mlvfs_config->fix_bad_pixels, mlvfs_config->chroma_smooth);
+            mg_printf_data(conn,
+                           "{\"dir\": \"%s\", \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d}",
+                           mlvfs_config->mlv_path,
+                           mlvfs_config->fix_bad_pixels,
+                           mlvfs_config->chroma_smooth,
+                           mlvfs_config->fix_stripes,
+                           mlvfs_config->dual_iso);
         }
         else if (strcmp(conn->uri, "/set_value") == 0)
         {
@@ -80,6 +94,12 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
             
             mg_get_var(conn, "chroma_smooth", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->chroma_smooth = atoi(buf);
+            
+            mg_get_var(conn, "stripes", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->fix_stripes = atoi(buf);
+            
+            mg_get_var(conn, "dual_iso", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->dual_iso = atoi(buf);
             
             mg_printf_data(conn, "%s", "{\"success\": true}");
         }
