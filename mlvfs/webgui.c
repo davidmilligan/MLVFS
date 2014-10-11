@@ -42,6 +42,14 @@ static const char * HTML =
 "<html>"
 "<head>"
 "  <title>MLVFS: %s</title>"
+"  <style>"
+"    body { font-family: \"Trebuchet MS\", Arial, Helvetica, sans-serif; }"
+"    h1, h2, h3 { margin: 8px 6px 4px 6px;}"
+"    table { border-collapse: collapse; font-size: 0.8em; }"
+"    td, th { border: 1px solid #369; padding: 3px 7px 2px 7px; }"
+"    th { text-align: left; padding-top: 5px; padding-bottom: 4px; background-color: #48D; color: #FFF; }"
+"    tr.odd td { color: #000; background-color: #EEF; }"
+"  </style>"
 "  <script src=\"http://code.jquery.com/jquery-1.11.0.min.js\"></script>"
 "  <script> jQuery(function() {"
 "    $.ajax({ url: '/get_value', dataType: 'json', success: function(d) {"
@@ -59,26 +67,32 @@ static const char * HTML =
 "  </script>"
 "</head>"
 "<body>"
-"  <h1>MLVFS</h1>"
+"  <h1>MLVFS - Magic Lantern Video File System</h1>"
 "  <hr/>"
-"  <h3>Configuration Options</h3>"
 "  <form>"
-"    Source Directory: <input type=text id=dir size=64 readonly/><br/><br/>"
-"    Bad Pixel Fix: "
-"    <input type=radio name=badpix value=0 >Off</input>"
-"    <input type=radio name=badpix value=1 >On</input>"
-"    <input type=radio name=badpix value=2 >Aggressive</input><br/><br/>"
-"    Vertical Stripes Fix: "
-"    <input type=radio name=stripes value=0 >Off</input>"
-"    <input type=radio name=stripes value=1 >On</input><br/><br/>"
-"    Chroma Smoothing: "
-"    <input type=radio name=chroma_smooth value=0 >None</input>"
-"    <input type=radio name=chroma_smooth value=2 >2x2</input>"
-"    <input type=radio name=chroma_smooth value=3 >3x3</input>"
-"    <input type=radio name=chroma_smooth value=5 >5x5</input><br/><br/>"
-"    Dual ISO: "
-"    <input type=radio name=dual_iso value=0 >Off</input>"
-"    <input type=radio name=dual_iso value=1 >Preview</input><br/><br/>"
+"    <table>"
+"      <tr><th colspan=2>Configuration Options</th></tr>"
+"      <tr>"
+"        <td>Source Directory</td>"
+"        <td><input type=text id=dir size=64 readonly/></td>"
+"      </tr>"
+"      <tr class=odd>"
+"        <td>Bad Pixel Fix</td>"
+"        <td><input type=radio name=badpix value=0 >Off</input><input type=radio name=badpix value=1 >On</input><input type=radio name=badpix value=2 >Aggressive</input></td>"
+"      </tr>"
+"      <tr>"
+"        <td>Vertical Stripes Fix</td>"
+"        <td><input type=radio name=stripes value=0 >Off</input><input type=radio name=stripes value=1 >On</input></td>"
+"      </tr>"
+"      <tr class=odd>"
+"        <td>Chroma Smoothing</td>"
+"        <td><input type=radio name=chroma_smooth value=0 >None</input><input type=radio name=chroma_smooth value=2 >2x2</input><input type=radio name=chroma_smooth value=3 >3x3</input><input type=radio name=chroma_smooth value=5 >5x5</input></td>"
+"      </tr>"
+"      <tr>"
+"        <td>Dual ISO</td>"
+"        <td><input type=radio name=dual_iso value=0 >Off</input><input type=radio name=dual_iso value=1 >Preview</input></td>"
+"      </tr>"
+"    </table>"
 "  </form>"
 "  <hr/>"
 "  <h3>%s%s</h3>"
@@ -147,6 +161,7 @@ static char * webgui_generate_html(const char * path)
         if (dir != NULL)
         {
             struct dirent * child;
+            int i = 0;
             
             while ((child = readdir(dir)) != NULL)
             {
@@ -154,12 +169,16 @@ static char * webgui_generate_html(const char * path)
                 {
                     if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
                     {
-                        snprintf(html, HTML_SIZE, "%s<tr><td><a href=\"%s/%s\">%s</a></td>", html, path + 1, child->d_name, child->d_name);
+                        snprintf(html, HTML_SIZE, "%s<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td>", html, (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
                         if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
                         {
                             char child_path[1024];
                             sprintf(child_path, "%s/%s", path, child->d_name);
                             webgui_generate_mlv_html(html, child_path);
+                        }
+                        else
+                        {
+                            snprintf(html, HTML_SIZE, "%s<td colspan=12 />", html);
                         }
                         snprintf(html, HTML_SIZE, "%s</tr>", html);
                     }
@@ -170,7 +189,7 @@ static char * webgui_generate_html(const char * path)
                         sprintf(real_file_path, "%s/%s", real_path, child->d_name);
                         if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
                         {
-                            snprintf(html, HTML_SIZE, "%s<tr><td><a href=\"%s/%s\">%s</a></td></tr>", html, path + 1, child->d_name, child->d_name);
+                            snprintf(html, HTML_SIZE, "%s<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td><td colspan=12 /></tr>", html, (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
                         }
                     }
                 }
