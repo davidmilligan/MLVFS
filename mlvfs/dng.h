@@ -24,21 +24,7 @@
 #include <sys/types.h>
 
 #include "mlv.h"
-
-//all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame
-struct frame_headers
-{
-    uint32_t fileNumber;
-    uint64_t position;
-    mlv_vidf_hdr_t vidf_hdr;
-    mlv_file_hdr_t file_hdr;
-    mlv_rtci_hdr_t rtci_hdr;
-    mlv_idnt_hdr_t idnt_hdr;
-    mlv_rawi_hdr_t rawi_hdr;
-    mlv_expo_hdr_t expo_hdr;
-    mlv_lens_hdr_t lens_hdr;
-    mlv_wbal_hdr_t wbal_hdr;
-};
+#include "mlvfs.h"
 
 size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size);
 size_t dng_get_header_size();

@@ -233,7 +233,7 @@ static FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count)
 /**
  * Determines if a string ends in some string
  */
-static int string_ends_with(const char *source, const char *ending)
+int string_ends_with(const char *source, const char *ending)
 {
     if(source == NULL || ending == NULL) return 0;
     if(strlen(source) <= 0) return 0;
@@ -303,7 +303,7 @@ static int get_mlv_frame_number(const char *path)
  * @param frame_headers [out] All of the MLV blocks associated with the frame
  * @return 1 if successful, 0 otherwise
  */
-static int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers)
+int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers)
 {
     char mlv_filename[1024];
     if (!get_mlv_filename(path, mlv_filename)) return 0;

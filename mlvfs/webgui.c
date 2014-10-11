@@ -18,19 +18,30 @@
  * Boston, MA  02110-1301, USA.
  */
 
+#include <fcntl.h>
+#include <dirent.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/stat.h>
+#include "mlvfs.h"
+#include "raw.h"
+#include "mlv.h"
+#include "wav.h"
+#include "dng.h"
+#include "index.h"
 #include "webgui.h"
 #include "mongoose.h"
 
 static int halt_webgui = 0;
 static struct mlvfs * mlvfs_config = NULL;
+#define HTML_SIZE 65536
 
 static const char * HTML =
 "<html>"
 "<head>"
+"  <title>MLVFS: %s</title>"
 "  <script src=\"http://code.jquery.com/jquery-1.11.0.min.js\"></script>"
 "  <script> jQuery(function() {"
 "    $.ajax({ url: '/get_value', dataType: 'json', success: function(d) {"
@@ -48,7 +59,9 @@ static const char * HTML =
 "  </script>"
 "</head>"
 "<body>"
-"  <h1>MLVFS Configuration Options</h1>"
+"  <h1>MLVFS</h1>"
+"  <hr/>"
+"  <h3>Configuration Options</h3>"
 "  <form>"
 "    Source Directory: <input type=text id=dir size=64 readonly/><br/><br/>"
 "    Bad Pixel Fix: "
@@ -67,9 +80,75 @@ static const char * HTML =
 "    <input type=radio name=dual_iso value=0 >Off</input>"
 "    <input type=radio name=dual_iso value=1 >Preview</input><br/><br/>"
 "  </form>"
+"  <hr/>"
+"  <h3>%s%s</h3>"
+"  %s"
 "</body>"
 "</html>";
 
+static char * webgui_generate_html(const char * path)
+{
+    char * html = malloc(sizeof(char) * HTML_SIZE);
+    strncpy(html, "", HTML_SIZE);
+    char real_path[1024];
+    sprintf(real_path, "%s%s", mlvfs_config->mlv_path, path);
+    if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
+    {
+        int frame_count = mlv_get_frame_count(real_path);
+        snprintf(html, HTML_SIZE, "%s<pre>\n", html);
+        snprintf(html, HTML_SIZE,     "%sFrame Count   : %d\n", html, frame_count);
+        snprintf(html, HTML_SIZE,     "%sHas Audio     : %s\n", html, has_audio(real_path) ? "yes" : "no");
+        struct frame_headers frame_headers;
+        char dng_path[1024];
+        sprintf(dng_path, "%s/0.dng", path);
+        if(mlv_get_frame_headers(dng_path, 0, &frame_headers))
+        {
+            int duration = frame_count * frame_headers.file_hdr.sourceFpsDenom / frame_headers.file_hdr.sourceFpsNom;
+            snprintf(html, HTML_SIZE, "%sResolution    : %d x %d\n", html, frame_headers.rawi_hdr.xRes, frame_headers.rawi_hdr.yRes);
+            snprintf(html, HTML_SIZE, "%sFramerate     : %f\n", html, (float)frame_headers.file_hdr.sourceFpsNom / (float)frame_headers.file_hdr.sourceFpsDenom);
+            snprintf(html, HTML_SIZE, "%sDuration      : %02d:%02d\n", html, duration / 60, duration % 60);
+            snprintf(html, HTML_SIZE, "%sCamera Model  : %s\n", html, frame_headers.idnt_hdr.cameraName);
+            snprintf(html, HTML_SIZE, "%sCamera Serial : %s\n", html, frame_headers.idnt_hdr.cameraSerial);
+            snprintf(html, HTML_SIZE, "%sLens Name     : %s\n", html, frame_headers.lens_hdr.lensName);
+            snprintf(html, HTML_SIZE, "%sDate/Time     : %d-%d-%d %02d:%02d:%02d\n", html, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, frame_headers.rtci_hdr.tm_hour, frame_headers.rtci_hdr.tm_min, frame_headers.rtci_hdr.tm_sec);
+            snprintf(html, HTML_SIZE, "%sShutter       : %dms\n", html, (int)frame_headers.expo_hdr.shutterValue/1000);
+            snprintf(html, HTML_SIZE, "%sISO           : %d\n", html, frame_headers.expo_hdr.isoValue);
+            snprintf(html, HTML_SIZE, "%sAperture      : f/%f\n", html, frame_headers.lens_hdr.aperture / 100.0);
+        }
+        snprintf(html, HTML_SIZE, "%s</pre>", html);
+    }
+    else
+    {
+        DIR * dir = opendir(real_path);
+        if (dir != NULL)
+        {
+            struct dirent * child;
+            
+            while ((child = readdir(dir)) != NULL)
+            {
+                if(!string_ends_with(child->d_name, ".MLD") && strcmp(child->d_name, "..") && strcmp(child->d_name, "."))
+                {
+                    if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
+                    {
+                        snprintf(html, HTML_SIZE, "%s<a href=\"%s/%s\">%s</a></br>", html, path + 1, child->d_name, child->d_name);
+                    }
+                    else if (child->d_type == DT_UNKNOWN) // If d_type is not supported on this filesystem
+                    {
+                        struct stat file_stat;
+                        char real_file_path[1024];
+                        sprintf(real_file_path, "%s/%s", real_path, child->d_name);
+                        if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+                        {
+                            snprintf(html, HTML_SIZE, "%s<a href=\"%s/%s\">%s</a></br>", html, path + 1, child->d_name, child->d_name);
+                        }
+                    }
+                }
+            }
+            closedir(dir);
+        }
+    }
+    return html;
+}
 
 static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
 {
@@ -105,10 +184,15 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         }
         else
         {
-            //send the HTML
-            mg_send_header(conn, "Content-Type", "text/html");
-            mg_send_header(conn, "Cache-Control", "max-age=0, post-check=0, pre-check=0, no-store, no-cache, must-revalidate");
-            mg_printf_data(conn, "%s", HTML);
+            char * html = webgui_generate_html(conn->uri);
+            if(html)
+            {
+                mg_send_header(conn, "Content-Type", "text/html");
+                mg_send_header(conn, "Cache-Control", "max-age=0, post-check=0, pre-check=0, no-store, no-cache, must-revalidate");
+                
+                mg_printf_data(conn, HTML, conn->uri, mlvfs_config->mlv_path, conn->uri, html);
+                free(html);
+            }
         }
         return MG_TRUE;
     }

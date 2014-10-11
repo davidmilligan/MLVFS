@@ -22,6 +22,8 @@
 #define mlvfs_mlvfs_h
 
 #include <math.h>
+#include "raw.h"
+#include "mlv.h"
 
 struct mlvfs
 {
@@ -33,11 +35,29 @@ struct mlvfs
     int dual_iso;
 };
 
+//all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame
+struct frame_headers
+{
+    uint32_t fileNumber;
+    uint64_t position;
+    mlv_vidf_hdr_t vidf_hdr;
+    mlv_file_hdr_t file_hdr;
+    mlv_rtci_hdr_t rtci_hdr;
+    mlv_idnt_hdr_t idnt_hdr;
+    mlv_rawi_hdr_t rawi_hdr;
+    mlv_expo_hdr_t expo_hdr;
+    mlv_lens_hdr_t lens_hdr;
+    mlv_wbal_hdr_t wbal_hdr;
+};
+
 #define MLVFS_SOFTWARE_NAME "MLVFS"
 
 //Let the DNGs be "writeable" for AE, even though they're not actually writable
 //You'll get an error if you actually try to write to them
 #define ALLOW_WRITEABLE_DNGS
+
+int string_ends_with(const char *source, const char *ending);
+int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers);
 
 #ifndef _WIN32
 #include <pthread.h>
