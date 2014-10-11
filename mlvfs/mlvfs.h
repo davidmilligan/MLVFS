@@ -26,6 +26,7 @@
 struct mlvfs
 {
     char * mlv_path;
+    char * port;
     int chroma_smooth;
     int fix_bad_pixels;
     int fix_stripes;

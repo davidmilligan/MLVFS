@@ -928,6 +928,7 @@ static struct fuse_operations mlvfs_filesystem_operations =
 static const struct fuse_opt mlvfs_opts[] =
 {
     { "--mlv_dir=%s", offsetof(struct mlvfs, mlv_path), 0 },
+    { "--port=%s", offsetof(struct mlvfs, port), 0 },
     { "--cs2x2", offsetof(struct mlvfs, chroma_smooth), 2 },
     { "--cs3x3", offsetof(struct mlvfs, chroma_smooth), 3 },
     { "--cs5x5", offsetof(struct mlvfs, chroma_smooth), 5 },

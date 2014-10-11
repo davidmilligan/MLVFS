@@ -126,7 +126,7 @@ static void *webgui_run(void *unused)
     
     // Create and configure the server
     server = mg_create_server(NULL, webgui_handler);
-    mg_set_option(server, "listening_port", "8000");
+    mg_set_option(server, "listening_port", mlvfs_config->port != NULL && strlen(mlvfs_config->port) > 0 ? mlvfs_config->port : "8000");
     
     while(!halt_webgui)
     {
