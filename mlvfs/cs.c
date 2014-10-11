@@ -98,7 +98,7 @@ void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, 
 }
 
 //adapted from cr2hdr and optimized for performance
-void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
+void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data, int aggressive)
 {
     static int black = -1;
     static int raw2ev[16384];
@@ -166,6 +166,14 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
                 else if ((raw2ev[p] - raw2ev[max2] > EV_RESOLUTION) && (max2 > black + 8 * dark_noise)) //hot pixel
                 {
                     image_data[x + y * w] = -kth_smallest_int(neighbours, k, 2);
+                }
+                else if (aggressive)
+                {
+                    int second_max = -kth_smallest_int(neighbours, k, 2);
+                    if( ((raw2ev[p] - raw2ev[max2] > EV_RESOLUTION/4) && (max2 > black + 8*dark_noise)) || (raw2ev[p] - raw2ev[second_max] > EV_RESOLUTION/2))
+                    {
+                        image_data[x + y * w] = -kth_smallest_int(neighbours, k, 2);
+                    }
                 }
                 
             }

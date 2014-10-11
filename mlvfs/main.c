@@ -740,7 +740,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                         
                         if(mlvfs.fix_bad_pixels)
                         {
-                            fix_bad_pixels(&frame_headers, image_buffer->data);
+                            fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2);
                         }
                         
                         if(mlvfs.dual_iso)
@@ -932,6 +932,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--cs3x3", offsetof(struct mlvfs, chroma_smooth), 3 },
     { "--cs5x5", offsetof(struct mlvfs, chroma_smooth), 5 },
     { "--bad-pix", offsetof(struct mlvfs, fix_bad_pixels), 1 },
+    { "--really-bad-pix", offsetof(struct mlvfs, fix_bad_pixels), 2 },
     { "--stripes", offsetof(struct mlvfs, fix_stripes), 1 },
     { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso), 1 },
     FUSE_OPT_END
