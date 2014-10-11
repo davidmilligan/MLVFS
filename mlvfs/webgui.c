@@ -86,36 +86,60 @@ static const char * HTML =
 "</body>"
 "</html>";
 
+static const char * TABLE_HEADER =
+"<table><tr>"
+"<th>Filename</th>"
+"<th>Frames</th>"
+"<th>Audio</th>"
+"<th>Resolution</th>"
+"<th>Framerate</th>"
+"<th>Duration</th>"
+"<th>Camera Model</th>"
+"<th>Camera Serial</th>"
+"<th>Lens Name</th>"
+"<th>Date/Time</th>"
+"<th>Shutter</th>"
+"<th>ISO</th>"
+"<th>Aperture</th>"
+"</tr>";
+
+static void webgui_generate_mlv_html(char * html, const char * path)
+{
+    char real_path[1024];
+    sprintf(real_path, "%s%s", mlvfs_config->mlv_path, path);
+    int frame_count = mlv_get_frame_count(real_path);
+    snprintf(html, HTML_SIZE, "%s<td>%d</td>", html, frame_count);
+    snprintf(html, HTML_SIZE, "%s<td>%s</td>", html, has_audio(real_path) ? "yes" : "no");
+    struct frame_headers frame_headers;
+    char dng_path[1024];
+    sprintf(dng_path, "%s/0.dng", path);
+    if(mlv_get_frame_headers(dng_path, 0, &frame_headers))
+    {
+        int duration = frame_count * frame_headers.file_hdr.sourceFpsDenom / frame_headers.file_hdr.sourceFpsNom;
+        snprintf(html, HTML_SIZE, "%s<td>%d x %d</td>", html, frame_headers.rawi_hdr.xRes, frame_headers.rawi_hdr.yRes);
+        snprintf(html, HTML_SIZE, "%s<td>%.3f</td>", html, (float)frame_headers.file_hdr.sourceFpsNom / (float)frame_headers.file_hdr.sourceFpsDenom);
+        snprintf(html, HTML_SIZE, "%s<td>%02d:%02d</td>", html, duration / 60, duration % 60);
+        snprintf(html, HTML_SIZE, "%s<td>%s</td>", html, frame_headers.idnt_hdr.cameraName);
+        snprintf(html, HTML_SIZE, "%s<td>%s</td>", html, frame_headers.idnt_hdr.cameraSerial);
+        snprintf(html, HTML_SIZE, "%s<td>%s</td>", html, frame_headers.lens_hdr.lensName);
+        snprintf(html, HTML_SIZE, "%s<td>%d-%d-%d %02d:%02d:%02d</td>", html, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, frame_headers.rtci_hdr.tm_hour, frame_headers.rtci_hdr.tm_min, frame_headers.rtci_hdr.tm_sec);
+        snprintf(html, HTML_SIZE, "%s<td>%dms</td>", html, (int)frame_headers.expo_hdr.shutterValue/1000);
+        snprintf(html, HTML_SIZE, "%s<td>%d</td>", html, frame_headers.expo_hdr.isoValue);
+        snprintf(html, HTML_SIZE, "%s<td>f/%.1f</td>", html, frame_headers.lens_hdr.aperture / 100.0);
+    }
+}
+
 static char * webgui_generate_html(const char * path)
 {
     char * html = malloc(sizeof(char) * HTML_SIZE);
-    strncpy(html, "", HTML_SIZE);
+    snprintf(html, HTML_SIZE, "%s", TABLE_HEADER);
     char real_path[1024];
     sprintf(real_path, "%s%s", mlvfs_config->mlv_path, path);
     if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
-        int frame_count = mlv_get_frame_count(real_path);
-        snprintf(html, HTML_SIZE, "%s<pre>\n", html);
-        snprintf(html, HTML_SIZE,     "%sFrame Count   : %d\n", html, frame_count);
-        snprintf(html, HTML_SIZE,     "%sHas Audio     : %s\n", html, has_audio(real_path) ? "yes" : "no");
-        struct frame_headers frame_headers;
-        char dng_path[1024];
-        sprintf(dng_path, "%s/0.dng", path);
-        if(mlv_get_frame_headers(dng_path, 0, &frame_headers))
-        {
-            int duration = frame_count * frame_headers.file_hdr.sourceFpsDenom / frame_headers.file_hdr.sourceFpsNom;
-            snprintf(html, HTML_SIZE, "%sResolution    : %d x %d\n", html, frame_headers.rawi_hdr.xRes, frame_headers.rawi_hdr.yRes);
-            snprintf(html, HTML_SIZE, "%sFramerate     : %f\n", html, (float)frame_headers.file_hdr.sourceFpsNom / (float)frame_headers.file_hdr.sourceFpsDenom);
-            snprintf(html, HTML_SIZE, "%sDuration      : %02d:%02d\n", html, duration / 60, duration % 60);
-            snprintf(html, HTML_SIZE, "%sCamera Model  : %s\n", html, frame_headers.idnt_hdr.cameraName);
-            snprintf(html, HTML_SIZE, "%sCamera Serial : %s\n", html, frame_headers.idnt_hdr.cameraSerial);
-            snprintf(html, HTML_SIZE, "%sLens Name     : %s\n", html, frame_headers.lens_hdr.lensName);
-            snprintf(html, HTML_SIZE, "%sDate/Time     : %d-%d-%d %02d:%02d:%02d\n", html, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, frame_headers.rtci_hdr.tm_hour, frame_headers.rtci_hdr.tm_min, frame_headers.rtci_hdr.tm_sec);
-            snprintf(html, HTML_SIZE, "%sShutter       : %dms\n", html, (int)frame_headers.expo_hdr.shutterValue/1000);
-            snprintf(html, HTML_SIZE, "%sISO           : %d\n", html, frame_headers.expo_hdr.isoValue);
-            snprintf(html, HTML_SIZE, "%sAperture      : f/%f\n", html, frame_headers.lens_hdr.aperture / 100.0);
-        }
-        snprintf(html, HTML_SIZE, "%s</pre>", html);
+        snprintf(html, HTML_SIZE, "%s<tr><td>%s</td>", html, path);
+        webgui_generate_mlv_html(html, path);
+        snprintf(html, HTML_SIZE, "%s</tr>", html);
     }
     else
     {
@@ -130,7 +154,14 @@ static char * webgui_generate_html(const char * path)
                 {
                     if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
                     {
-                        snprintf(html, HTML_SIZE, "%s<a href=\"%s/%s\">%s</a></br>", html, path + 1, child->d_name, child->d_name);
+                        snprintf(html, HTML_SIZE, "%s<tr><td><a href=\"%s/%s\">%s</a></td>", html, path + 1, child->d_name, child->d_name);
+                        if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
+                        {
+                            char child_path[1024];
+                            sprintf(child_path, "%s/%s", path, child->d_name);
+                            webgui_generate_mlv_html(html, child_path);
+                        }
+                        snprintf(html, HTML_SIZE, "%s</tr>", html);
                     }
                     else if (child->d_type == DT_UNKNOWN) // If d_type is not supported on this filesystem
                     {
@@ -139,7 +170,7 @@ static char * webgui_generate_html(const char * path)
                         sprintf(real_file_path, "%s/%s", real_path, child->d_name);
                         if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
                         {
-                            snprintf(html, HTML_SIZE, "%s<a href=\"%s/%s\">%s</a></br>", html, path + 1, child->d_name, child->d_name);
+                            snprintf(html, HTML_SIZE, "%s<tr><td><a href=\"%s/%s\">%s</a></td></tr>", html, path + 1, child->d_name, child->d_name);
                         }
                     }
                 }
@@ -147,6 +178,7 @@ static char * webgui_generate_html(const char * path)
             closedir(dir);
         }
     }
+    snprintf(html, HTML_SIZE, "%s</table>", html);
     return html;
 }
 
