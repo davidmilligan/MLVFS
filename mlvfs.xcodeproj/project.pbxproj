@@ -45,6 +45,7 @@
 		63B4287A19E7130B00B83CD3 /* mongoose.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mongoose.h; sourceTree = "<group>"; };
 		63B4287C19E7150100B83CD3 /* webgui.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = webgui.c; sourceTree = "<group>"; };
 		63B4287D19E7150100B83CD3 /* webgui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = webgui.h; sourceTree = "<group>"; };
+		63B4287F19EB1F9600B83CD3 /* build_installer.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build_installer.sh; sourceTree = "<group>"; };
 		63B5F88019D761490028614C /* mlvfs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mlvfs.h; sourceTree = "<group>"; };
 		63B5F88119D76F240028614C /* cs.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cs.c; sourceTree = "<group>"; };
 		63B5F88219D76F240028614C /* cs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cs.h; sourceTree = "<group>"; };
@@ -84,6 +85,7 @@
 		63B6173519ACED9300F21CD0 = {
 			isa = PBXGroup;
 			children = (
+				63B4287F19EB1F9600B83CD3 /* build_installer.sh */,
 				6319AB3819AD0F1000032A1A /* OSXFUSE.framework */,
 				63B6174019ACED9300F21CD0 /* mlvfs */,
 				63B6173F19ACED9300F21CD0 /* Products */,

@@ -13,7 +13,17 @@ To unmount the filesystem:
 
 ## OS X
 Install [OSXFUSE](http://osxfuse.github.io/).
-You can compile either using the Xcode application or using the command-line tools.
+Double click the MLVFS.workflow and select “Install” when prompted.
+
+To Use:
+1. Right-Click a folder containing MLV files in the finder and select "Services" > "MLVFS"
+2. You will be prompted to select the mount point
+3. Select an empty folder for the mount point
+4. The MLV files in the source directory will now show up as folders containing DNGs in the mount directory
+5. When finished you can unmount the directory by clicking the eject button that shows up next to it in the Finder
+
+
+You can compile from source using either the Xcode application or using the command-line tools.
 
     mlvfs <mount point> --mlv_dir=<directory with MLV files>
 
