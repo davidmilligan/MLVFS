@@ -743,9 +743,19 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
                             fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2);
                         }
                         
-                        if(mlvfs.dual_iso)
+                        if(mlvfs.dual_iso == 1)
                         {
                             hdr_convert_data(&frame_headers, image_buffer->data, 0, image_size);
+                        }
+                        else if(mlvfs.dual_iso == 2)
+                        {
+                            cr2hdr20_convert_data(&frame_headers, image_buffer->data, 1);
+                        }
+                        
+                        if(mlvfs.dual_iso)
+                        {
+                            //redo the dng header b/c white and black levels will be different
+                            dng_get_header_data(&frame_headers, image_buffer->header, 0, header_size);
                         }
                         
                         if(mlvfs.chroma_smooth)
@@ -936,6 +946,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--really-bad-pix", offsetof(struct mlvfs, fix_bad_pixels), 2 },
     { "--stripes", offsetof(struct mlvfs, fix_stripes), 1 },
     { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso), 1 },
+    { "--dual-iso", offsetof(struct mlvfs, dual_iso), 2 },
     FUSE_OPT_END
 };
 

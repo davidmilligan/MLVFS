@@ -33,7 +33,7 @@
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
-#define IFD0_COUNT 34
+#define IFD0_COUNT 33
 #define EXIF_IFD_COUNT 8
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
@@ -285,7 +285,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcExifIFD,                     ttLong,     1,      exif_ifd_offset},
             {tcDNGVersion,                  ttByte,     4,      0x00000401}, //1.4.0.0 in little endian
             {tcUniqueCameraModel,           ttAscii,    STRING_ENTRY(model, header, &data_offset)},
-            {tcLinearizationTable,          ttShort,    LINEARIZATION_TABLE((1 << bpp) - 1, header, &data_offset)},
+            //{tcLinearizationTable,          ttShort,    LINEARIZATION_TABLE((1 << bpp) - 1, header, &data_offset)},
             {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
             {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
             {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},

@@ -20,12 +20,15 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <math.h>
 #include "raw.h"
 #include "mlv.h"
 #include "mlvfs.h"
 #include "histogram.h"
 #include "hdr.h"
+#include "opt_med.h"
+#include "wirth.h"
 
 //this is just meant to be fast
 void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, off_t offset, size_t max_size)
@@ -201,5 +204,1122 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
                 
             }
         }
+    }
+    
+    //14 to 16 in order to match full cr2hdr output
+    size_t count = max_size / 2;
+    for(int i = 0; i < count; i++)
+    {
+        image_data[i] = image_data[i] << 2;
+    }
+    frame_headers->rawi_hdr.raw_info.black_level *= 4;
+    frame_headers->rawi_hdr.raw_info.white_level *= 4;
+}
+
+
+//from cr2hdr 20bit version
+//this is not thread safe (yet)
+
+#define EV_RESOLUTION 32768
+static int is_bright[4];
+#define BRIGHT_ROW (is_bright[y % 4])
+
+#define raw_get_pixel(x,y) (image_data[(x) + (y) * raw_info.width])
+#define raw_get_pixel16(x,y) (image_data[(x) + (y) * raw_info.width])
+#define raw_get_pixel_14to20(x,y) ((((uint32_t)image_data[(x) + (y) * raw_info.width]) << 6) & 0xFFFFF)
+#define raw_get_pixel32(x,y) (raw_buffer_32[(x) + (y) * raw_info.width])
+#define raw_set_pixel32(x,y,value) raw_buffer_32[(x) + (y)*raw_info.width] = value
+#define raw_get_pixel_20to16(x,y) ((raw_get_pixel32(x,y) >> 4) & 0xFFFF)
+#define raw_set_pixel_20to16_rand(x,y,value) image_data[(x) + (y) * raw_info.width] = COERCE((int)((value) / 16.0 + fast_randn05() + 0.5), 0, 0xFFFF)
+#define raw_set_pixel20(x,y,value) raw_buffer_32[(x) + (y) * raw_info.width] = COERCE((value), 0, 0xFFFFF)
+
+static void white_detect(struct raw_info raw_info, uint16_t * image_data, int* white_dark, int* white_bright)
+{
+    /* sometimes the white level is much lower than 15000; this would cause pink highlights */
+    /* workaround: consider the white level as a little under the maximum pixel value from the raw file */
+    /* caveat: bright and dark exposure may have different white levels, so we'll take the minimum value */
+    /* side effect: if the image is not overexposed, it may get brightened a little; shouldn't hurt */
+    
+    int whites[2]         = {  0,    0};
+    int discard_pixels[2] = { 10,   50}; /* discard the brightest N pixels */
+    int safety_margins[2] = {100, 1500}; /* use a higher safety margin for the higher ISO */
+    /* note: with the high-ISO WL underestimated by 1500, you would lose around 0.15 EV of non-aliased detail */
+    
+    int* pixels[2];
+    int max_pix = raw_info.width * raw_info.height / 2 / 9;
+    pixels[0] = malloc(max_pix * sizeof(pixels[0][0]));
+    pixels[1] = malloc(max_pix * sizeof(pixels[0][0]));
+    int counts[2] = {0, 0};
+    
+    /* collect all the pixels and find the k-th max, thus ignoring hot pixels */
+    /* change the sign in order to use kth_smallest_int */
+    for (int y = raw_info.active_area.y1; y < raw_info.active_area.y2; y += 3)
+    {
+        for (int x = raw_info.active_area.x1; x < raw_info.active_area.x2; x += 3)
+        {
+            int pix = raw_get_pixel16(x, y);
+            
+#define BIN_IDX is_bright[y%4]
+            counts[BIN_IDX] = MIN(counts[BIN_IDX], max_pix-1);
+            pixels[BIN_IDX][counts[BIN_IDX]] = -pix;
+            counts[BIN_IDX]++;
+#undef BIN_IDX
+        }
+    }
+    
+    whites[0] = -kth_smallest_int(pixels[0], counts[0], discard_pixels[0]) - safety_margins[0];
+    whites[1] = -kth_smallest_int(pixels[1], counts[1], discard_pixels[1]) - safety_margins[1];
+    
+    //~ printf("%8d %8d\n", whites[0], whites[1]);
+    //~ printf("%8d %8d\n", counts[0], counts[1]);
+    
+    /* we assume 14-bit input data; out-of-range white levels may cause crash */
+    *white_dark = COERCE(whites[0], 10000, 16383);
+    *white_bright = COERCE(whites[1], 5000, 16383);
+    
+    printf("White levels    : %d %d\n", *white_dark, *white_bright);
+    
+    free(pixels[0]);
+    free(pixels[1]);
+}
+
+static void compute_black_noise(struct raw_info raw_info, uint16_t * image_data, int x1, int x2, int y1, int y2, int dx, int dy, double* out_mean, double* out_stdev)
+{
+    long long black = 0;
+    int num = 0;
+    /* compute average level */
+    for (int y = y1; y < y2; y += dy)
+    {
+        for (int x = x1; x < x2; x += dx)
+        {
+            black += raw_get_pixel(x, y);
+            num++;
+        }
+    }
+    
+    double mean = (double) black / num;
+    
+    /* compute standard deviation */
+    double stdev = 0;
+    for (int y = y1; y < y2; y += dy)
+    {
+        for (int x = x1; x < x2; x += dx)
+        {
+            double dif = raw_get_pixel(x, y) - mean;
+            stdev += dif * dif;
+        }
+    }
+    stdev /= (num-1);
+    stdev = sqrt(stdev);
+    
+    if (num == 0)
+    {
+        mean = raw_info.black_level;
+        stdev = 8; /* default to 11 stops of DR */
+    }
+    
+    *out_mean = mean;
+    *out_stdev = stdev;
+}
+
+static int mean2(int a, int b, int white, int* err)
+{
+    if (a >= white || b >= white)
+    {
+        if (err) *err = 10000000;
+        return white;
+    }
+    
+    int m = (a + b) / 2;
+    
+    if (err)
+        *err = ABS(a - b);
+    
+    return m;
+}
+
+static int mean3(int a, int b, int c, int white, int* err)
+{
+    int m = (a + b + c) / 3;
+    
+    if (err)
+        *err = MAX(MAX(ABS(a - m), ABS(b - m)), ABS(c - m));
+    
+    if (a >= white || b >= white || c >= white)
+        return MAX(m, white);
+    
+    return m;
+}
+
+/* http://www.developpez.net/forums/d544518/c-cpp/c/equivalent-randn-matlab-c/#post3241904 */
+
+#define TWOPI (6.2831853071795864769252867665590057683943387987502) /* 2 * pi */
+
+/*
+ RAND is a macro which returns a pseudo-random numbers from a uniform
+ distribution on the interval [0 1]
+ */
+#define RAND (rand())/((double) RAND_MAX)
+
+/*
+ RANDN is a macro which returns a pseudo-random numbers from a normal
+ distribution with mean zero and standard deviation one. This macro uses Box
+ Muller's algorithm
+ */
+#define RANDN (sqrt(-2.0*log(RAND))*cos(TWOPI*RAND))
+
+/* anti-posterization noise */
+/* before rounding, it's a good idea to add a Gaussian noise of stdev=0.5 */
+static float randn05_cache[1024];
+
+void fast_randn_init()
+{
+    int i;
+    for (i = 0; i < 1024; i++)
+    {
+        randn05_cache[i] = RANDN / 2;
+    }
+}
+
+float fast_randn05()
+{
+    static int k = 0;
+    return randn05_cache[(k++) & 1023];
+}
+
+/* quick check to see if this looks like a HDR frame */
+static int hdr_check(struct raw_info raw_info, uint16_t * image_data)
+{
+    int black = raw_info.black_level;
+    int white = raw_info.white_level;
+    
+    int w = raw_info.width;
+    int h = raw_info.height;
+    
+    static double raw2ev[16384];
+    
+    for (int i = 0; i < 16384; i++)
+        raw2ev[i] = log2(MAX(1, i - black));
+    
+    double avg_ev = 0;
+    int num = 0;
+    for (int y = 2; y < h-2; y ++)
+    {
+        for (int x = 2; x < w-2; x ++)
+        {
+            int p = raw_get_pixel16(x, y);
+            int p2 = raw_get_pixel16(x, y+2);
+            if ((p > black+32 || p2 > black+32) && p < white && p2 < white)
+            {
+                avg_ev += ABS(raw2ev[p2] - raw2ev[p]);
+                num++;
+            }
+        }
+    }
+    
+    avg_ev /= num;
+    
+    if (avg_ev > 0.5)
+        return 1;
+    
+    return 0;
+}
+
+static int identify_rggb_or_gbrg(struct raw_info raw_info, uint16_t * image_data)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
+    
+    /* build 4 little histograms: one for red, one for blue and two for green */
+    /* we don't know yet which channels are which, but that's what we are trying to find out */
+    /* the ones with the smallest difference are likely the green channels */
+    int hist_size = 16384 * sizeof(int);
+    int* hist[4];
+    for (int i = 0; i < 4; i++)
+    {
+        hist[i] = malloc(hist_size);
+        memset(hist[i], 0, hist_size);
+    }
+    
+    int y0 = (raw_info.active_area.y1 + 3) & ~3;
+    
+    /* to simplify things, analyze an identical number of bright and dark lines */
+    for (int y = y0; y < h/4*4; y++)
+    {
+        for (int x = 0; x < w; x++)
+            hist[(y%2)*2 + (x%2)][raw_get_pixel16(x,y) & 16383]++;
+    }
+    
+    /* compute cdf */
+    for (int k = 0; k < 4; k++)
+    {
+        int acc = 0;
+        for (int i = 0; i < 16384; i++)
+        {
+            acc += hist[k][i];
+            hist[k][i] = acc;
+        }
+    }
+    
+    /* compare cdf's */
+    /* for rggb, greens are at y%2 != x%2, that is, 1 and 2 */
+    /* for gbrg, greens are at y%2 == x%2, that is, 0 and 3 */
+    double diffs_rggb = 0;
+    double diffs_gbrg = 0;
+    for (int i = 0; i < 16384; i++)
+    {
+        diffs_rggb += ABS(hist[1][i] - hist[2][i]);
+        diffs_gbrg += ABS(hist[0][i] - hist[3][i]);
+    }
+    
+    for (int i = 0; i < 4; i++)
+    {
+        free(hist[i]); hist[i] = 0;
+    }
+    
+    /* which one is most likely? */
+    return diffs_rggb < diffs_gbrg;
+}
+
+static int identify_bright_and_dark_fields(struct raw_info raw_info, uint16_t * image_data, int rggb)
+{
+    /* first we need to know which lines are dark and which are bright */
+    /* the pattern is not always the same, so we need to autodetect it */
+    
+    /* it may look like this */                       /* or like this */
+    /*
+     ab cd ef gh  ab cd ef gh               ab cd ef gh  ab cd ef gh
+     
+     0  RG RG RG RG  RG RG RG RG            0  rg rg rg rg  rg rg rg rg
+     1  gb gb gb gb  gb gb gb gb            1  gb gb gb gb  gb gb gb gb
+     2  rg rg rg rg  rg rg rg rg            2  RG RG RG RG  RG RG RG RG
+     3  GB GB GB GB  GB GB GB GB            3  GB GB GB GB  GB GB GB GB
+     4  RG RG RG RG  RG RG RG RG            4  rg rg rg rg  rg rg rg rg
+     5  gb gb gb gb  gb gb gb gb            5  gb gb gb gb  gb gb gb gb
+     6  rg rg rg rg  rg rg rg rg            6  RG RG RG RG  RG RG RG RG
+     7  GB GB GB GB  GB GB GB GB            7  GB GB GB GB  GB GB GB GB
+     8  RG RG RG RG  RG RG RG RG            8  rg rg rg rg  rg rg rg rg
+     */
+    
+    /* white level is not yet known, just use a rough guess */
+    int white = 10000;
+    int black = raw_info.black_level;
+    
+    int w = raw_info.width;
+    int h = raw_info.height;
+    
+    /* build 4 little histograms */
+    int hist_size = 16384 * sizeof(int);
+    int* hist[4];
+    for (int i = 0; i < 4; i++)
+    {
+        hist[i] = malloc(hist_size);
+        memset(hist[i], 0, hist_size);
+    }
+    
+    int y0 = (raw_info.active_area.y1 + 3) & ~3;
+    
+    /* to simplify things, analyze an identical number of bright and dark lines */
+    for (int y = y0; y < h/4*4; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            if ((x%2) != (y%2))
+            {
+                /* only check the green pixels */
+                hist[y%4][raw_get_pixel16(x,y) & 16383]++;
+            }
+        }
+    }
+    
+    int hist_total = 0;
+    for (int i = 0; i < 16384; i++)
+        hist_total += hist[0][i];
+    
+    /* choose the highest percentile that is not overexposed */
+    /* but not higher than 99.8, to keep a tiny bit of robustness (specular highlights may play dirty tricks) */
+    int acc[4] = {0};
+    int raw[4] = {0};
+    int off[4] = {0};
+    int ref;
+    int ref_max = hist_total * 0.998;
+    int ref_off = hist_total * 0.05;
+    for (ref = 0; ref < ref_max; ref++)
+    {
+        int changed = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            while (acc[i] < ref)
+            {
+                acc[i] += hist[i][raw[i]];
+                raw[i]++;
+                changed = 1;
+            }
+        }
+        
+        if (ref < ref_off)
+        {
+            if (MAX(MAX(raw[0], raw[1]), MAX(raw[2], raw[3])) < black + (white-black) / 4)
+            {
+                /* try to remove the black offset by estimating it from relatively dark pixels */
+                off[0] = raw[0];
+                off[1] = raw[1];
+                off[2] = raw[2];
+                off[3] = raw[3];
+            }
+        }
+        
+        if (raw[0] >= white) break;
+        if (raw[1] >= white) break;
+        if (raw[2] >= white) break;
+        if (raw[3] >= white) break;
+    }
+    
+    for (int i = 0; i < 4; i++)
+    {
+        free(hist[i]); hist[i] = 0;
+    }
+    
+    /* remove black offsets */
+    raw[0] -= off[0];
+    raw[1] -= off[1];
+    raw[2] -= off[2];
+    raw[3] -= off[3];
+    
+    /* very crude way to compute median */
+    int sorted_bright[4];
+    memcpy(sorted_bright, raw, sizeof(sorted_bright));
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = i+1; j < 4; j++)
+            {
+                if (sorted_bright[i] > sorted_bright[j])
+                {
+                    double aux = sorted_bright[i];
+                    sorted_bright[i] = sorted_bright[j];
+                    sorted_bright[j] = aux;
+                }
+            }
+        }
+    }
+    double median_bright = (sorted_bright[1] + sorted_bright[2]) / 2;
+    
+    for (int i = 0; i < 4; i++)
+        is_bright[i] = raw[i] > median_bright;
+    
+    printf("ISO pattern     : %c%c%c%c %s\n", is_bright[0] ? 'B' : 'd', is_bright[1] ? 'B' : 'd', is_bright[2] ? 'B' : 'd', is_bright[3] ? 'B' : 'd', rggb ? "RGGB" : "GBRG");
+    
+    if (is_bright[0] + is_bright[1] + is_bright[2] + is_bright[3] != 2)
+    {
+        printf("Bright/dark detection error\n");
+        return 0;
+    }
+    
+    if (is_bright[0] == is_bright[2] || is_bright[1] == is_bright[3])
+    {
+        printf("Interlacing method not supported\n");
+        return 0;
+    }
+    return 1;
+}
+
+static int match_exposures(struct raw_info raw_info, uint32_t * raw_buffer_32, double* corr_ev, int* white_darkened)
+{
+    /* guess ISO - find the factor and the offset for matching the bright and dark images */
+    int black20 = raw_info.black_level;
+    int white20 = MIN(raw_info.white_level, *white_darkened);
+    int black = black20/16;
+    int white = white20/16;
+    int clip0 = white - black;
+    int clip  = clip0 * 0.95;    /* there may be nonlinear response in very bright areas */
+    
+    int w = raw_info.width;
+    int h = raw_info.height;
+    int y0 = raw_info.active_area.y1 + 2;
+    
+    /* quick interpolation for matching */
+    int* dark   = malloc(w * h * sizeof(dark[0]));
+    int* bright = malloc(w * h * sizeof(bright[0]));
+    memset(dark, 0, w * h * sizeof(dark[0]));
+    memset(bright, 0, w * h * sizeof(bright[0]));
+    
+    for (int y = y0; y < h-2; y += 3)
+    {
+        int* native = BRIGHT_ROW ? bright : dark;
+        int* interp = BRIGHT_ROW ? dark : bright;
+        
+        for (int x = 0; x < w; x += 3)
+        {
+            int pa = raw_get_pixel_20to16(x, y-2) - black;
+            int pb = raw_get_pixel_20to16(x, y+2) - black;
+            int pn = raw_get_pixel_20to16(x, y) - black;
+            int pi = (pa + pb + 1) / 2;
+            if (pa >= clip || pb >= clip) pi = clip0;               /* pixel too bright? discard */
+            if (pi >= clip) pn = clip0;                             /* interpolated pixel not good? discard the other one too */
+            interp[x + y * w] = pi;
+            native[x + y * w] = pn;
+        }
+    }
+    
+    /*
+     * Robust line fit (match unclipped data):
+     * - use (median_bright, median_dark) as origin
+     * - select highlights between 98 and 99.9th percentile to find the slope (ISO)
+     * - choose the slope that explains the largest number of highlight points (inspired from RANSAC)
+     *
+     * Rationale:
+     * - exposure matching is important to be correct in bright_highlights (which are combined with dark_midtones)
+     * - low percentiles are likely affected by noise (this process is essentially a histogram matching)
+     * - as ad-hoc as it looks, it's the only method that passed all the test samples so far.
+     */
+    int nmax = (w+2) * (h+2) / 9;   /* downsample by 3x3 for speed */
+    int * tmp = malloc(nmax * sizeof(tmp[0]));
+    
+    /* median_bright */
+    int n = 0;
+    for (int y = y0; y < h-2; y += 3)
+    {
+        for (int x = 0; x < w; x += 3)
+        {
+            int b = bright[x + y*w];
+            if (b >= clip) continue;
+            tmp[n++] = b;
+        }
+    }
+    int bmed = median_int_wirth(tmp, n);
+    
+    int * bps = 0;
+    
+    /* also compute the range for bright pixels (used to find the slope) */
+    int b_lo = kth_smallest_int(tmp, n, n*98/100);
+    int b_hi = kth_smallest_int(tmp, n, n*99.9/100);
+    
+    /* median_dark */
+    n = 0;
+    for (int y = y0; y < h-2; y += 3)
+    {
+        for (int x = 0; x < w; x += 3)
+        {
+            int d = dark[x + y*w];
+            int b = bright[x + y*w];
+            if (b >= clip) continue;
+            tmp[n++] = d;
+        }
+    }
+    int dmed = median_int_wirth(tmp, n);
+    
+    int * dps = 0;
+    
+    /* select highlights used to find the slope (ISO) */
+    /* (98th percentile => up to 2% highlights) */
+    int hi_nmax = nmax/50;
+    int hi_n = 0;
+    int* hi_dark = malloc(hi_nmax * sizeof(hi_dark[0]));
+    int* hi_bright = malloc(hi_nmax * sizeof(hi_bright[0]));
+    
+    for (int y = y0; y < h-2; y += 3)
+    {
+        for (int x = 0; x < w; x += 3)
+        {
+            int d = dark[x + y*w];
+            int b = bright[x + y*w];
+            if (b >= b_hi) continue;
+            if (b <= b_lo) continue;
+            hi_dark[hi_n] = d;
+            hi_bright[hi_n] = b;
+            hi_n++;
+            if (hi_n >= hi_nmax) break;
+        }
+    }
+    
+    //~ printf("Selected %d highlight points (max %d)\n", hi_n, hi_nmax);
+    
+    double a = 0;
+    double b = 0;
+    
+    int best_score = 0;
+    for (double ev = 0; ev < 6; ev += 0.002)
+    {
+        double test_a = pow(2, -ev);
+        double test_b = dmed - bmed * test_a;
+        
+        int score = 0;
+        for (int i = 0; i < hi_n; i++)
+        {
+            int d = hi_dark[i];
+            int b = hi_bright[i];
+            int e = d - (b*test_a + test_b);
+            if (ABS(e) < 50) score++;
+        }
+        if (score > best_score)
+        {
+            best_score = score;
+            a = test_a;
+            b = test_b;
+            //~ printf("%f: %d\n", a, score);
+        }
+    }
+    free(hi_dark); hi_dark = 0;
+    free(hi_bright); hi_bright = 0;
+    free(tmp); tmp = 0;
+    
+    free(dark);
+    free(bright);
+    if (dps) free(dps);
+    if (bps) free(bps);
+    
+    /* apply the correction */
+    double b20 = b * 16;
+    for (int y = 0; y < h; y ++)
+    {
+        for (int x = 0; x < w; x ++)
+        {
+            int p = raw_get_pixel32(x, y);
+            if (p == 0) continue;
+            
+            if (BRIGHT_ROW)
+            {
+                /* bright exposure: darken and apply the black offset (fixme: why not half?) */
+                p = (p - black20) * a + black20 + b20*a;
+            }
+            else
+            {
+                p = p - b20 + b20*a;
+            }
+            
+            /* out of range? */
+            /* note: this breaks M24-1127 */
+            p = COERCE(p, 0, 0xFFFFF);
+            
+            raw_set_pixel20(x, y, p);
+        }
+    }
+    *white_darkened = (white20 - black20 + b20) * a + black20;
+    
+    double factor = 1/a;
+    if (factor < 1.2 || !isfinite(factor))
+    {
+        printf("Doesn't look like interlaced ISO\n");
+        factor = 1;
+        return 0;
+    }
+    
+    *corr_ev = log2(factor);
+    
+    printf("ISO difference  : %.2f EV (%d)\n", log2(factor), (int)round(factor*100));
+    printf("Black delta     : %.2f\n", b/4); /* we want to display black delta for the 14-bit original data, but we have computed it from 16-bit data */
+    return 1;
+}
+
+static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int use_fullres)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
+    
+    /* RGGB or GBRG? */
+    int rggb = identify_rggb_or_gbrg(raw_info, image_data);
+    
+    if (!rggb) /* this code assumes RGGB, so we need to skip one line */
+    {
+        image_data += raw_info.pitch;
+        raw_info.active_area.y1++;
+        raw_info.active_area.y2--;
+        raw_info.height--;
+        h--;
+    }
+    
+    if (!identify_bright_and_dark_fields(raw_info, image_data, rggb))
+    {
+        return 0;
+    }
+    
+    int ret = 1;
+    
+    /* will use 20-bit processing and 16-bit output, instead of 14 */
+    raw_info.black_level *= 64;
+    raw_info.white_level *= 64;
+    
+    int black = raw_info.black_level;
+    int white = raw_info.white_level;
+    
+    int white_bright = white;
+    white_detect(raw_info, image_data, &white, &white_bright);
+    white *= 64;
+    white_bright *= 64;
+    raw_info.white_level = white;
+    
+    /* for fast EV - raw conversion */
+    static int raw2ev[1<<20];   /* EV x EV_RESOLUTION */
+    static int ev2raw_0[24*EV_RESOLUTION];
+    
+    /* handle sub-black values (negative EV) */
+    int* ev2raw = ev2raw_0 + 10*EV_RESOLUTION;
+    
+    for (int i = 0; i < 1<<20; i++)
+    {
+        double signal = MAX(i/64.0 - black/64.0, -1023);
+        if (signal > 0)
+            raw2ev[i] = (int)round(log2(1+signal) * EV_RESOLUTION);
+        else
+            raw2ev[i] = -(int)round(log2(1-signal) * EV_RESOLUTION);
+    }
+    
+    for (int i = -10*EV_RESOLUTION; i < 0; i++)
+    {
+        ev2raw[i] = COERCE(black+64 - round(64*pow(2, ((double)-i/EV_RESOLUTION))), 0, black);
+    }
+    
+    for (int i = 0; i < 14*EV_RESOLUTION; i++)
+    {
+        ev2raw[i] = COERCE(black-64 + round(64*pow(2, ((double)i/EV_RESOLUTION))), black, (1<<20)-1);
+        
+        if (i >= raw2ev[white])
+        {
+            ev2raw[i] = MAX(ev2raw[i], white);
+        }
+    }
+    
+    /* keep "bad" pixels, if any */
+    ev2raw[raw2ev[0]] = 0;
+    ev2raw[raw2ev[0]] = 0;
+    
+    /* check raw <--> ev conversion */
+    //~ printf("%d %d %d %d %d %d %d *%d* %d %d %d %d %d\n", raw2ev[0],         raw2ev[16000],         raw2ev[32000],         raw2ev[131068],         raw2ev[131069],         raw2ev[131070],         raw2ev[131071],         raw2ev[131072],         raw2ev[131073],         raw2ev[131074],         raw2ev[131075],         raw2ev[131076],         raw2ev[132000]);
+    //~ printf("%d %d %d %d %d %d %d *%d* %d %d %d %d %d\n", ev2raw[raw2ev[0]], ev2raw[raw2ev[16000]], ev2raw[raw2ev[32000]], ev2raw[raw2ev[131068]], ev2raw[raw2ev[131069]], ev2raw[raw2ev[131070]], ev2raw[raw2ev[131071]], ev2raw[raw2ev[131072]], ev2raw[raw2ev[131073]], ev2raw[raw2ev[131074]], ev2raw[raw2ev[131075]], ev2raw[raw2ev[131076]], ev2raw[raw2ev[132000]]);
+    
+    double noise_std[4];
+    double noise_avg;
+    for (int y = 0; y < 4; y++)
+        compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1/4*4 + 20 + y, raw_info.active_area.y2 - 20, 1, 4, &noise_avg, &noise_std[y]);
+    
+    printf("Noise levels    : %.02f %.02f %.02f %.02f (14-bit)\n", noise_std[0], noise_std[1], noise_std[2], noise_std[3]);
+    double dark_noise = MIN(MIN(noise_std[0], noise_std[1]), MIN(noise_std[2], noise_std[3]));
+    double bright_noise = MAX(MAX(noise_std[0], noise_std[1]), MAX(noise_std[2], noise_std[3]));
+    double dark_noise_ev = log2(dark_noise);
+    double bright_noise_ev = log2(bright_noise);
+    
+    
+    /* promote from 14 to 20 bits (original raw buffer holds 14-bit values stored as uint16_t) */
+    uint32_t * raw_buffer_32 = malloc(w * h * sizeof(raw_buffer_32[0]));
+    
+    for (int y = 0; y < h; y ++)
+        for (int x = 0; x < w; x ++)
+            raw_buffer_32[x + y*w] = raw_get_pixel_14to20(x, y);
+    
+    /* we have now switched to 20-bit, update noise numbers */
+    dark_noise *= 64;
+    bright_noise *= 64;
+    dark_noise_ev += 6;
+    bright_noise_ev += 6;
+    
+    /* dark and bright exposures, interpolated */
+    uint32_t* dark   = malloc(w * h * sizeof(uint32_t));
+    uint32_t* bright = malloc(w * h * sizeof(uint32_t));
+    memset(dark, 0, w * h * sizeof(uint32_t));
+    memset(bright, 0, w * h * sizeof(uint32_t));
+    
+    /* fullres image (minimizes aliasing) */
+    uint32_t* fullres = malloc(w * h * sizeof(uint32_t));
+    memset(fullres, 0, w * h * sizeof(uint32_t));
+    uint32_t* fullres_smooth = fullres;
+    
+    /* halfres image (minimizes noise and banding) */
+    uint32_t* halfres = malloc(w * h * sizeof(uint32_t));
+    memset(halfres, 0, w * h * sizeof(uint32_t));
+    uint32_t* halfres_smooth = halfres;
+    
+    /* overexposure map */
+    uint16_t* overexposed = 0;
+    
+    uint16_t* alias_map = malloc(w * h * sizeof(uint16_t));
+    memset(alias_map, 0, w * h * sizeof(uint16_t));
+    
+    /* fullres mixing curve */
+    static double fullres_curve[1<<20];
+    
+    const double fullres_start = 4;
+    const double fullres_transition = 4;
+    //const double fullres_thr = 0.8;
+    
+    for (int i = 0; i < (1<<20); i++)
+    {
+        double ev2 = log2(MAX(i/64.0 - black/64.0, 1));
+        double c2 = -cos(COERCE(ev2 - fullres_start, 0, fullres_transition)*M_PI/fullres_transition);
+        double f = (c2+1) / 2;
+        fullres_curve[i] = f;
+    }
+    
+    //~ printf("Exposure matching...\n");
+    /* estimate ISO difference between bright and dark exposures */
+    double corr_ev = 0;
+    int white_darkened = white_bright;
+    int ok = match_exposures(raw_info, raw_buffer_32, &corr_ev, &white_darkened);
+    if (!ok) goto err;
+    
+    /* estimate dynamic range */
+    double lowiso_dr = log2(white - black) - dark_noise_ev;
+    double highiso_dr = log2(white_bright - black) - bright_noise_ev;
+    printf("Dynamic range   : %.02f (+) %.02f => %.02f EV (in theory)\n", lowiso_dr, highiso_dr, highiso_dr + corr_ev);
+    
+    /* correction factor for the bright exposure, which was just darkened */
+    double corr = pow(2, corr_ev);
+    
+    /* update bright noise measurements, so they can be compared after scaling */
+    bright_noise /= corr;
+    bright_noise_ev -= corr_ev;
+    
+    {
+        printf("Interpolation   : mean23\n");
+        for (int y = 2; y < h-2; y ++)
+        {
+            uint32_t* native = BRIGHT_ROW ? bright : dark;
+            uint32_t* interp = BRIGHT_ROW ? dark : bright;
+            int is_rg = (y % 2 == 0); /* RG or GB? */
+            int white = !BRIGHT_ROW ? white_darkened : raw_info.white_level;
+            
+            for (int x = 2; x < w-3; x += 2)
+            {
+                
+                /* red/blue: interpolate from (x,y+2) and (x,y-2) */
+                /* green: interpolate from (x+1,y+1),(x-1,y+1),(x,y-2) or (x+1,y-1),(x-1,y-1),(x,y+2), whichever has the correct brightness */
+                
+                int s = (is_bright[y%4] == is_bright[(y+1)%4]) ? -1 : 1;
+                
+                if (is_rg)
+                {
+                    int ra = raw_get_pixel32(x, y-2);
+                    int rb = raw_get_pixel32(x, y+2);
+                    int ri = mean2(raw2ev[ra], raw2ev[rb], raw2ev[white], 0);
+                    
+                    int ga = raw_get_pixel32(x+1+1, y+s);
+                    int gb = raw_get_pixel32(x+1-1, y+s);
+                    int gc = raw_get_pixel32(x+1, y-2*s);
+                    int gi = mean3(raw2ev[ga], raw2ev[gb], raw2ev[gc], raw2ev[white], 0);
+                    
+                    interp[x   + y * w] = ev2raw[ri];
+                    interp[x+1 + y * w] = ev2raw[gi];
+                }
+                else
+                {
+                    int ba = raw_get_pixel32(x+1  , y-2);
+                    int bb = raw_get_pixel32(x+1  , y+2);
+                    int bi = mean2(raw2ev[ba], raw2ev[bb], raw2ev[white], 0);
+                    
+                    int ga = raw_get_pixel32(x+1, y+s);
+                    int gb = raw_get_pixel32(x-1, y+s);
+                    int gc = raw_get_pixel32(x, y-2*s);
+                    int gi = mean3(raw2ev[ga], raw2ev[gb], raw2ev[gc], raw2ev[white], 0);
+                    
+                    interp[x   + y * w] = ev2raw[gi];
+                    interp[x+1 + y * w] = ev2raw[bi];
+                }
+                
+                native[x   + y * w] = raw_get_pixel32(x, y);
+                native[x+1 + y * w] = raw_get_pixel32(x+1, y);
+            }
+        }
+    }
+    
+    /* border interpolation */
+    for (int y = 0; y < 3; y ++)
+    {
+        uint32_t* native = BRIGHT_ROW ? bright : dark;
+        uint32_t* interp = BRIGHT_ROW ? dark : bright;
+        
+        for (int x = 0; x < w; x ++)
+        {
+            interp[x + y * w] = raw_get_pixel32(x, y+2);
+            native[x + y * w] = raw_get_pixel32(x, y);
+        }
+    }
+    
+    for (int y = h-4; y < h; y ++)
+    {
+        uint32_t* native = BRIGHT_ROW ? bright : dark;
+        uint32_t* interp = BRIGHT_ROW ? dark : bright;
+        
+        for (int x = 0; x < w; x ++)
+        {
+            interp[x + y * w] = raw_get_pixel32(x, y-2);
+            native[x + y * w] = raw_get_pixel32(x, y);
+        }
+    }
+    
+    for (int y = 2; y < h; y ++)
+    {
+        uint32_t* native = BRIGHT_ROW ? bright : dark;
+        uint32_t* interp = BRIGHT_ROW ? dark : bright;
+        
+        for (int x = 0; x < 2; x ++)
+        {
+            interp[x + y * w] = raw_get_pixel32(x, y-2);
+            native[x + y * w] = raw_get_pixel32(x, y);
+        }
+        
+        for (int x = w-3; x < w; x ++)
+        {
+            interp[x + y * w] = raw_get_pixel32(x-2, y-2);
+            native[x + y * w] = raw_get_pixel32(x-2, y);
+        }
+    }
+    
+    /* reconstruct a full-resolution image (discard interpolated fields whenever possible) */
+    /* this has full detail and lowest possible aliasing, but it has high shadow noise and color artifacts when high-iso starts clipping */
+    if (use_fullres)
+    {
+        printf("Full-res reconstruction...\n");
+        for (int y = 0; y < h; y ++)
+        {
+            for (int x = 0; x < w; x ++)
+            {
+                if (BRIGHT_ROW)
+                {
+                    int f = bright[x + y*w];
+                    /* if the brighter copy is overexposed, the guessed pixel for sure has higher brightness */
+                    fullres[x + y*w] = f < white_darkened ? f : MAX(f, dark[x + y*w]);
+                }
+                else
+                {
+                    fullres[x + y*w] = dark[x + y*w];
+                }
+            }
+        }
+    }
+    
+    /* mix the two images */
+    /* highlights:  keep data from dark image only */
+    /* shadows:     keep data from bright image only */
+    /* midtones:    mix data from both, to bring back the resolution */
+    
+    /* estimate ISO overlap */
+    /*
+     ISO 100:       ###...........  (11 stops)
+     ISO 1600:  ####..........      (10 stops)
+     Combined:  XX##..............  (14 stops)
+     */
+    double clipped_ev = corr_ev;
+    double overlap = lowiso_dr - clipped_ev;
+    
+    /* you get better colors, less noise, but a little more jagged edges if we underestimate the overlap amount */
+    /* maybe expose a tuning factor? (preference towards resolution or colors) */
+    overlap -= MIN(3, overlap - 3);
+    
+    printf("ISO overlap     : %.1f EV (approx)\n", overlap);
+    
+    if (overlap < 0.5)
+    {
+        printf("Overlap error\n");
+        goto err;
+    }
+    else if (overlap < 2)
+    {
+        printf("Overlap too small, use a smaller ISO difference for better results.\n");
+    }
+    
+    printf("Half-res blending...\n");
+    
+    /* mixing curve */
+    double max_ev = log2(white/64 - black/64);
+    static double mix_curve[1<<20];
+    
+    for (int i = 0; i < 1<<20; i++)
+    {
+        double ev = log2(MAX(i/64.0 - black/64.0, 1)) + corr_ev;
+        double c = -cos(MAX(MIN(ev-(max_ev-overlap),overlap),0)*M_PI/overlap);
+        double k = (c+1) / 2;
+        mix_curve[i] = k;
+    }
+    
+    for (int y = 0; y < h; y ++)
+    {
+        for (int x = 0; x < w; x ++)
+        {
+            /* bright and dark source pixels  */
+            /* they may be real or interpolated */
+            /* they both have the same brightness (they were adjusted before this loop), so we are ready to mix them */
+            int b = bright[x + y*w];
+            int d = dark[x + y*w];
+            
+            /* go from linear to EV space */
+            int bev = raw2ev[b];
+            int dev = raw2ev[d];
+            
+            /* blending factor */
+            double k = COERCE(mix_curve[b & 0xFFFFF], 0, 1);
+            
+            /* mix bright and dark exposures */
+            int mixed = bev * (1-k) + dev * k;
+            halfres[x + y*w] = ev2raw[mixed];
+        }
+    }
+    
+    /* where the image is overexposed? */
+    overexposed = malloc(w * h * sizeof(uint16_t));
+    memset(overexposed, 0, w * h * sizeof(uint16_t));
+    
+    for (int y = 0; y < h; y ++)
+    {
+        for (int x = 0; x < w; x ++)
+        {
+            overexposed[x + y * w] = bright[x + y * w] >= white_darkened || dark[x + y * w] >= white ? 100 : 0;
+        }
+    }
+    
+    /* "blur" the overexposed map */
+    uint16_t* over_aux = malloc(w * h * sizeof(uint16_t));
+    memcpy(over_aux, overexposed, w * h * sizeof(uint16_t));
+    
+    for (int y = 3; y < h-3; y ++)
+    {
+        for (int x = 3; x < w-3; x ++)
+        {
+            overexposed[x + y * w] =
+            (over_aux[x+0 + (y+0) * w])+
+            (over_aux[x+0 + (y-1) * w] + over_aux[x-1 + (y+0) * w] + over_aux[x+1 + (y+0) * w] + over_aux[x+0 + (y+1) * w]) * 820 / 1024 +
+            (over_aux[x-1 + (y-1) * w] + over_aux[x+1 + (y-1) * w] + over_aux[x-1 + (y+1) * w] + over_aux[x+1 + (y+1) * w]) * 657 / 1024 +
+            //~ (over_aux[x+0 + (y-2) * w] + over_aux[x-2 + (y+0) * w] + over_aux[x+2 + (y+0) * w] + over_aux[x+0 + (y+2) * w]) * 421 / 1024 +
+            //~ (over_aux[x-1 + (y-2) * w] + over_aux[x+1 + (y-2) * w] + over_aux[x-2 + (y-1) * w] + over_aux[x+2 + (y-1) * w] + over_aux[x-2 + (y+1) * w] + over_aux[x+2 + (y+1) * w] + over_aux[x-1 + (y+2) * w] + over_aux[x+1 + (y+2) * w]) * 337 / 1024 +
+            //~ (over_aux[x-2 + (y-2) * w] + over_aux[x+2 + (y-2) * w] + over_aux[x-2 + (y+2) * w] + over_aux[x+2 + (y+2) * w]) * 173 / 1024 +
+            //~ (over_aux[x+0 + (y-3) * w] + over_aux[x-3 + (y+0) * w] + over_aux[x+3 + (y+0) * w] + over_aux[x+0 + (y+3) * w]) * 139 / 1024 +
+            //~ (over_aux[x-1 + (y-3) * w] + over_aux[x+1 + (y-3) * w] + over_aux[x-3 + (y-1) * w] + over_aux[x+3 + (y-1) * w] + over_aux[x-3 + (y+1) * w] + over_aux[x+3 + (y+1) * w] + over_aux[x-1 + (y+3) * w] + over_aux[x+1 + (y+3) * w]) * 111 / 1024 +
+            //~ (over_aux[x-2 + (y-3) * w] + over_aux[x+2 + (y-3) * w] + over_aux[x-3 + (y-2) * w] + over_aux[x+3 + (y-2) * w] + over_aux[x-3 + (y+2) * w] + over_aux[x+3 + (y+2) * w] + over_aux[x-2 + (y+3) * w] + over_aux[x+2 + (y+3) * w]) * 57 / 1024;
+            0;
+        }
+    }
+    
+    free(over_aux); over_aux = 0;
+    
+    /* let's check the ideal noise levels (on the halfres image, which in black areas is identical to the bright one) */
+    for (int y = 3; y < h-2; y ++)
+        for (int x = 2; x < w-2; x ++)
+            raw_set_pixel32(x, y, bright[x + y*w]);
+    compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
+    double ideal_noise_std = noise_std[0];
+    
+    printf("Final blending...\n");
+    for (int y = 0; y < h; y ++)
+    {
+        for (int x = 0; x < w; x ++)
+        {
+            /* high-iso image (for measuring signal level) */
+            int b = bright[x + y*w];
+            
+            /* half-res image (interpolated and chroma filtered, best for low-contrast shadows) */
+            int hr = halfres_smooth[x + y*w];
+            
+            /* full-res image (non-interpolated, except where one ISO is blown out) */
+            int fr = fullres[x + y*w];
+            
+            /* full res with some smoothing applied to hide aliasing artifacts */
+            int frs = fullres_smooth[x + y*w];
+            
+            /* go from linear to EV space */
+            int hrev = raw2ev[hr];
+            int frev = raw2ev[fr];
+            int frsev = raw2ev[frs];
+            
+            int output = hrev;
+            
+            if (use_fullres)
+            {
+                /* blending factor */
+                double f = fullres_curve[b & 0xFFFFF];
+                
+                double c = 0;
+                
+                double ovf = COERCE(overexposed[x + y*w] / 200.0, 0, 1);
+                c = MAX(c, ovf);
+                
+                double noisy_or_overexposed = MAX(ovf, 1-f);
+                
+                /* use data from both ISOs in high-detail areas, even if it's noisier (less aliasing) */
+                f = MAX(f, c);
+                
+                /* use smoothing in noisy near-overexposed areas to hide color artifacts */
+                double fev = noisy_or_overexposed * frsev + (1-noisy_or_overexposed) * frev;
+                
+                /* limit the use of fullres in dark areas (fixes some black spots, but may increase aliasing) */
+                int sig = (dark[x + y*w] + bright[x + y*w]) / 2;
+                f = MAX(0, MIN(f, (double)(sig - black) / (4*dark_noise)));
+                
+                /* blend "half-res" and "full-res" images smoothly to avoid banding*/
+                output = hrev * (1-f) + fev * f;
+                
+                /* show full-res map (for debugging) */
+                //~ output = f * 14*EV_RESOLUTION;
+                
+                /* show alias map (for debugging) */
+                //~ output = c * 14*EV_RESOLUTION;
+                
+                //~ output = hotpixel[x+y*w] ? 14*EV_RESOLUTION : 0;
+                //~ output = raw2ev[dark[x+y*w]];
+                /* safeguard */
+                output = COERCE(output, -10*EV_RESOLUTION, 14*EV_RESOLUTION-1);
+            }
+            
+            /* back to linear space and commit */
+            raw_set_pixel32(x, y, ev2raw[output]);
+        }
+    }
+    
+    /* let's see how much dynamic range we actually got */
+    compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
+    printf("Noise level     : %.02f (20-bit), ideally %.02f\n", noise_std[0], ideal_noise_std);
+    printf("Dynamic range   : %.02f EV (cooked)\n", log2(white - black) - log2(noise_std[0]));
+    
+    /* go back from 20-bit to 16-bit output */
+    //raw_info.buffer = raw_buffer_16;
+    raw_info.black_level /= 16;
+    raw_info.white_level /= 16;
+    
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+            raw_set_pixel_20to16_rand(x, y, raw_buffer_32[x + y*w]);
+    
+end:
+    
+    if (!rggb) /* back to GBRG */
+    {
+        image_data -= raw_info.pitch;
+        raw_info.active_area.y1--;
+        raw_info.active_area.y2++;
+        raw_info.height++;
+        h++;
+    }
+    
+    goto cleanup;
+    
+err:
+    ret = 0;
+    
+cleanup:
+    free(dark);
+    free(bright);
+    free(fullres);
+    free(halfres);
+    free(overexposed);
+    free(alias_map);
+    free(raw_buffer_32);
+    if (fullres_smooth && fullres_smooth != fullres) free(fullres_smooth);
+    if (halfres_smooth && halfres_smooth != halfres) free(halfres_smooth);
+    return ret;
+}
+
+void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int fullres)
+{
+    struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
+    raw_info.width = frame_headers->rawi_hdr.xRes;
+    raw_info.height = frame_headers->rawi_hdr.yRes;
+    raw_info.pitch = frame_headers->rawi_hdr.xRes;
+    raw_info.active_area.x1 = 0;
+    raw_info.active_area.y1 = 0;
+    raw_info.active_area.x2 = raw_info.width;
+    raw_info.active_area.y2 = raw_info.height;
+    if (hdr_check(raw_info, image_data))
+    {
+        hdr_interpolate(raw_info, image_data, fullres);
+        frame_headers->rawi_hdr.raw_info.black_level *= 4;
+        frame_headers->rawi_hdr.raw_info.white_level *= 4;
     }
 }

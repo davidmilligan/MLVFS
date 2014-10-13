@@ -92,7 +92,7 @@ static int pthread_mutex_unlock(pthread_mutex_t *m)
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define COERCE(x,lo,hi) MAX(MIN((x),(hi)),(lo))
-#define ABS(a) (a > 0 ? a : -a)
+#define ABS(a) ((a) > 0 ? (a) : -(a))
 
 #ifdef _WIN32
 #define log2(x) log((float)(x))/log(2.)

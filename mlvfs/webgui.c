@@ -90,7 +90,7 @@ static const char * HTML =
 "      </tr>"
 "      <tr>"
 "        <td>Dual ISO</td>"
-"        <td><input type=radio name=dual_iso value=0 >Off</input><input type=radio name=dual_iso value=1 >Preview</input></td>"
+"        <td><input type=radio name=dual_iso value=0 >Off</input><input type=radio name=dual_iso value=1 >Preview</input><input type=radio name=dual_iso value=2 >Full (20bit)</input></td>"
 "      </tr>"
 "    </table>"
 "  </form>"
