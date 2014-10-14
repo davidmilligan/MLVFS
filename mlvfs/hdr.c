@@ -1072,7 +1072,7 @@ static inline int mix_images(struct raw_info raw_info, uint32_t* fullres, uint32
     
     /* mixing curve */
     double max_ev = log2(white/64 - black/64);
-    static double mix_curve[1<<20];
+    double * mix_curve = malloc((1<<20) * sizeof(double));
     
     for (int i = 0; i < 1<<20; i++)
     {
@@ -1136,7 +1136,7 @@ static inline int mix_images(struct raw_info raw_info, uint32_t* fullres, uint32
     }
     
     free(over_aux); over_aux = 0;
-    
+    free(mix_curve);
     
     return 1;
 }
