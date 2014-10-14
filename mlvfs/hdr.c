@@ -1381,18 +1381,23 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
 
 void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int fullres)
 {
-    struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
-    raw_info.width = frame_headers->rawi_hdr.xRes;
-    raw_info.height = frame_headers->rawi_hdr.yRes;
-    raw_info.pitch = frame_headers->rawi_hdr.xRes;
-    raw_info.active_area.x1 = 0;
-    raw_info.active_area.y1 = 0;
-    raw_info.active_area.x2 = raw_info.width;
-    raw_info.active_area.y2 = raw_info.height;
-    if (hdr_check(raw_info, image_data))
+    //TODO: this is not thread safe (yet!)
+    LOCK(cr2hdr_mutex)
     {
-        hdr_interpolate(raw_info, image_data, fullres);
-        frame_headers->rawi_hdr.raw_info.black_level *= 4;
-        frame_headers->rawi_hdr.raw_info.white_level *= 4;
+        struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
+        raw_info.width = frame_headers->rawi_hdr.xRes;
+        raw_info.height = frame_headers->rawi_hdr.yRes;
+        raw_info.pitch = frame_headers->rawi_hdr.xRes;
+        raw_info.active_area.x1 = 0;
+        raw_info.active_area.y1 = 0;
+        raw_info.active_area.x2 = raw_info.width;
+        raw_info.active_area.y2 = raw_info.height;
+        if (hdr_check(raw_info, image_data))
+        {
+            hdr_interpolate(raw_info, image_data, fullres);
+            frame_headers->rawi_hdr.raw_info.black_level *= 4;
+            frame_headers->rawi_hdr.raw_info.white_level *= 4;
+        }
     }
+    UNLOCK(cr2hdr_mutex)
 }
