@@ -221,7 +221,6 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
 //this is not thread safe (yet)
 
 #define EV_RESOLUTION 32768
-static int is_bright[4];
 #define BRIGHT_ROW (is_bright[y % 4])
 
 #define raw_get_pixel(x,y) (image_data[(x) + (y) * raw_info.width])
@@ -233,7 +232,7 @@ static int is_bright[4];
 #define raw_set_pixel_20to16_rand(x,y,value) image_data[(x) + (y) * raw_info.width] = COERCE((int)((value) / 16.0 + fast_randn05() + 0.5), 0, 0xFFFF)
 #define raw_set_pixel20(x,y,value) raw_buffer_32[(x) + (y) * raw_info.width] = COERCE((value), 0, 0xFFFFF)
 
-static void white_detect(struct raw_info raw_info, uint16_t * image_data, int* white_dark, int* white_bright)
+static void white_detect(struct raw_info raw_info, uint16_t * image_data, int* white_dark, int* white_bright, int * is_bright)
 {
     /* sometimes the white level is much lower than 15000; this would cause pink highlights */
     /* workaround: consider the white level as a little under the maximum pixel value from the raw file */
@@ -481,7 +480,7 @@ static int identify_rggb_or_gbrg(struct raw_info raw_info, uint16_t * image_data
     return diffs_rggb < diffs_gbrg;
 }
 
-static int identify_bright_and_dark_fields(struct raw_info raw_info, uint16_t * image_data, int rggb)
+static int identify_bright_and_dark_fields(struct raw_info raw_info, uint16_t * image_data, int rggb, int * is_bright)
 {
     /* first we need to know which lines are dark and which are bright */
     /* the pattern is not always the same, so we need to autodetect it */
@@ -624,7 +623,7 @@ static int identify_bright_and_dark_fields(struct raw_info raw_info, uint16_t * 
     return 1;
 }
 
-static int match_exposures(struct raw_info raw_info, uint32_t * raw_buffer_32, double* corr_ev, int* white_darkened)
+static int match_exposures(struct raw_info raw_info, uint32_t * raw_buffer_32, double * corr_ev, int * white_darkened, int * is_bright)
 {
     /* guess ISO - find the factor and the offset for matching the bright and dark images */
     int black20 = raw_info.black_level;
@@ -812,48 +811,22 @@ static int match_exposures(struct raw_info raw_info, uint32_t * raw_buffer_32, d
     return 1;
 }
 
-static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int use_fullres)
+static inline uint32_t * convert_to_20bit(struct raw_info raw_info, uint16_t * image_data)
 {
     int w = raw_info.width;
     int h = raw_info.height;
+    /* promote from 14 to 20 bits (original raw buffer holds 14-bit values stored as uint16_t) */
+    uint32_t * raw_buffer_32 = malloc(w * h * sizeof(raw_buffer_32[0]));
     
-    /* RGGB or GBRG? */
-    int rggb = identify_rggb_or_gbrg(raw_info, image_data);
+    for (int y = 0; y < h; y ++)
+        for (int x = 0; x < w; x ++)
+            raw_buffer_32[x + y*w] = raw_get_pixel_14to20(x, y);
     
-    if (!rggb) /* this code assumes RGGB, so we need to skip one line */
-    {
-        image_data += raw_info.pitch;
-        raw_info.active_area.y1++;
-        raw_info.active_area.y2--;
-        raw_info.height--;
-        h--;
-    }
-    
-    if (!identify_bright_and_dark_fields(raw_info, image_data, rggb))
-    {
-        return 0;
-    }
-    
-    int ret = 1;
-    
-    /* will use 20-bit processing and 16-bit output, instead of 14 */
-    raw_info.black_level *= 64;
-    raw_info.white_level *= 64;
-    
-    int black = raw_info.black_level;
-    int white = raw_info.white_level;
-    
-    int white_bright = white;
-    white_detect(raw_info, image_data, &white, &white_bright);
-    white *= 64;
-    white_bright *= 64;
-    raw_info.white_level = white;
-    
-    /* for fast EV - raw conversion */
-    static int raw2ev[1<<20];   /* EV x EV_RESOLUTION */
-    static int ev2raw_0[24*EV_RESOLUTION];
-    
-    /* handle sub-black values (negative EV) */
+    return raw_buffer_32;
+}
+
+static inline void build_ev2raw_lut(int * raw2ev, int * ev2raw_0, int black, int white)
+{
     int* ev2raw = ev2raw_0 + 10*EV_RESOLUTION;
     
     for (int i = 0; i < 1<<20; i++)
@@ -887,56 +860,31 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     /* check raw <--> ev conversion */
     //~ printf("%d %d %d %d %d %d %d *%d* %d %d %d %d %d\n", raw2ev[0],         raw2ev[16000],         raw2ev[32000],         raw2ev[131068],         raw2ev[131069],         raw2ev[131070],         raw2ev[131071],         raw2ev[131072],         raw2ev[131073],         raw2ev[131074],         raw2ev[131075],         raw2ev[131076],         raw2ev[132000]);
     //~ printf("%d %d %d %d %d %d %d *%d* %d %d %d %d %d\n", ev2raw[raw2ev[0]], ev2raw[raw2ev[16000]], ev2raw[raw2ev[32000]], ev2raw[raw2ev[131068]], ev2raw[raw2ev[131069]], ev2raw[raw2ev[131070]], ev2raw[raw2ev[131071]], ev2raw[raw2ev[131072]], ev2raw[raw2ev[131073]], ev2raw[raw2ev[131074]], ev2raw[raw2ev[131075]], ev2raw[raw2ev[131076]], ev2raw[raw2ev[132000]]);
-    
-    double noise_std[4];
-    double noise_avg;
+}
+
+static inline double compute_noise(struct raw_info raw_info, uint16_t * image_data, double * noise_std, double * dark_noise, double * bright_noise, double * dark_noise_ev, double * bright_noise_ev)
+{
+    double noise_avg = 0.0;
     for (int y = 0; y < 4; y++)
         compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1/4*4 + 20 + y, raw_info.active_area.y2 - 20, 1, 4, &noise_avg, &noise_std[y]);
     
     printf("Noise levels    : %.02f %.02f %.02f %.02f (14-bit)\n", noise_std[0], noise_std[1], noise_std[2], noise_std[3]);
-    double dark_noise = MIN(MIN(noise_std[0], noise_std[1]), MIN(noise_std[2], noise_std[3]));
-    double bright_noise = MAX(MAX(noise_std[0], noise_std[1]), MAX(noise_std[2], noise_std[3]));
-    double dark_noise_ev = log2(dark_noise);
-    double bright_noise_ev = log2(bright_noise);
-    
-    
-    /* promote from 14 to 20 bits (original raw buffer holds 14-bit values stored as uint16_t) */
-    uint32_t * raw_buffer_32 = malloc(w * h * sizeof(raw_buffer_32[0]));
-    
-    for (int y = 0; y < h; y ++)
-        for (int x = 0; x < w; x ++)
-            raw_buffer_32[x + y*w] = raw_get_pixel_14to20(x, y);
-    
-    /* we have now switched to 20-bit, update noise numbers */
-    dark_noise *= 64;
-    bright_noise *= 64;
-    dark_noise_ev += 6;
-    bright_noise_ev += 6;
-    
-    /* dark and bright exposures, interpolated */
-    uint32_t* dark   = malloc(w * h * sizeof(uint32_t));
-    uint32_t* bright = malloc(w * h * sizeof(uint32_t));
-    memset(dark, 0, w * h * sizeof(uint32_t));
-    memset(bright, 0, w * h * sizeof(uint32_t));
-    
-    /* fullres image (minimizes aliasing) */
-    uint32_t* fullres = malloc(w * h * sizeof(uint32_t));
-    memset(fullres, 0, w * h * sizeof(uint32_t));
-    uint32_t* fullres_smooth = fullres;
-    
-    /* halfres image (minimizes noise and banding) */
-    uint32_t* halfres = malloc(w * h * sizeof(uint32_t));
-    memset(halfres, 0, w * h * sizeof(uint32_t));
-    uint32_t* halfres_smooth = halfres;
-    
-    /* overexposure map */
-    uint16_t* overexposed = 0;
-    
-    uint16_t* alias_map = malloc(w * h * sizeof(uint16_t));
-    memset(alias_map, 0, w * h * sizeof(uint16_t));
-    
+    *dark_noise = MIN(MIN(noise_std[0], noise_std[1]), MIN(noise_std[2], noise_std[3]));
+    *bright_noise = MAX(MAX(noise_std[0], noise_std[1]), MAX(noise_std[2], noise_std[3]));
+    *dark_noise_ev = log2(*dark_noise);
+    *bright_noise_ev = log2(*bright_noise);
+    return noise_avg;
+}
+
+static inline double * build_fullres_curve(int black)
+{
     /* fullres mixing curve */
     static double fullres_curve[1<<20];
+    static int previous_black = -1;
+    
+    if(previous_black == black) return fullres_curve;
+    
+    previous_black = black;
     
     const double fullres_start = 4;
     const double fullres_transition = 4;
@@ -950,76 +898,69 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
         fullres_curve[i] = f;
     }
     
-    //~ printf("Exposure matching...\n");
-    /* estimate ISO difference between bright and dark exposures */
-    double corr_ev = 0;
-    int white_darkened = white_bright;
-    int ok = match_exposures(raw_info, raw_buffer_32, &corr_ev, &white_darkened);
-    if (!ok) goto err;
+    return fullres_curve;
+}
+
+static inline void mean32_interpolate(struct raw_info raw_info, uint32_t * raw_buffer_32, uint32_t* dark, uint32_t* bright, int white_darkened, int * is_bright, int *raw2ev, int*ev2raw)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
     
-    /* estimate dynamic range */
-    double lowiso_dr = log2(white - black) - dark_noise_ev;
-    double highiso_dr = log2(white_bright - black) - bright_noise_ev;
-    printf("Dynamic range   : %.02f (+) %.02f => %.02f EV (in theory)\n", lowiso_dr, highiso_dr, highiso_dr + corr_ev);
-    
-    /* correction factor for the bright exposure, which was just darkened */
-    double corr = pow(2, corr_ev);
-    
-    /* update bright noise measurements, so they can be compared after scaling */
-    bright_noise /= corr;
-    bright_noise_ev -= corr_ev;
-    
+    printf("Interpolation   : mean23\n");
+    for (int y = 2; y < h-2; y ++)
     {
-        printf("Interpolation   : mean23\n");
-        for (int y = 2; y < h-2; y ++)
+        uint32_t* native = BRIGHT_ROW ? bright : dark;
+        uint32_t* interp = BRIGHT_ROW ? dark : bright;
+        int is_rg = (y % 2 == 0); /* RG or GB? */
+        int white = !BRIGHT_ROW ? white_darkened : raw_info.white_level;
+        
+        for (int x = 2; x < w-3; x += 2)
         {
-            uint32_t* native = BRIGHT_ROW ? bright : dark;
-            uint32_t* interp = BRIGHT_ROW ? dark : bright;
-            int is_rg = (y % 2 == 0); /* RG or GB? */
-            int white = !BRIGHT_ROW ? white_darkened : raw_info.white_level;
             
-            for (int x = 2; x < w-3; x += 2)
+            /* red/blue: interpolate from (x,y+2) and (x,y-2) */
+            /* green: interpolate from (x+1,y+1),(x-1,y+1),(x,y-2) or (x+1,y-1),(x-1,y-1),(x,y+2), whichever has the correct brightness */
+            
+            int s = (is_bright[y%4] == is_bright[(y+1)%4]) ? -1 : 1;
+            
+            if (is_rg)
             {
+                int ra = raw_get_pixel32(x, y-2);
+                int rb = raw_get_pixel32(x, y+2);
+                int ri = mean2(raw2ev[ra], raw2ev[rb], raw2ev[white], 0);
                 
-                /* red/blue: interpolate from (x,y+2) and (x,y-2) */
-                /* green: interpolate from (x+1,y+1),(x-1,y+1),(x,y-2) or (x+1,y-1),(x-1,y-1),(x,y+2), whichever has the correct brightness */
+                int ga = raw_get_pixel32(x+1+1, y+s);
+                int gb = raw_get_pixel32(x+1-1, y+s);
+                int gc = raw_get_pixel32(x+1, y-2*s);
+                int gi = mean3(raw2ev[ga], raw2ev[gb], raw2ev[gc], raw2ev[white], 0);
                 
-                int s = (is_bright[y%4] == is_bright[(y+1)%4]) ? -1 : 1;
-                
-                if (is_rg)
-                {
-                    int ra = raw_get_pixel32(x, y-2);
-                    int rb = raw_get_pixel32(x, y+2);
-                    int ri = mean2(raw2ev[ra], raw2ev[rb], raw2ev[white], 0);
-                    
-                    int ga = raw_get_pixel32(x+1+1, y+s);
-                    int gb = raw_get_pixel32(x+1-1, y+s);
-                    int gc = raw_get_pixel32(x+1, y-2*s);
-                    int gi = mean3(raw2ev[ga], raw2ev[gb], raw2ev[gc], raw2ev[white], 0);
-                    
-                    interp[x   + y * w] = ev2raw[ri];
-                    interp[x+1 + y * w] = ev2raw[gi];
-                }
-                else
-                {
-                    int ba = raw_get_pixel32(x+1  , y-2);
-                    int bb = raw_get_pixel32(x+1  , y+2);
-                    int bi = mean2(raw2ev[ba], raw2ev[bb], raw2ev[white], 0);
-                    
-                    int ga = raw_get_pixel32(x+1, y+s);
-                    int gb = raw_get_pixel32(x-1, y+s);
-                    int gc = raw_get_pixel32(x, y-2*s);
-                    int gi = mean3(raw2ev[ga], raw2ev[gb], raw2ev[gc], raw2ev[white], 0);
-                    
-                    interp[x   + y * w] = ev2raw[gi];
-                    interp[x+1 + y * w] = ev2raw[bi];
-                }
-                
-                native[x   + y * w] = raw_get_pixel32(x, y);
-                native[x+1 + y * w] = raw_get_pixel32(x+1, y);
+                interp[x   + y * w] = ev2raw[ri];
+                interp[x+1 + y * w] = ev2raw[gi];
             }
+            else
+            {
+                int ba = raw_get_pixel32(x+1  , y-2);
+                int bb = raw_get_pixel32(x+1  , y+2);
+                int bi = mean2(raw2ev[ba], raw2ev[bb], raw2ev[white], 0);
+                
+                int ga = raw_get_pixel32(x+1, y+s);
+                int gb = raw_get_pixel32(x-1, y+s);
+                int gc = raw_get_pixel32(x, y-2*s);
+                int gi = mean3(raw2ev[ga], raw2ev[gb], raw2ev[gc], raw2ev[white], 0);
+                
+                interp[x   + y * w] = ev2raw[gi];
+                interp[x+1 + y * w] = ev2raw[bi];
+            }
+            
+            native[x   + y * w] = raw_get_pixel32(x, y);
+            native[x+1 + y * w] = raw_get_pixel32(x+1, y);
         }
     }
+}
+
+static inline void border_interpolate(struct raw_info raw_info, uint32_t * raw_buffer_32, uint32_t* dark, uint32_t* bright, int * is_bright)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
     
     /* border interpolation */
     for (int y = 0; y < 3; y ++)
@@ -1063,29 +1004,39 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
             native[x + y * w] = raw_get_pixel32(x-2, y);
         }
     }
+}
+
+static inline void fullres_reconstruction(struct raw_info raw_info, uint32_t * fullres, uint32_t* dark, uint32_t* bright, int white_darkened, int * is_bright)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
     
     /* reconstruct a full-resolution image (discard interpolated fields whenever possible) */
     /* this has full detail and lowest possible aliasing, but it has high shadow noise and color artifacts when high-iso starts clipping */
-    if (use_fullres)
+    
+    printf("Full-res reconstruction...\n");
+    for (int y = 0; y < h; y ++)
     {
-        printf("Full-res reconstruction...\n");
-        for (int y = 0; y < h; y ++)
+        for (int x = 0; x < w; x ++)
         {
-            for (int x = 0; x < w; x ++)
+            if (BRIGHT_ROW)
             {
-                if (BRIGHT_ROW)
-                {
-                    int f = bright[x + y*w];
-                    /* if the brighter copy is overexposed, the guessed pixel for sure has higher brightness */
-                    fullres[x + y*w] = f < white_darkened ? f : MAX(f, dark[x + y*w]);
-                }
-                else
-                {
-                    fullres[x + y*w] = dark[x + y*w];
-                }
+                int f = bright[x + y*w];
+                /* if the brighter copy is overexposed, the guessed pixel for sure has higher brightness */
+                fullres[x + y*w] = f < white_darkened ? f : MAX(f, dark[x + y*w]);
+            }
+            else
+            {
+                fullres[x + y*w] = dark[x + y*w];
             }
         }
     }
+}
+
+static inline int mix_images(struct raw_info raw_info, uint32_t* fullres, uint32_t* halfres, uint32_t* dark, uint32_t* bright, uint16_t * overexposed, int white_darkened, double corr_ev, double lowiso_dr, int black, int white, int *raw2ev, int*ev2raw)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
     
     /* mix the two images */
     /* highlights:  keep data from dark image only */
@@ -1110,7 +1061,7 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     if (overlap < 0.5)
     {
         printf("Overlap error\n");
-        goto err;
+        return 0;
     }
     else if (overlap < 2)
     {
@@ -1154,10 +1105,6 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
         }
     }
     
-    /* where the image is overexposed? */
-    overexposed = malloc(w * h * sizeof(uint16_t));
-    memset(overexposed, 0, w * h * sizeof(uint16_t));
-    
     for (int y = 0; y < h; y ++)
     {
         for (int x = 0; x < w; x ++)
@@ -1190,12 +1137,19 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     
     free(over_aux); over_aux = 0;
     
-    /* let's check the ideal noise levels (on the halfres image, which in black areas is identical to the bright one) */
-    for (int y = 3; y < h-2; y ++)
-        for (int x = 2; x < w-2; x ++)
-            raw_set_pixel32(x, y, bright[x + y*w]);
-    compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
-    double ideal_noise_std = noise_std[0];
+    
+    return 1;
+}
+
+static inline void final_blend(struct raw_info raw_info, uint32_t* raw_buffer_32, uint32_t* fullres, uint32_t* halfres, uint32_t* dark, uint32_t* bright, uint16_t* overexposed, int black, int dark_noise, int *raw2ev, int*ev2raw)
+{
+    uint32_t * fullres_smooth = fullres;
+    
+    /* fullres mixing curve */
+    double * fullres_curve = build_fullres_curve(black);
+    
+    int w = raw_info.width;
+    int h = raw_info.height;
     
     printf("Final blending...\n");
     for (int y = 0; y < h; y ++)
@@ -1206,7 +1160,7 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
             int b = bright[x + y*w];
             
             /* half-res image (interpolated and chroma filtered, best for low-contrast shadows) */
-            int hr = halfres_smooth[x + y*w];
+            int hr = halfres[x + y*w];
             
             /* full-res image (non-interpolated, except where one ISO is blown out) */
             int fr = fullres[x + y*w];
@@ -1221,53 +1175,51 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
             
             int output = hrev;
             
-            if (use_fullres)
-            {
-                /* blending factor */
-                double f = fullres_curve[b & 0xFFFFF];
-                
-                double c = 0;
-                
-                double ovf = COERCE(overexposed[x + y*w] / 200.0, 0, 1);
-                c = MAX(c, ovf);
-                
-                double noisy_or_overexposed = MAX(ovf, 1-f);
-                
-                /* use data from both ISOs in high-detail areas, even if it's noisier (less aliasing) */
-                f = MAX(f, c);
-                
-                /* use smoothing in noisy near-overexposed areas to hide color artifacts */
-                double fev = noisy_or_overexposed * frsev + (1-noisy_or_overexposed) * frev;
-                
-                /* limit the use of fullres in dark areas (fixes some black spots, but may increase aliasing) */
-                int sig = (dark[x + y*w] + bright[x + y*w]) / 2;
-                f = MAX(0, MIN(f, (double)(sig - black) / (4*dark_noise)));
-                
-                /* blend "half-res" and "full-res" images smoothly to avoid banding*/
-                output = hrev * (1-f) + fev * f;
-                
-                /* show full-res map (for debugging) */
-                //~ output = f * 14*EV_RESOLUTION;
-                
-                /* show alias map (for debugging) */
-                //~ output = c * 14*EV_RESOLUTION;
-                
-                //~ output = hotpixel[x+y*w] ? 14*EV_RESOLUTION : 0;
-                //~ output = raw2ev[dark[x+y*w]];
-                /* safeguard */
-                output = COERCE(output, -10*EV_RESOLUTION, 14*EV_RESOLUTION-1);
-            }
+            /* blending factor */
+            double f = fullres_curve[b & 0xFFFFF];
+            
+            double c = 0;
+            
+            double ovf = COERCE(overexposed[x + y*w] / 200.0, 0, 1);
+            c = MAX(c, ovf);
+            
+            double noisy_or_overexposed = MAX(ovf, 1-f);
+            
+            /* use data from both ISOs in high-detail areas, even if it's noisier (less aliasing) */
+            f = MAX(f, c);
+            
+            /* use smoothing in noisy near-overexposed areas to hide color artifacts */
+            double fev = noisy_or_overexposed * frsev + (1-noisy_or_overexposed) * frev;
+            
+            /* limit the use of fullres in dark areas (fixes some black spots, but may increase aliasing) */
+            int sig = (dark[x + y*w] + bright[x + y*w]) / 2;
+            f = MAX(0, MIN(f, (double)(sig - black) / (4*dark_noise)));
+            
+            /* blend "half-res" and "full-res" images smoothly to avoid banding*/
+            output = hrev * (1-f) + fev * f;
+            
+            /* show full-res map (for debugging) */
+            //~ output = f * 14*EV_RESOLUTION;
+            
+            /* show alias map (for debugging) */
+            //~ output = c * 14*EV_RESOLUTION;
+            
+            //~ output = hotpixel[x+y*w] ? 14*EV_RESOLUTION : 0;
+            //~ output = raw2ev[dark[x+y*w]];
+            /* safeguard */
+            output = COERCE(output, -10*EV_RESOLUTION, 14*EV_RESOLUTION-1);
+            
             
             /* back to linear space and commit */
             raw_set_pixel32(x, y, ev2raw[output]);
         }
     }
-    
-    /* let's see how much dynamic range we actually got */
-    compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
-    printf("Noise level     : %.02f (20-bit), ideally %.02f\n", noise_std[0], ideal_noise_std);
-    printf("Dynamic range   : %.02f EV (cooked)\n", log2(white - black) - log2(noise_std[0]));
-    
+}
+
+static inline void convert_20_to_16bit(struct raw_info raw_info, uint16_t * image_data, uint32_t * raw_buffer_32)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
     /* go back from 20-bit to 16-bit output */
     //raw_info.buffer = raw_buffer_16;
     raw_info.black_level /= 16;
@@ -1276,8 +1228,133 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
             raw_set_pixel_20to16_rand(x, y, raw_buffer_32[x + y*w]);
+}
+
+static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int use_fullres)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
     
-end:
+    /* RGGB or GBRG? */
+    int rggb = identify_rggb_or_gbrg(raw_info, image_data);
+    
+    if (!rggb) /* this code assumes RGGB, so we need to skip one line */
+    {
+        image_data += raw_info.pitch;
+        raw_info.active_area.y1++;
+        raw_info.active_area.y2--;
+        raw_info.height--;
+        h--;
+    }
+    
+    int is_bright[4];
+    
+    if (!identify_bright_and_dark_fields(raw_info, image_data, rggb, is_bright)) return 0;
+    
+    int ret = 0;
+    
+    /* will use 20-bit processing and 16-bit output, instead of 14 */
+    raw_info.black_level *= 64;
+    raw_info.white_level *= 64;
+    
+    int black = raw_info.black_level;
+    int white = raw_info.white_level;
+    
+    int white_bright = white;
+    white_detect(raw_info, image_data, &white, &white_bright, is_bright);
+    white *= 64;
+    white_bright *= 64;
+    raw_info.white_level = white;
+    
+    
+    /* for fast EV - raw conversion */
+    static int raw2ev[1<<20];   /* EV x EV_RESOLUTION */
+    static int ev2raw_0[24*EV_RESOLUTION];
+    
+    /* handle sub-black values (negative EV) */
+    int* ev2raw = ev2raw_0 + 10*EV_RESOLUTION;
+    
+    build_ev2raw_lut(raw2ev, ev2raw_0, black, white);
+    
+    double noise_std[4];
+    double dark_noise, bright_noise, dark_noise_ev, bright_noise_ev;
+    double noise_avg = compute_noise(raw_info, image_data, noise_std, &dark_noise, &bright_noise, &dark_noise_ev, &bright_noise_ev);
+    
+    /* promote from 14 to 20 bits (original raw buffer holds 14-bit values stored as uint16_t) */
+    uint32_t * raw_buffer_32 = convert_to_20bit(raw_info, image_data);
+    
+    /* we have now switched to 20-bit, update noise numbers */
+    dark_noise *= 64;
+    bright_noise *= 64;
+    dark_noise_ev += 6;
+    bright_noise_ev += 6;
+    
+    /* dark and bright exposures, interpolated */
+    uint32_t* dark   = malloc(w * h * sizeof(uint32_t));
+    uint32_t* bright = malloc(w * h * sizeof(uint32_t));
+    memset(dark, 0, w * h * sizeof(uint32_t));
+    memset(bright, 0, w * h * sizeof(uint32_t));
+    
+    /* fullres image (minimizes aliasing) */
+    uint32_t* fullres = malloc(w * h * sizeof(uint32_t));
+    memset(fullres, 0, w * h * sizeof(uint32_t));
+    
+    /* halfres image (minimizes noise and banding) */
+    uint32_t* halfres = malloc(w * h * sizeof(uint32_t));
+    memset(halfres, 0, w * h * sizeof(uint32_t));
+    
+    /* overexposure map */
+    uint16_t * overexposed = malloc(w * h * sizeof(uint16_t));
+    memset(overexposed, 0, w * h * sizeof(uint16_t));
+    
+    //uint16_t* alias_map = malloc(w * h * sizeof(uint16_t));
+    //memset(alias_map, 0, w * h * sizeof(uint16_t));
+    
+    //~ printf("Exposure matching...\n");
+    /* estimate ISO difference between bright and dark exposures */
+    double corr_ev = 0;
+    int white_darkened = white_bright;
+    if(match_exposures(raw_info, raw_buffer_32, &corr_ev, &white_darkened, is_bright))
+    {
+        /* estimate dynamic range */
+        double lowiso_dr = log2(white - black) - dark_noise_ev;
+        double highiso_dr = log2(white_bright - black) - bright_noise_ev;
+        printf("Dynamic range   : %.02f (+) %.02f => %.02f EV (in theory)\n", lowiso_dr, highiso_dr, highiso_dr + corr_ev);
+        
+        /* correction factor for the bright exposure, which was just darkened */
+        double corr = pow(2, corr_ev);
+        
+        /* update bright noise measurements, so they can be compared after scaling */
+        bright_noise /= corr;
+        bright_noise_ev -= corr_ev;
+        
+        mean32_interpolate(raw_info, raw_buffer_32, dark, bright, white_darkened, is_bright, raw2ev, ev2raw);
+        
+        border_interpolate(raw_info, raw_buffer_32, dark, bright, is_bright);
+        
+        if (use_fullres) fullres_reconstruction(raw_info, fullres, dark, bright, white_darkened, is_bright);
+        
+        if(mix_images(raw_info, fullres, halfres, dark, bright, overexposed, white_darkened, corr_ev, lowiso_dr, black, white, raw2ev, ev2raw))
+        {
+            
+            /* let's check the ideal noise levels (on the halfres image, which in black areas is identical to the bright one) */
+            for (int y = 3; y < h-2; y ++)
+                for (int x = 2; x < w-2; x ++)
+                    raw_set_pixel32(x, y, bright[x + y*w]);
+            compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
+            double ideal_noise_std = noise_std[0];
+            
+            final_blend(raw_info, raw_buffer_32, fullres, halfres, dark, bright, overexposed, black, dark_noise, raw2ev, ev2raw);
+            
+            /* let's see how much dynamic range we actually got */
+            compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
+            printf("Noise level     : %.02f (20-bit), ideally %.02f\n", noise_std[0], ideal_noise_std);
+            printf("Dynamic range   : %.02f EV (cooked)\n", log2(white - black) - log2(noise_std[0]));
+            
+            convert_20_to_16bit(raw_info, image_data, raw_buffer_32);
+            ret = 1;
+        }
+    }
     
     if (!rggb) /* back to GBRG */
     {
@@ -1288,21 +1365,12 @@ end:
         h++;
     }
     
-    goto cleanup;
-    
-err:
-    ret = 0;
-    
-cleanup:
     free(dark);
     free(bright);
     free(fullres);
     free(halfres);
     free(overexposed);
-    free(alias_map);
     free(raw_buffer_32);
-    if (fullres_smooth && fullres_smooth != fullres) free(fullres_smooth);
-    if (halfres_smooth && halfres_smooth != halfres) free(halfres_smooth);
     return ret;
 }
 
