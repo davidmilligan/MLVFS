@@ -84,10 +84,13 @@ static int pthread_mutex_unlock(pthread_mutex_t *m)
 //some macros for simple thread synchronization
 #define CREATE_MUTEX(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER; pthread_mutex_lock(&x);
-#define RELOCK(x) pthread_mutex_lock(&x);
-#define UNLOCK(x) pthread_mutex_unlock(&x);
+#define RELOCK(x) pthread_mutex_lock(&(x));
+#define UNLOCK(x) pthread_mutex_unlock(&(x));
 #define CURRENT_THREAD (pthread_self())
 #define THREAD_T pthread_t
+#define LOCK_T pthread_mutex_t
+#define INIT_LOCK(x) pthread_mutex_init(&(x), NULL)
+#define DESTROY_LOCK(x) pthread_mutex_destroy(&(x))
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
