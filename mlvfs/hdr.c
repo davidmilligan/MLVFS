@@ -1270,11 +1270,16 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     /* for fast EV - raw conversion */
     static int raw2ev[1<<20];   /* EV x EV_RESOLUTION */
     static int ev2raw_0[24*EV_RESOLUTION];
+    static int previous_black = -1;
     
     /* handle sub-black values (negative EV) */
     int* ev2raw = ev2raw_0 + 10*EV_RESOLUTION;
     
-    build_ev2raw_lut(raw2ev, ev2raw_0, black, white);
+    if(black != previous_black)
+    {
+        build_ev2raw_lut(raw2ev, ev2raw_0, black, white);
+        previous_black = black;
+    }
     
     double noise_std[4];
     double dark_noise, bright_noise, dark_noise_ev, bright_noise_ev;
