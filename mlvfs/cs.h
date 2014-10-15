@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include "dng.h"
 
+double * get_raw2evf(int black);
 int * get_raw2ev(int black);
 int * get_ev2raw();
 void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, int method);

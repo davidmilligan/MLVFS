@@ -34,6 +34,36 @@
 #define EV_RESOLUTION 32768
 #define MAX_BLACK 8192
 
+double * get_raw2evf(int black)
+{
+    static int initialized = 0;
+    static double raw2ev_base[16384 + MAX_BLACK];
+    
+    LOCK(ev2raw_mutex)
+    {
+        if(!initialized)
+        {
+            memset(raw2ev_base, 0, MAX_BLACK * sizeof(int));
+            int i;
+            for (i = 0; i < 16384; i++)
+            {
+                raw2ev_base[i + MAX_BLACK] = log2(i) * EV_RESOLUTION;
+            }
+            initialized = 1;
+        }
+    }
+    UNLOCK(ev2raw_mutex)
+    
+    if(black > MAX_BLACK)
+    {
+        fprintf(stderr, "Black level too large for processing\n");
+        return NULL;
+    }
+    double * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
+    
+    return raw2ev;
+}
+
 int * get_raw2ev(int black)
 {
     
