@@ -100,7 +100,7 @@ void stripes_free_corrections()
 #define F2H(ev) COERCE((int)(FIXP_RANGE/2 + ev * FIXP_RANGE/2), 0, FIXP_RANGE-1)
 #define H2F(x) ((double)((x) - FIXP_RANGE/2) / (FIXP_RANGE/2))
 
-static void add_pixel(int hist[8][FIXP_RANGE], int num[8], int offset, int pa, int pb, struct raw_info raw_info)
+static void add_pixel(int * hist, int num[8], int offset, int pa, int pb, struct raw_info raw_info)
 {
     int a = pa;
     int b = pb;
@@ -130,18 +130,18 @@ static void add_pixel(int hist[8][FIXP_RANGE], int num[8], int offset, int pa, i
      * add to histogram (for computing the median)
      */
     int weight = 1;
-    hist[offset][F2H(ev)] += weight;
+    hist[offset * FIXP_RANGE + F2H(ev)] += weight;
     num[offset] += weight;
 }
 
 
 void stripes_compute_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size)
 {
-    static int hist[8][FIXP_RANGE];
+    int * hist = malloc(sizeof(int) * 8 * FIXP_RANGE);
     int num[8];
     struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
     
-    memset(hist, 0, sizeof(hist));
+    memset(hist, 0, sizeof(int) * 8 * FIXP_RANGE);
     memset(num, 0, sizeof(num));
     
     /* compute 8 little histograms */
@@ -206,7 +206,7 @@ void stripes_compute_correction(struct frame_headers * frame_headers, struct str
     {
         for (k = 1; k < FIXP_RANGE-1; k++)
         {
-            max[j] = MAX(max[j], hist[j][k]);
+            max[j] = MAX(max[j], hist[j * FIXP_RANGE + k]);
         }
     }
     
@@ -217,7 +217,7 @@ void stripes_compute_correction(struct frame_headers * frame_headers, struct str
         int t = 0;
         for (k = 0; k < FIXP_RANGE; k++)
         {
-            t += hist[j][k];
+            t += hist[j * FIXP_RANGE + k];
             if (t >= num[j]/2)
             {
                 int c = (int)(pow(2, H2F(k)) * FIXP_ONE);
@@ -238,6 +238,8 @@ void stripes_compute_correction(struct frame_headers * frame_headers, struct str
         if (c < 0.998 || c > 1.002)
             correction->correction_needed = 1;
     }
+    
+    free(hist);
 }
 
 void stripes_apply_correction(struct frame_headers * frame_headers, struct stripes_correction * correction, uint16_t * image_data, off_t offset, size_t size)
