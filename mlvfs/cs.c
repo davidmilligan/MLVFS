@@ -34,6 +34,60 @@
 #define EV_RESOLUTION 32768
 #define MAX_BLACK 8192
 
+int * get_raw2ev(int black)
+{
+    
+    static int initialized = 0;
+    static int raw2ev_base[16384 + MAX_BLACK];
+    
+    LOCK(ev2raw_mutex)
+    {
+        if(!initialized)
+        {
+            memset(raw2ev_base, 0, MAX_BLACK * sizeof(int));
+            int i;
+            for (i = 0; i < 16384; i++)
+            {
+                raw2ev_base[i + MAX_BLACK] = (int)(log2(i) * EV_RESOLUTION);
+            }
+            initialized = 1;
+        }
+    }
+    UNLOCK(ev2raw_mutex)
+    
+    if(black > MAX_BLACK)
+    {
+        fprintf(stderr, "Black level too large for processing\n");
+        return NULL;
+    }
+    int * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
+    
+    return raw2ev;
+}
+
+int * get_ev2raw()
+{
+    static int initialized = 0;
+    static int _ev2raw[24*EV_RESOLUTION];
+    int* ev2raw = _ev2raw + 10*EV_RESOLUTION;
+    
+    LOCK(ev2raw_mutex)
+    {
+        if(!initialized)
+        {
+            int i;
+            for (i = -10*EV_RESOLUTION; i < 14*EV_RESOLUTION; i++)
+            {
+                ev2raw[i] = (int)(pow(2, (float)i / EV_RESOLUTION));
+            }
+            initialized = 1;
+        }
+    }
+    UNLOCK(ev2raw_mutex)
+    
+    return ev2raw;
+}
+
 #define CHROMA_SMOOTH_2X2
 #include "chroma_smooth.c"
 #undef CHROMA_SMOOTH_2X2
@@ -48,41 +102,12 @@
 
 void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, int method)
 {
-    static int raw2ev_initialized = 0;
-    static int raw2ev_base[16384 + MAX_BLACK];
-    static int _ev2raw[24*EV_RESOLUTION];
-    int* ev2raw = _ev2raw + 10*EV_RESOLUTION;
-    
-    LOCK(ev2raw_mutex)
-    {
-        if(!raw2ev_initialized)
-        {
-            memset(raw2ev_base, 0, MAX_BLACK * sizeof(int));
-            int i;
-            for (i = 0; i < 16384; i++)
-            {
-                raw2ev_base[i + MAX_BLACK] = (int)(log2(i) * EV_RESOLUTION);
-            }
-            
-            for (i = -10*EV_RESOLUTION; i < 14*EV_RESOLUTION; i++)
-            {
-                ev2raw[i] = (int)(pow(2, (float)i / EV_RESOLUTION));
-            }
-            raw2ev_initialized = 1;
-        }
-    }
-    UNLOCK(ev2raw_mutex)
-    
     int w = frame_headers->rawi_hdr.xRes;
     int h = frame_headers->rawi_hdr.yRes;
     int black = frame_headers->rawi_hdr.raw_info.black_level;
     
-    if(black > MAX_BLACK)
-    {
-        fprintf(stderr, "Black level too large for processing\n");
-        return;
-    }
-    int * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
+    int * raw2ev = get_raw2ev(black);
+    int * ev2raw = get_ev2raw();
     
     uint16_t * buf = (uint16_t *)malloc(w*h*sizeof(uint16_t));
     memcpy(buf, image_data, w*h*sizeof(uint16_t));
@@ -109,34 +134,11 @@ void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, 
 //adapted from cr2hdr and optimized for performance
 void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data, int aggressive)
 {
-    static int raw2ev_initialized = 0;
-    static int raw2ev_base[16384 + MAX_BLACK];
-    
-    LOCK(ev2raw_mutex)
-    {
-        if(!raw2ev_initialized)
-        {
-            memset(raw2ev_base, 0, MAX_BLACK * sizeof(int));
-            int i;
-            for (i = 0; i < 16384; i++)
-            {
-                raw2ev_base[i + MAX_BLACK] = (int)(log2(i) * EV_RESOLUTION);
-            }
-            raw2ev_initialized = 1;
-        }
-    }
-    UNLOCK(ev2raw_mutex)
-    
     int w = frame_headers->rawi_hdr.xRes;
     int h = frame_headers->rawi_hdr.yRes;
     int black = frame_headers->rawi_hdr.raw_info.black_level;
     
-    if(black > MAX_BLACK)
-    {
-        fprintf(stderr, "Black level too large for processing\n");
-        return;
-    }
-    int * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
+    int * raw2ev = get_raw2ev(black);
     
     //just guess the dark noise for speed reasons
     int dark_noise = 12;
