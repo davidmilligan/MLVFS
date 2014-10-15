@@ -15,7 +15,7 @@
 #define CHROMA_SMOOTH_MEDIAN opt_med25
 #endif
 
-static void CHROMA_SMOOTH_FUNC(int w, int h, uint16_t * inp, uint16_t * out, int* raw2ev, int* ev2raw)
+static void CHROMA_SMOOTH_FUNC(int w, int h, uint16_t * inp, uint16_t * out, int* raw2ev, int* ev2raw, int black)
 {
     int x,y;
     
@@ -60,8 +60,8 @@ static void CHROMA_SMOOTH_FUNC(int w, int h, uint16_t * inp, uint16_t * out, int
             if (ge + dr <= EV_RESOLUTION) continue;
             if (ge + db <= EV_RESOLUTION) continue;
             
-            out[x   +     y * w] = ev2raw[COERCE(ge + dr, 0, 14*EV_RESOLUTION-1)];
-            out[x+1 + (y+1) * w] = ev2raw[COERCE(ge + db, 0, 14*EV_RESOLUTION-1)];
+            out[x   +     y * w] = ev2raw[COERCE(ge + dr, 0, 14*EV_RESOLUTION-1)] + black;
+            out[x+1 + (y+1) * w] = ev2raw[COERCE(ge + db, 0, 14*EV_RESOLUTION-1)] + black;
         }
     }
 }

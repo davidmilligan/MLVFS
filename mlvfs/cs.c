@@ -48,54 +48,62 @@
 
 void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, int method)
 {
-    static int black = -1;
-    static int raw2ev[16384];
+    static int raw2ev_initialized = 0;
+    static int raw2ev_base[16384 + MAX_BLACK];
     static int _ev2raw[24*EV_RESOLUTION];
     int* ev2raw = _ev2raw + 10*EV_RESOLUTION;
     
-    LOCK(chroma_smooth_mutex)
+    LOCK(ev2raw_mutex)
     {
-        if(black != frame_headers->rawi_hdr.raw_info.black_level)
+        if(!raw2ev_initialized)
         {
-            black = frame_headers->rawi_hdr.raw_info.black_level;
+            memset(raw2ev_base, 0, MAX_BLACK * sizeof(int));
             int i;
             for (i = 0; i < 16384; i++)
             {
-                raw2ev[i] = (int)(log2(MAX(1, i - black)) * EV_RESOLUTION);
+                raw2ev_base[i + MAX_BLACK] = (int)(log2(i) * EV_RESOLUTION);
             }
             
             for (i = -10*EV_RESOLUTION; i < 14*EV_RESOLUTION; i++)
             {
-                ev2raw[i] = (int)(black + pow(2, (float)i / EV_RESOLUTION));
+                ev2raw[i] = (int)(pow(2, (float)i / EV_RESOLUTION));
             }
+            raw2ev_initialized = 1;
         }
-        
-        int w = frame_headers->rawi_hdr.xRes;
-        int h = frame_headers->rawi_hdr.yRes;
-        
-        uint16_t * buf = (uint16_t *)malloc(w*h*sizeof(uint16_t));
-        memcpy(buf, image_data, w*h*sizeof(uint16_t));
-        
-        switch (method) {
-            case 2:
-                chroma_smooth_2x2(frame_headers->rawi_hdr.xRes, frame_headers->rawi_hdr.yRes, buf, image_data, raw2ev, ev2raw);
-                break;
-            case 3:
-                chroma_smooth_3x3(frame_headers->rawi_hdr.xRes, frame_headers->rawi_hdr.yRes, buf, image_data, raw2ev, ev2raw);
-                break;
-            case 5:
-                chroma_smooth_5x5(frame_headers->rawi_hdr.xRes, frame_headers->rawi_hdr.yRes, buf, image_data, raw2ev, ev2raw);
-                break;
-                
-            default:
-                fprintf(stderr, "Unsupported chroma smooth method\n");
-                break;
-        }
-        
-        free(buf);
-        
     }
-    UNLOCK(chroma_smooth_mutex)
+    UNLOCK(ev2raw_mutex)
+    
+    int w = frame_headers->rawi_hdr.xRes;
+    int h = frame_headers->rawi_hdr.yRes;
+    int black = frame_headers->rawi_hdr.raw_info.black_level;
+    
+    if(black > MAX_BLACK)
+    {
+        fprintf(stderr, "Black level too large for processing\n");
+        return;
+    }
+    int * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
+    
+    uint16_t * buf = (uint16_t *)malloc(w*h*sizeof(uint16_t));
+    memcpy(buf, image_data, w*h*sizeof(uint16_t));
+    
+    switch (method) {
+        case 2:
+            chroma_smooth_2x2(frame_headers->rawi_hdr.xRes, frame_headers->rawi_hdr.yRes, buf, image_data, raw2ev, ev2raw, black);
+            break;
+        case 3:
+            chroma_smooth_3x3(frame_headers->rawi_hdr.xRes, frame_headers->rawi_hdr.yRes, buf, image_data, raw2ev, ev2raw, black);
+            break;
+        case 5:
+            chroma_smooth_5x5(frame_headers->rawi_hdr.xRes, frame_headers->rawi_hdr.yRes, buf, image_data, raw2ev, ev2raw, black);
+            break;
+            
+        default:
+            fprintf(stderr, "Unsupported chroma smooth method\n");
+            break;
+    }
+    
+    free(buf);
 }
 
 //adapted from cr2hdr and optimized for performance
