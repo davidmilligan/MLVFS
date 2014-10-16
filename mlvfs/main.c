@@ -542,7 +542,7 @@ static int process_frame(struct image_buffer * image_buffer)
             }
             else if(mlvfs.dual_iso == 2)
             {
-                cr2hdr20_convert_data(&frame_headers, image_buffer->data, 1);
+                cr2hdr20_convert_data(&frame_headers, image_buffer->data, 1, 1, mlvfs.chroma_smooth);
             }
             
             if(mlvfs.dual_iso)
@@ -551,7 +551,7 @@ static int process_frame(struct image_buffer * image_buffer)
                 dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->size);
             }
             
-            if(mlvfs.chroma_smooth)
+            if(mlvfs.chroma_smooth && mlvfs.dual_iso != 2)
             {
                 chroma_smooth(&frame_headers, image_buffer->data, mlvfs.chroma_smooth);
             }

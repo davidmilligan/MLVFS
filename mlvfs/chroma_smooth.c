@@ -15,7 +15,11 @@
 #define CHROMA_SMOOTH_MEDIAN opt_med25
 #endif
 
-static void CHROMA_SMOOTH_FUNC(int w, int h, uint16_t * inp, uint16_t * out, int* raw2ev, int* ev2raw, int black)
+#ifndef CHROMA_SMOOTH_TYPE
+#define CHROMA_SMOOTH_TYPE uint16_t
+#endif
+
+static void CHROMA_SMOOTH_FUNC(int w, int h, CHROMA_SMOOTH_TYPE * inp, CHROMA_SMOOTH_TYPE * out, int* raw2ev, int* ev2raw, int black)
 {
     int x,y;
     

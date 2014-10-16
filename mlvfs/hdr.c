@@ -223,6 +223,7 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
 
 #define EV_RESOLUTION 32768
 #define BRIGHT_ROW (is_bright[y % 4])
+#define COUNT(x) ((int)(sizeof(x)/sizeof((x)[0])))
 
 #define raw_get_pixel(x,y) (image_data[(x) + (y) * raw_info.width])
 #define raw_get_pixel16(x,y) (image_data[(x) + (y) * raw_info.width])
@@ -232,6 +233,11 @@ void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_dat
 #define raw_get_pixel_20to16(x,y) ((raw_get_pixel32(x,y) >> 4) & 0xFFFF)
 #define raw_set_pixel_20to16_rand(x,y,value) image_data[(x) + (y) * raw_info.width] = COERCE((int)((value) / 16.0 + fast_randn05() + 0.5), 0, 0xFFFF)
 #define raw_set_pixel20(x,y,value) raw_buffer_32[(x) + (y) * raw_info.width] = COERCE((value), 0, 0xFFFFF)
+
+static const double fullres_thr = 0.8;
+
+/* trial and error - too high = aliasing, too low = noisy */
+static const int ALIAS_MAP_MAX = 15000;
 
 static void white_detect(struct raw_info raw_info, uint16_t * image_data, int* white_dark, int* white_bright, int * is_bright)
 {
@@ -1050,7 +1056,149 @@ static inline void fullres_reconstruction(struct raw_info raw_info, uint32_t * f
     }
 }
 
-static inline int mix_images(struct raw_info raw_info, uint32_t* fullres, uint32_t* halfres, uint32_t* dark, uint32_t* bright, uint16_t * overexposed, int white_darkened, double corr_ev, double lowiso_dr, int black, int white)
+static inline void build_alias_map(struct raw_info raw_info, uint16_t* alias_map, uint32_t* fullres_smooth, uint32_t* halfres_smooth, uint32_t* bright, int dark_noise, int black, int * raw2ev)
+{
+    if(!alias_map) return;
+    
+    int w = raw_info.width;
+    int h = raw_info.height;
+    
+    double * fullres_curve = build_fullres_curve(black);
+    printf("Building alias map...\n");
+    
+    uint16_t* alias_aux = malloc(w * h * sizeof(uint16_t));
+    
+    /* build the aliasing maps (where it's likely to get aliasing) */
+    /* do this by comparing fullres and halfres images */
+    /* if the difference is small, we'll prefer halfres for less noise, otherwise fullres for less aliasing */
+    for (int y = 0; y < h; y ++)
+    {
+        for (int x = 0; x < w; x ++)
+        {
+            /* do not compute alias map where we'll use fullres detail anyway */
+            if (fullres_curve[bright[x + y*w]] > fullres_thr)
+                continue;
+            
+            int f = fullres_smooth[x + y*w];
+            int h = halfres_smooth[x + y*w];
+            int fe = raw2ev[f];
+            int he = raw2ev[h];
+            int e_lin = ABS(f - h); /* error in linear space, for shadows (downweights noise) */
+            e_lin = MAX(e_lin - dark_noise*3/2, 0);
+            int e_log = ABS(fe - he); /* error in EV space, for highlights (highly sensitive to noise) */
+            alias_map[x + y*w] = MIN(MIN(e_lin/2, e_log/16), 65530);
+        }
+    }
+    
+    memcpy(alias_aux, alias_map, w * h * sizeof(uint16_t));
+    
+    printf("Filtering alias map...\n");
+    for (int y = 6; y < h-6; y ++)
+    {
+        for (int x = 6; x < w-6; x ++)
+        {
+            /* do not compute alias map where we'll use fullres detail anyway */
+            if (fullres_curve[bright[x + y*w]] > fullres_thr)
+                continue;
+            
+            /* use 5th max (out of 37) to filter isolated pixels */
+            int neighbours[] = {
+                                                                              -alias_map[x-2 + (y-6) * w], -alias_map[x+0 + (y-6) * w], -alias_map[x+2 + (y-6) * w],
+                                                 -alias_map[x-4 + (y-4) * w], -alias_map[x-2 + (y-4) * w], -alias_map[x+0 + (y-4) * w], -alias_map[x+2 + (y-4) * w], -alias_map[x+4 + (y-4) * w],
+                    -alias_map[x-6 + (y-2) * w], -alias_map[x-4 + (y-2) * w], -alias_map[x-2 + (y-2) * w], -alias_map[x+0 + (y-2) * w], -alias_map[x+2 + (y-2) * w], -alias_map[x+4 + (y-2) * w], -alias_map[x+6 + (y-2) * w], 
+                    -alias_map[x-6 + (y+0) * w], -alias_map[x-4 + (y+0) * w], -alias_map[x-2 + (y+0) * w], -alias_map[x+0 + (y+0) * w], -alias_map[x+2 + (y+0) * w], -alias_map[x+4 + (y+0) * w], -alias_map[x+6 + (y+0) * w], 
+                    -alias_map[x-6 + (y+2) * w], -alias_map[x-4 + (y+2) * w], -alias_map[x-2 + (y+2) * w], -alias_map[x+0 + (y+2) * w], -alias_map[x+2 + (y+2) * w], -alias_map[x+4 + (y+2) * w], -alias_map[x+6 + (y+2) * w], 
+                                                 -alias_map[x-4 + (y+4) * w], -alias_map[x-2 + (y+4) * w], -alias_map[x+0 + (y+4) * w], -alias_map[x+2 + (y+4) * w], -alias_map[x+4 + (y+4) * w],
+                                                                              -alias_map[x-2 + (y+6) * w], -alias_map[x+0 + (y+6) * w], -alias_map[x+2 + (y+6) * w],
+            };
+            alias_aux[x + y * w] = -kth_smallest_int(neighbours, COUNT(neighbours), 5);
+        }
+    }
+    
+    printf("Smoothing alias map...\n");
+    /* gaussian blur */
+    for (int y = 6; y < h-6; y ++)
+    {
+        for (int x = 6; x < w-6; x ++)
+        {
+            /* do not compute alias map where we'll use fullres detail anyway */
+            if (fullres_curve[bright[x + y*w]] > fullres_thr)
+                continue;
+            
+            int c =
+            (alias_aux[x+0 + (y+0) * w])+
+            (alias_aux[x+0 + (y-2) * w] + alias_aux[x-2 + (y+0) * w] + alias_aux[x+2 + (y+0) * w] + alias_aux[x+0 + (y+2) * w]) * 820 / 1024 +
+            (alias_aux[x-2 + (y-2) * w] + alias_aux[x+2 + (y-2) * w] + alias_aux[x-2 + (y+2) * w] + alias_aux[x+2 + (y+2) * w]) * 657 / 1024 +
+            (alias_aux[x+0 + (y-2) * w] + alias_aux[x-2 + (y+0) * w] + alias_aux[x+2 + (y+0) * w] + alias_aux[x+0 + (y+2) * w]) * 421 / 1024 +
+            (alias_aux[x-2 + (y-2) * w] + alias_aux[x+2 + (y-2) * w] + alias_aux[x-2 + (y-2) * w] + alias_aux[x+2 + (y-2) * w] + alias_aux[x-2 + (y+2) * w] + alias_aux[x+2 + (y+2) * w] + alias_aux[x-2 + (y+2) * w] + alias_aux[x+2 + (y+2) * w]) * 337 / 1024 +
+            (alias_aux[x-2 + (y-2) * w] + alias_aux[x+2 + (y-2) * w] + alias_aux[x-2 + (y+2) * w] + alias_aux[x+2 + (y+2) * w]) * 173 / 1024 +
+            (alias_aux[x+0 + (y-6) * w] + alias_aux[x-6 + (y+0) * w] + alias_aux[x+6 + (y+0) * w] + alias_aux[x+0 + (y+6) * w]) * 139 / 1024 +
+            (alias_aux[x-2 + (y-6) * w] + alias_aux[x+2 + (y-6) * w] + alias_aux[x-6 + (y-2) * w] + alias_aux[x+6 + (y-2) * w] + alias_aux[x-6 + (y+2) * w] + alias_aux[x+6 + (y+2) * w] + alias_aux[x-2 + (y+6) * w] + alias_aux[x+2 + (y+6) * w]) * 111 / 1024 +
+            (alias_aux[x-2 + (y-6) * w] + alias_aux[x+2 + (y-6) * w] + alias_aux[x-6 + (y-2) * w] + alias_aux[x+6 + (y-2) * w] + alias_aux[x-6 + (y+2) * w] + alias_aux[x+6 + (y+2) * w] + alias_aux[x-2 + (y+6) * w] + alias_aux[x+2 + (y+6) * w]) * 57 / 1024;
+            alias_map[x + y * w] = c;
+        }
+    }
+    
+    /* make it grayscale */
+    for (int y = 2; y < h-2; y += 2)
+    {
+        for (int x = 2; x < w-2; x += 2)
+        {
+            int a = alias_map[x   +     y * w];
+            int b = alias_map[x+1 +     y * w];
+            int c = alias_map[x   + (y+1) * w];
+            int d = alias_map[x+1 + (y+1) * w];
+            int C = MAX(MAX(a,b), MAX(c,d));
+            
+            C = MIN(C, ALIAS_MAP_MAX);
+            
+            alias_map[x   +     y * w] =
+            alias_map[x+1 +     y * w] =
+            alias_map[x   + (y+1) * w] =
+            alias_map[x+1 + (y+1) * w] = C;
+        }
+    }
+    
+    free(alias_aux);
+}
+
+#define CHROMA_SMOOTH_TYPE uint32_t
+
+#define CHROMA_SMOOTH_2X2
+#include "chroma_smooth.c"
+#undef CHROMA_SMOOTH_2X2
+
+#define CHROMA_SMOOTH_3X3
+#include "chroma_smooth.c"
+#undef CHROMA_SMOOTH_3X3
+
+#define CHROMA_SMOOTH_5X5
+#include "chroma_smooth.c"
+#undef CHROMA_SMOOTH_5X5
+
+static inline void hdr_chroma_smooth(struct raw_info raw_info, uint32_t * input, uint32_t * output, int method, int * raw2ev, int * ev2raw)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
+    
+    switch (method) {
+        case 2:
+            chroma_smooth_2x2(w, h, input, output, raw2ev, ev2raw, 0);
+            break;
+        case 3:
+            chroma_smooth_3x3(w, h, input, output, raw2ev, ev2raw, 0);
+            break;
+        case 5:
+            chroma_smooth_5x5(w, h, input, output, raw2ev, ev2raw, 0);
+            break;
+            
+        default:
+            fprintf(stderr, "Unsupported chroma smooth method\n");
+            break;
+    }
+}
+
+static inline int mix_images(struct raw_info raw_info, uint32_t* fullres, uint32_t* fullres_smooth, uint32_t* halfres, uint32_t* halfres_smooth, uint16_t* alias_map, uint32_t* dark, uint32_t* bright, uint16_t * overexposed, int dark_noise, int white_darkened, double corr_ev, double lowiso_dr, int black, int white, int chroma_smooth_method)
 {
     int w = raw_info.width;
     int h = raw_info.height;
@@ -1138,6 +1286,18 @@ static inline int mix_images(struct raw_info raw_info, uint32_t* fullres, uint32
                 halfres[x + y*w] = ev2raw[mixed];
             }
         }
+        if (chroma_smooth_method)
+        {
+            printf("Chroma smoothing...\n");
+            memcpy(fullres_smooth, fullres, w * h * sizeof(uint32_t));
+            memcpy(halfres_smooth, halfres, w * h * sizeof(uint32_t));
+            hdr_chroma_smooth(raw_info, fullres, fullres_smooth, chroma_smooth_method, raw2ev, ev2raw);
+            hdr_chroma_smooth(raw_info, halfres, halfres_smooth, chroma_smooth_method, raw2ev, ev2raw);
+        }
+        if(alias_map)
+        {
+            build_alias_map(raw_info, alias_map, fullres_smooth, halfres_smooth, bright, dark_noise, black, raw2ev);
+        }
     }
     UNLOCK(ev2raw_mutex)
     
@@ -1177,10 +1337,8 @@ static inline int mix_images(struct raw_info raw_info, uint32_t* fullres, uint32
     return 1;
 }
 
-static inline void final_blend(struct raw_info raw_info, uint32_t* raw_buffer_32, uint32_t* fullres, uint32_t* halfres, uint32_t* dark, uint32_t* bright, uint16_t* overexposed, int black, int white, int dark_noise)
+static inline void final_blend(struct raw_info raw_info, uint32_t* raw_buffer_32, uint32_t* fullres, uint32_t* fullres_smooth, uint32_t* halfres_smooth, uint32_t* dark, uint32_t* bright, uint16_t* overexposed, uint16_t* alias_map, int black, int white, int dark_noise)
 {
-    uint32_t * fullres_smooth = fullres;
-    
     /* fullres mixing curve */
     double * fullres_curve = build_fullres_curve(black);
     
@@ -1212,7 +1370,7 @@ static inline void final_blend(struct raw_info raw_info, uint32_t* raw_buffer_32
                 int b = bright[x + y*w];
                 
                 /* half-res image (interpolated and chroma filtered, best for low-contrast shadows) */
-                int hr = halfres[x + y*w];
+                int hr = halfres_smooth[x + y*w];
                 
                 /* full-res image (non-interpolated, except where one ISO is blown out) */
                 int fr = fullres[x + y*w];
@@ -1231,6 +1389,12 @@ static inline void final_blend(struct raw_info raw_info, uint32_t* raw_buffer_32
                 double f = fullres_curve[b & 0xFFFFF];
                 
                 double c = 0;
+                
+                if (alias_map)
+                {
+                    int co = alias_map[x + y*w];
+                    c = COERCE(co / (double) ALIAS_MAP_MAX, 0, 1);
+                }
                 
                 double ovf = COERCE(overexposed[x + y*w] / 200.0, 0, 1);
                 c = MAX(c, ovf);
@@ -1284,7 +1448,7 @@ static inline void convert_20_to_16bit(struct raw_info raw_info, uint16_t * imag
             raw_set_pixel_20to16_rand(x, y, raw_buffer_32[x + y*w]);
 }
 
-static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int use_fullres)
+static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int use_fullres, int use_alias_map, int chroma_smooth_method)
 {
     int w = raw_info.width;
     int h = raw_info.height;
@@ -1342,17 +1506,32 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     /* fullres image (minimizes aliasing) */
     uint32_t* fullres = malloc(w * h * sizeof(uint32_t));
     memset(fullres, 0, w * h * sizeof(uint32_t));
+    uint32_t* fullres_smooth = fullres;
     
     /* halfres image (minimizes noise and banding) */
     uint32_t* halfres = malloc(w * h * sizeof(uint32_t));
     memset(halfres, 0, w * h * sizeof(uint32_t));
+    uint32_t* halfres_smooth = halfres;
+    
+    if (chroma_smooth_method)
+    {
+        if (use_fullres)
+        {
+            fullres_smooth = malloc(w * h * sizeof(uint32_t));
+        }
+        halfres_smooth = malloc(w * h * sizeof(uint32_t));
+    }
     
     /* overexposure map */
     uint16_t * overexposed = malloc(w * h * sizeof(uint16_t));
     memset(overexposed, 0, w * h * sizeof(uint16_t));
     
-    //uint16_t* alias_map = malloc(w * h * sizeof(uint16_t));
-    //memset(alias_map, 0, w * h * sizeof(uint16_t));
+    uint16_t* alias_map = NULL;
+    if(use_alias_map)
+    {
+        alias_map = malloc(w * h * sizeof(uint16_t));
+        memset(alias_map, 0, w * h * sizeof(uint16_t));
+    }
     
     //~ printf("Exposure matching...\n");
     /* estimate ISO difference between bright and dark exposures */
@@ -1378,9 +1557,8 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
         
         if (use_fullres) fullres_reconstruction(raw_info, fullres, dark, bright, white_darkened, is_bright);
         
-        if(mix_images(raw_info, fullres, halfres, dark, bright, overexposed, white_darkened, corr_ev, lowiso_dr, black, white))
+        if(mix_images(raw_info, fullres, fullres_smooth, halfres, halfres_smooth, alias_map, dark, bright, overexposed, dark_noise, white_darkened, corr_ev, lowiso_dr, black, white, chroma_smooth_method))
         {
-            
             /* let's check the ideal noise levels (on the halfres image, which in black areas is identical to the bright one) */
             for (int y = 3; y < h-2; y ++)
                 for (int x = 2; x < w-2; x ++)
@@ -1388,7 +1566,7 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
             compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
             double ideal_noise_std = noise_std[0];
             
-            final_blend(raw_info, raw_buffer_32, fullres, halfres, dark, bright, overexposed, black, white, dark_noise);
+            final_blend(raw_info, raw_buffer_32, fullres, fullres_smooth, halfres_smooth, dark, bright, overexposed, alias_map, black, white, dark_noise);
             
             /* let's see how much dynamic range we actually got */
             compute_black_noise(raw_info, image_data, 8, raw_info.active_area.x1 - 8, raw_info.active_area.y1 + 20, raw_info.active_area.y2 - 20, 1, 1, &noise_avg, &noise_std[0]);
@@ -1415,10 +1593,12 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     free(halfres);
     free(overexposed);
     free(raw_buffer_32);
+    if (fullres_smooth && fullres_smooth != fullres) free(fullres_smooth);
+    if (halfres_smooth && halfres_smooth != halfres) free(halfres_smooth);
     return ret;
 }
 
-void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int fullres)
+void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int fullres, int use_alias_map, int chroma_smooth_method)
 {
     struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
     raw_info.width = frame_headers->rawi_hdr.xRes;
@@ -1430,7 +1610,7 @@ void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * imag
     raw_info.active_area.y2 = raw_info.height;
     if (hdr_check(raw_info, image_data))
     {
-        hdr_interpolate(raw_info, image_data, fullres);
+        hdr_interpolate(raw_info, image_data, fullres, use_alias_map, chroma_smooth_method);
         frame_headers->rawi_hdr.raw_info.black_level *= 4;
         frame_headers->rawi_hdr.raw_info.white_level *= 4;
     }
