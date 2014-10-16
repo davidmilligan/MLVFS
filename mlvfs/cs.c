@@ -32,7 +32,7 @@
 #include "cs.h"
 
 #define EV_RESOLUTION 32768
-#define MAX_BLACK 8192
+#define MAX_BLACK 16384
 
 double * get_raw2evf(int black)
 {
@@ -139,6 +139,8 @@ void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, 
     int * raw2ev = get_raw2ev(black);
     int * ev2raw = get_ev2raw();
     
+    if(raw2ev == NULL) return;
+    
     uint16_t * buf = (uint16_t *)malloc(w*h*sizeof(uint16_t));
     memcpy(buf, image_data, w*h*sizeof(uint16_t));
     
@@ -169,6 +171,8 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data,
     int black = frame_headers->rawi_hdr.raw_info.black_level;
     
     int * raw2ev = get_raw2ev(black);
+    
+    if(raw2ev == NULL) return;
     
     //just guess the dark noise for speed reasons
     int dark_noise = 12;
