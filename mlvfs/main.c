@@ -635,7 +635,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             }
         }
     }
-    else
+    else if(!strstr(path,"/._"))
     {
         char mld_filename[1024];
         int mld = get_real_path(mld_filename, path);
