@@ -58,10 +58,25 @@ static const char * HTML =
 "      $('input:radio[name=\"chroma_smooth\"][value=' + d.chroma_smooth + ']').prop('checked', true);"
 "      $('input:radio[name=\"stripes\"][value=' + d.stripes + ']').prop('checked', true);"
 "      $('input:radio[name=\"dual_iso\"][value=' + d.dual_iso + ']').prop('checked', true);"
+"      $('input:radio[name=\"hdr_interpolation_method\"][value=' + d.hdr_interpolation_method + ']').prop('checked', true);"
+"      $('input:radio[name=\"hdr_no_alias_map\"][value=' + d.hdr_no_alias_map + ']').prop('checked', true);"
+"      $('input:radio[name=\"hdr_no_fullres\"][value=' + d.hdr_no_fullres + ']').prop('checked', true);"
+"      if(d.dual_iso == 2){ $('#hdr_interpolation_method').show(); $('#hdr_no_alias_map').show(); $('#hdr_no_fullres').show(); }"
+"      else { $('#hdr_interpolation_method').hide(); $('#hdr_no_alias_map').hide(); $('#hdr_no_fullres').hide(); }"
 "    }});"
 "    $(document).on('click', 'input:radio', function() {"
 "      $.ajax({ url: '/set_value', dataType: 'json', "
-"      data: { \"badpix\": $('input:radio[name=badpix]:checked').val(), \"chroma_smooth\": $('input:radio[name=chroma_smooth]:checked').val(), \"stripes\": $('input:radio[name=stripes]:checked').val(), \"dual_iso\": $('input:radio[name=dual_iso]:checked').val() } });"
+"      data: { "
+"        \"badpix\": $('input:radio[name=badpix]:checked').val(), "
+"        \"chroma_smooth\": $('input:radio[name=chroma_smooth]:checked').val(), "
+"        \"stripes\": $('input:radio[name=stripes]:checked').val(), "
+"        \"dual_iso\": $('input:radio[name=dual_iso]:checked').val(), "
+"        \"hdr_interpolation_method\": $('input:radio[name=hdr_interpolation_method]:checked').val(), "
+"        \"hdr_no_alias_map\": $('input:radio[name=hdr_no_alias_map]:checked').val(), "
+"        \"hdr_no_fullres\": $('input:radio[name=hdr_no_fullres]:checked').val() "
+"      } });"
+"      if($('input:radio[name=dual_iso]:checked').val() == 2){ $('#hdr_interpolation_method').show(); $('#hdr_no_alias_map').show(); $('#hdr_no_fullres').show(); }"
+"      else { $('#hdr_interpolation_method').hide(); $('#hdr_no_alias_map').hide(); $('#hdr_no_fullres').hide(); }"
 "      return true; });"
 "    });"
 "  </script>"
@@ -91,6 +106,18 @@ static const char * HTML =
 "      <tr>"
 "        <td>Dual ISO</td>"
 "        <td><input type=radio name=dual_iso value=0 >Off</input><input type=radio name=dual_iso value=1 >Preview</input><input type=radio name=dual_iso value=2 >Full (20bit)</input></td>"
+"      </tr>"
+"      <tr class=odd id=hdr_interpolation_method >"
+"        <td> Interpolation</td>"
+"        <td><input type=radio name=hdr_interpolation_method value=0 >AMaZE</input><input type=radio name=hdr_interpolation_method value=1 >mean32</input></td>"
+"      </tr>"
+"      <tr id=hdr_no_alias_map >"
+"        <td> Alias Map</td>"
+"        <td><input type=radio name=hdr_no_alias_map value=1 >Off</input><input type=radio name=hdr_no_alias_map value=0 >On</input></td>"
+"      </tr>"
+"      <tr class=odd id=hdr_no_fullres >"
+"        <td> Fullres Blending</td>"
+"        <td><input type=radio name=hdr_no_fullres value=1 >Off</input><input type=radio name=hdr_no_fullres value=0 >On</input></td>"
 "      </tr>"
 "    </table>"
 "  </form>"
@@ -208,12 +235,15 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         if (strcmp(conn->uri, "/get_value") == 0)
         {
             mg_printf_data(conn,
-                           "{\"dir\": \"%s\", \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d}",
+                           "{\"dir\": \"%s\", \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
                            mlvfs_config->mlv_path,
                            mlvfs_config->fix_bad_pixels,
                            mlvfs_config->chroma_smooth,
                            mlvfs_config->fix_stripes,
-                           mlvfs_config->dual_iso);
+                           mlvfs_config->dual_iso,
+                           mlvfs_config->hdr_interpolation_method,
+                           mlvfs_config->hdr_no_alias_map,
+                           mlvfs_config->hdr_no_fullres);
         }
         else if (strcmp(conn->uri, "/set_value") == 0)
         {
@@ -230,6 +260,15 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
             
             mg_get_var(conn, "dual_iso", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->dual_iso = atoi(buf);
+            
+            mg_get_var(conn, "hdr_interpolation_method", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->hdr_interpolation_method = atoi(buf);
+            
+            mg_get_var(conn, "hdr_no_alias_map", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->hdr_no_alias_map = atoi(buf);
+            
+            mg_get_var(conn, "hdr_no_fullres", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->hdr_no_fullres = atoi(buf);
             
             mg_printf_data(conn, "%s", "{\"success\": true}");
         }
