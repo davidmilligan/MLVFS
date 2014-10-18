@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 #include "raw.h"
 #include "mlv.h"
 #include "mlvfs.h"
@@ -905,6 +906,322 @@ static inline double * build_fullres_curve(int black)
     return fullres_curve;
 }
 
+/* define edge directions for interpolation */
+struct xy { int x; int y; };
+const struct
+{
+    struct xy ack;      /* verification pixel near a */
+    struct xy a;        /* interpolation pixel from the nearby line: normally (0,s) but also (1,s) or (-1,s) */
+    struct xy b;        /* interpolation pixel from the other line: normally (0,-2s) but also (1,-2s), (-1,-2s), (2,-2s) or (-2,-2s) */
+    struct xy bck;      /* verification pixel near b */
+}
+edge_directions[] = {       /* note: all y coords should be multiplied by s */
+    //~ { {-6,2}, {-3,1}, { 6,-2}, { 9,-3} },     /* almost horizontal (little or no improvement) */
+    { {-4,2}, {-2,1}, { 4,-2}, { 6,-3} },
+    { {-3,2}, {-1,1}, { 3,-2}, { 4,-3} },
+    { {-2,2}, {-1,1}, { 2,-2}, { 3,-3} },     /* 45-degree diagonal */
+    { {-1,2}, {-1,1}, { 1,-2}, { 2,-3} },
+    { {-1,2}, { 0,1}, { 1,-2}, { 1,-3} },
+    { { 0,2}, { 0,1}, { 0,-2}, { 0,-3} },     /* vertical, preferred; no extra confirmations needed */
+    { { 1,2}, { 0,1}, {-1,-2}, {-1,-3} },
+    { { 1,2}, { 1,1}, {-1,-2}, {-2,-3} },
+    { { 2,2}, { 1,1}, {-2,-2}, {-3,-3} },     /* 45-degree diagonal */
+    { { 3,2}, { 1,1}, {-3,-2}, {-4,-3} },
+    { { 4,2}, { 2,1}, {-4,-2}, {-6,-3} },
+    //~ { { 6,2}, { 3,1}, {-6,-2}, {-9,-3} },     /* almost horizontal */
+};
+
+static inline int edge_interp(float ** plane, int * squeezed, int * raw2ev, int dir, int x, int y, int s)
+{
+    
+    int dxa = edge_directions[dir].a.x;
+    int dya = edge_directions[dir].a.y * s;
+    int pa = COERCE((int)plane[squeezed[y+dya]][x+dxa], 0, 0xFFFFF);
+    int dxb = edge_directions[dir].b.x;
+    int dyb = edge_directions[dir].b.y * s;
+    int pb = COERCE((int)plane[squeezed[y+dyb]][x+dxb], 0, 0xFFFFF);
+    int pi = (raw2ev[pa] * 2 + raw2ev[pb]) / 3;
+    
+    return pi;
+}
+
+static inline void amaze_interpolate(struct raw_info raw_info, uint32_t * raw_buffer_32, uint32_t* dark, uint32_t* bright, int black, int white, int white_darkened, int * is_bright)
+{
+    int w = raw_info.width;
+    int h = raw_info.height;
+    
+    int* squeezed = malloc(h * sizeof(squeezed));
+    memset(squeezed, 0, h * sizeof(squeezed));
+    
+    float** rawData = malloc(h * sizeof(rawData[0]));
+    float** red     = malloc(h * sizeof(red[0]));
+    float** green   = malloc(h * sizeof(green[0]));
+    float** blue    = malloc(h * sizeof(blue[0]));
+    
+    for (int i = 0; i < h; i++)
+    {
+        int wx = w + 16;
+        rawData[i] =   malloc(wx * sizeof(rawData[0][0]));
+        memset(rawData[i], 0, wx * sizeof(rawData[0][0]));
+        red[i]     = malloc(wx * sizeof(red[0][0]));
+        green[i]   = malloc(wx * sizeof(green[0][0]));
+        blue[i]    = malloc(wx * sizeof(blue[0][0]));
+    }
+    
+    /* squeeze the dark image by deleting fields from the bright exposure */
+    int yh = -1;
+    for (int y = 0; y < h; y ++)
+    {
+        if (BRIGHT_ROW)
+            continue;
+        
+        if (yh < 0) /* make sure we start at the same parity (RGGB cell) */
+            yh = y;
+        
+        for (int x = 0; x < w; x++)
+        {
+            int p = raw_get_pixel32(x, y);
+            
+            if (x%2 != y%2) /* divide green channel by 2 to approximate the final WB better */
+                p = (p - black) / 2 + black;
+            
+            rawData[yh][x] = p;
+        }
+        
+        squeezed[y] = yh;
+        
+        yh++;
+    }
+    
+    /* now the same for the bright exposure */
+    yh = -1;
+    for (int y = 0; y < h; y ++)
+    {
+        if (!BRIGHT_ROW)
+            continue;
+        
+        if (yh < 0) /* make sure we start with the same parity (RGGB cell) */
+            yh = h/4*2 + y;
+        
+        for (int x = 0; x < w; x++)
+        {
+            int p = raw_get_pixel32(x, y);
+            
+            if (x%2 != y%2) /* divide green channel by 2 to approximate the final WB better */
+                p = (p - black) / 2 + black;
+            
+            rawData[yh][x] = p;
+        }
+        
+        squeezed[y] = yh;
+        
+        yh++;
+        if (yh >= h) break; /* just in case */
+    }
+    
+    void amaze_demosaic_RT(
+                           float** rawData,    /* holds preprocessed pixel values, rawData[i][j] corresponds to the ith row and jth column */
+                           float** red,        /* the interpolated red plane */
+                           float** green,      /* the interpolated green plane */
+                           float** blue,       /* the interpolated blue plane */
+                           int winx, int winy, /* crop window for demosaicing */
+                           int winw, int winh
+                           );
+    
+    //IDK if AMaZE is actually thread safe, but I'm just going to assume not, rather than inspecting that huge mess of code
+    LOCK(amaze_mutex)
+    {
+        amaze_demosaic_RT(rawData, red, green, blue, 0, 0, w, h);
+    }
+    UNLOCK(amaze_mutex)
+    
+    /* undo green channel scaling and clamp the other channels */
+    for (int y = 0; y < h; y ++)
+    {
+        for (int x = 0; x < w; x ++)
+        {
+            green[y][x] = COERCE((green[y][x] - black) * 2 + black, 0, 0xFFFFF);
+            red[y][x] = COERCE(red[y][x], 0, 0xFFFFF);
+            blue[y][x] = COERCE(blue[y][x], 0, 0xFFFFF);
+        }
+    }
+    
+    printf("Edge-directed interpolation...\n");
+    
+    //~ printf("Grayscale...\n");
+    /* convert to grayscale and de-squeeze for easier processing */
+    uint32_t * gray = malloc(w * h * sizeof(gray[0]));
+    for (int y = 0; y < h; y ++)
+        for (int x = 0; x < w; x ++)
+            gray[x + y*w] = green[squeezed[y]][x]/2 + red[squeezed[y]][x]/4 + blue[squeezed[y]][x]/4;
+    
+    
+    uint8_t* edge_direction = malloc(w * h * sizeof(edge_direction[0]));
+    int d0 = COUNT(edge_directions)/2;
+    for (int y = 0; y < h; y ++)
+        for (int x = 0; x < w; x ++)
+            edge_direction[x + y*w] = d0;
+    
+    double * fullres_curve = build_fullres_curve(black);
+    
+    //~ printf("Cross-correlation...\n");
+    int semi_overexposed = 0;
+    int not_overexposed = 0;
+    int deep_shadow = 0;
+    int not_shadow = 0;
+    
+    /* for fast EV - raw conversion */
+    static int raw2ev[1<<20];   /* EV x EV_RESOLUTION */
+    static int ev2raw_0[24*EV_RESOLUTION];
+    static int previous_black = -1;
+    
+    /* handle sub-black values (negative EV) */
+    int* ev2raw = ev2raw_0 + 10*EV_RESOLUTION;
+    
+    LOCK(ev2raw_mutex)
+    {
+        if(black != previous_black)
+        {
+            build_ev2raw_lut(raw2ev, ev2raw_0, black, white);
+            previous_black = black;
+        }
+        for (int y = 5; y < h-5; y ++)
+        {
+            int s = (is_bright[y%4] == is_bright[(y+1)%4]) ? -1 : 1;    /* points to the closest row having different exposure */
+            for (int x = 5; x < w-5; x ++)
+            {
+                int e_best = INT_MAX;
+                int d_best = d0;
+                int dmin = 0;
+                int dmax = COUNT(edge_directions)-1;
+                int search_area = 5;
+                
+                /* only use high accuracy on the dark exposure where the bright ISO is overexposed */
+                if (!BRIGHT_ROW)
+                {
+                    /* interpolating bright exposure */
+                    if (fullres_curve[raw_get_pixel32(x, y)] > fullres_thr)
+                    {
+                        /* no high accuracy needed, just interpolate vertically */
+                        not_shadow++;
+                        dmin = d0;
+                        dmax = d0;
+                    }
+                    else
+                    {
+                        /* deep shadows, unlikely to use fullres, so we need a good interpolation */
+                        deep_shadow++;
+                    }
+                }
+                else if (raw_get_pixel32(x, y) < white_darkened)
+                {
+                    /* interpolating dark exposure, but we also have good data from the bright one */
+                    not_overexposed++;
+                    dmin = d0;
+                    dmax = d0;
+                }
+                else
+                {
+                    /* interpolating dark exposure, but the bright one is clipped */
+                    semi_overexposed++;
+                }
+                
+                if (dmin == dmax)
+                {
+                    d_best = dmin;
+                }
+                else
+                {
+                    for (int d = dmin; d <= dmax; d++)
+                    {
+                        int e = 0;
+                        for (int j = -search_area; j <= search_area; j++)
+                        {
+                            int dx1 = edge_directions[d].ack.x + j;
+                            int dy1 = edge_directions[d].ack.y * s;
+                            int p1 = raw2ev[gray[x+dx1 + (y+dy1)*w]];
+                            int dx2 = edge_directions[d].a.x + j;
+                            int dy2 = edge_directions[d].a.y * s;
+                            int p2 = raw2ev[gray[x+dx2 + (y+dy2)*w]];
+                            int dx3 = edge_directions[d].b.x + j;
+                            int dy3 = edge_directions[d].b.y * s;
+                            int p3 = raw2ev[gray[x+dx3 + (y+dy3)*w]];
+                            int dx4 = edge_directions[d].bck.x + j;
+                            int dy4 = edge_directions[d].bck.y * s;
+                            int p4 = raw2ev[gray[x+dx4 + (y+dy4)*w]];
+                            e += ABS(p1-p2) + ABS(p2-p3) + ABS(p3-p4);
+                        }
+                        
+                        /* add a small penalty for diagonal directions */
+                        /* (the improvement should be significant in order to choose one of these) */
+                        e += ABS(d - d0) * EV_RESOLUTION/8;
+                        
+                        if (e < e_best)
+                        {
+                            e_best = e;
+                            d_best = d;
+                        }
+                    }
+                }
+                
+                edge_direction[x + y*w] = d_best;
+            }
+        }
+        
+        printf("Semi-overexposed: %.02f%%\n", semi_overexposed * 100.0 / (semi_overexposed + not_overexposed));
+        printf("Deep shadows    : %.02f%%\n", deep_shadow * 100.0 / (deep_shadow + not_shadow));
+        
+        //~ printf("Actual interpolation...\n");
+        
+        for (int y = 2; y < h-2; y ++)
+        {
+            uint32_t* native = BRIGHT_ROW ? bright : dark;
+            uint32_t* interp = BRIGHT_ROW ? dark : bright;
+            int is_rg = (y % 2 == 0); /* RG or GB? */
+            int s = (is_bright[y%4] == is_bright[(y+1)%4]) ? -1 : 1;    /* points to the closest row having different exposure */
+            
+            //~ printf("Interpolating %s line %d from [near] %d (squeezed %d) and [far] %d (squeezed %d)\n", BRIGHT_ROW ? "BRIGHT" : "DARK", y, y+s, yh_near, y-2*s, yh_far);
+            
+            for (int x = 2; x < w-2; x += 2)
+            {
+                for (int k = 0; k < 2; k++, x++)
+                {
+                    float** plane = is_rg ? (x%2 == 0 ? red   : green)
+                    : (x%2 == 0 ? green : blue );
+                    
+                    int dir = edge_direction[x + y*w];
+                    
+                    /* vary the interpolation direction and average the result (reduces aliasing) */
+                    int pi0 = edge_interp(plane, squeezed, raw2ev, dir, x, y, s);
+                    int pip = edge_interp(plane, squeezed, raw2ev, MIN(dir+1, COUNT(edge_directions)-1), x, y, s);
+                    int pim = edge_interp(plane, squeezed, raw2ev, MAX(dir-1,0), x, y, s);
+                    
+                    interp[x   + y * w] = ev2raw[(2*pi0+pip+pim)/4];
+                    native[x   + y * w] = raw_get_pixel32(x, y);
+                }
+                x -= 2;
+            }
+        }
+    }
+    UNLOCK(ev2raw_mutex)
+    
+    for (int i = 0; i < h; i++)
+    {
+        free(rawData[i]);
+        free(red[i]);
+        free(green[i]);
+        free(blue[i]);
+    }
+    
+    free(squeezed); squeezed = 0;
+    free(rawData); rawData = 0;
+    free(red); red = 0;
+    free(green); green = 0;
+    free(blue); blue = 0;
+    free(gray); gray = 0;
+    free(edge_direction);
+}
+
 static inline void mean32_interpolate(struct raw_info raw_info, uint32_t * raw_buffer_32, uint32_t* dark, uint32_t* bright, int black, int white, int white_darkened, int * is_bright)
 {
     int w = raw_info.width;
@@ -1551,7 +1868,14 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
         bright_noise /= corr;
         bright_noise_ev -= corr_ev;
         
-        mean32_interpolate(raw_info, raw_buffer_32, dark, bright, black, white, white_darkened, is_bright);
+        if(interp_method == 0)
+        {
+            amaze_interpolate(raw_info, raw_buffer_32, dark, bright, black, white, white_darkened, is_bright);
+        }
+        else
+        {
+            mean32_interpolate(raw_info, raw_buffer_32, dark, bright, black, white, white_darkened, is_bright);
+        }
         
         border_interpolate(raw_info, raw_buffer_32, dark, bright, is_bright);
         

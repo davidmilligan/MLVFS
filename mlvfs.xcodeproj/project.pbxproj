@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		63095A0C19F2F2890019B61F /* amaze_demosaic_RT.c in Sources */ = {isa = PBXBuildFile; fileRef = 63095A0A19F2F2890019B61F /* amaze_demosaic_RT.c */; };
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
 		63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */ = {isa = PBXBuildFile; fileRef = 63A7C6DE19CB9D6800B4363E /* kelvin.c */; };
@@ -34,6 +35,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		63095A0A19F2F2890019B61F /* amaze_demosaic_RT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = amaze_demosaic_RT.c; sourceTree = "<group>"; };
+		63095A0E19F2F31C0019B61F /* sleefsseavx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = sleefsseavx.c; sourceTree = "<group>"; };
+		63095A1119F2F34E0019B61F /* helpersse2.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = helpersse2.h; sourceTree = "<group>"; };
 		6319AB3819AD0F1000032A1A /* OSXFUSE.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OSXFUSE.framework; path = ../../../../../Library/Frameworks/OSXFUSE.framework; sourceTree = "<group>"; };
 		6319AB3A19AD3B1100032A1A /* mlv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mlv.h; sourceTree = "<group>"; };
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
@@ -122,6 +126,9 @@
 				63E9DBA219D4BF1E00E70CAA /* stripes.h */,
 				63B5F88419D779F40028614C /* opt_med.h */,
 				63C9CCE119E5C8680034ED97 /* wirth.h */,
+				63095A0A19F2F2890019B61F /* amaze_demosaic_RT.c */,
+				63095A1119F2F34E0019B61F /* helpersse2.h */,
+				63095A0E19F2F31C0019B61F /* sleefsseavx.c */,
 				63B5F88519D797730028614C /* chroma_smooth.c */,
 				63B5F88119D76F240028614C /* cs.c */,
 				63B5F88219D76F240028614C /* cs.h */,
@@ -200,6 +207,7 @@
 				63B5F88D19DA0BBF0028614C /* histogram.c in Sources */,
 				63B5F88319D76F240028614C /* cs.c in Sources */,
 				63DA867819B113A80065788E /* dng.c in Sources */,
+				63095A0C19F2F2890019B61F /* amaze_demosaic_RT.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
