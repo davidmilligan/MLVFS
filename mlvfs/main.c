@@ -57,6 +57,8 @@ struct image_buffer
     uint8_t * header;
     uint16_t * data;
     LOCK_T mutex;
+    int in_use;
+    int needs_destroy;
 };
 
 static struct image_buffer * image_buffers = NULL;
@@ -120,6 +122,7 @@ static struct image_buffer * get_or_create_image_buffer(const char * path, int(*
         {
             new_buffer_cbr(image_buffer);
         }
+        image_buffer->in_use = 1;
     }
     UNLOCK(image_buffer->mutex)
     
@@ -129,6 +132,17 @@ static struct image_buffer * get_or_create_image_buffer(const char * path, int(*
 static void free_image_buffer(struct image_buffer * image_buffer)
 {
     if(!image_buffer) return;
+    int in_use = 0;
+    RELOCK(image_buffer->mutex)
+    {
+        in_use = image_buffer->in_use;
+        if(in_use)
+        {
+            image_buffer->needs_destroy = 1;
+        }
+    }
+    UNLOCK(image_buffer->mutex)
+    if(in_use) return;
     
     if(image_buffer == image_buffers)
     {
@@ -158,8 +172,6 @@ static void free_image_buffer_by_path(const char * path)
         struct image_buffer * image_buffer = get_image_buffer(path);
         if(image_buffer)
         {
-            RELOCK(image_buffer->mutex)
-            UNLOCK(image_buffer->mutex)
             free_image_buffer(image_buffer);
         }
     }
@@ -179,6 +191,26 @@ static void free_all_image_buffers()
         free(current);
         current = next;
     }
+}
+
+static void image_buffer_read_end(struct image_buffer * image_buffer)
+{
+    int needs_destroy = 0;
+    RELOCK(image_buffer->mutex)
+    {
+        image_buffer->in_use = 0;
+        needs_destroy = image_buffer->needs_destroy;
+    }
+    UNLOCK(image_buffer->mutex)
+    
+    RELOCK(image_buffer_mutex)
+    {
+        if(needs_destroy)
+        {
+            free_image_buffer(image_buffer);
+        }
+    }
+    UNLOCK(image_buffer_mutex)
 }
 
 struct mlv_chunks
@@ -838,6 +870,8 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         {
             memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(size - remaining, image_buffer->size - image_offset));
         }
+        
+        image_buffer_read_end(image_buffer);
         return (int)size;
     }
     else if(string_ends_with(path, ".wav") && get_mlv_filename(path, mlv_filename))
