@@ -33,6 +33,9 @@ struct mlvfs
     int fix_bad_pixels;
     int fix_stripes;
     int dual_iso;
+    int hdr_interpolation_method;
+    int hdr_no_fullres;
+    int hdr_no_alias_map;
 };
 
 //all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame

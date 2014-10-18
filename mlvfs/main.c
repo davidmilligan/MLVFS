@@ -574,7 +574,7 @@ static int process_frame(struct image_buffer * image_buffer)
             }
             else if(mlvfs.dual_iso == 2)
             {
-                cr2hdr20_convert_data(&frame_headers, image_buffer->data, 1, 1, mlvfs.chroma_smooth);
+                cr2hdr20_convert_data(&frame_headers, image_buffer->data, mlvfs.hdr_interpolation_method, !mlvfs.hdr_no_fullres, !mlvfs.hdr_no_alias_map, mlvfs.chroma_smooth);
             }
             
             if(mlvfs.dual_iso)
@@ -1013,6 +1013,10 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--stripes", offsetof(struct mlvfs, fix_stripes), 1 },
     { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso), 1 },
     { "--dual-iso", offsetof(struct mlvfs, dual_iso), 2 },
+    { "--amaze-edge", offsetof(struct mlvfs, hdr_interpolation_method), 0 },
+    { "--mean32", offsetof(struct mlvfs, hdr_interpolation_method), 1 },
+    { "--no-alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 1 },
+    { "--alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 0 },
     FUSE_OPT_END
 };
 

@@ -1448,7 +1448,7 @@ static inline void convert_20_to_16bit(struct raw_info raw_info, uint16_t * imag
             raw_set_pixel_20to16_rand(x, y, raw_buffer_32[x + y*w]);
 }
 
-static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int use_fullres, int use_alias_map, int chroma_smooth_method)
+static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int interp_method, int use_fullres, int use_alias_map, int chroma_smooth_method)
 {
     int w = raw_info.width;
     int h = raw_info.height;
@@ -1598,7 +1598,7 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     return ret;
 }
 
-void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int fullres, int use_alias_map, int chroma_smooth_method)
+void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int interp_method, int fullres, int use_alias_map, int chroma_smooth_method)
 {
     struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
     raw_info.width = frame_headers->rawi_hdr.xRes;
@@ -1610,7 +1610,7 @@ void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * imag
     raw_info.active_area.y2 = raw_info.height;
     if (hdr_check(raw_info, image_data))
     {
-        hdr_interpolate(raw_info, image_data, fullres, use_alias_map, chroma_smooth_method);
+        hdr_interpolate(raw_info, image_data, interp_method, fullres, use_alias_map, chroma_smooth_method);
         frame_headers->rawi_hdr.raw_info.black_level *= 4;
         frame_headers->rawi_hdr.raw_info.white_level *= 4;
     }
