@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		63095A0C19F2F2890019B61F /* amaze_demosaic_RT.c in Sources */ = {isa = PBXBuildFile; fileRef = 63095A0A19F2F2890019B61F /* amaze_demosaic_RT.c */; };
+		63095A1419F43FEF0019B61F /* resource_manager.c in Sources */ = {isa = PBXBuildFile; fileRef = 63095A1219F43FEF0019B61F /* resource_manager.c */; };
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
 		63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */ = {isa = PBXBuildFile; fileRef = 63A7C6DE19CB9D6800B4363E /* kelvin.c */; };
@@ -38,6 +39,8 @@
 		63095A0A19F2F2890019B61F /* amaze_demosaic_RT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = amaze_demosaic_RT.c; sourceTree = "<group>"; };
 		63095A0E19F2F31C0019B61F /* sleefsseavx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = sleefsseavx.c; sourceTree = "<group>"; };
 		63095A1119F2F34E0019B61F /* helpersse2.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = helpersse2.h; sourceTree = "<group>"; };
+		63095A1219F43FEF0019B61F /* resource_manager.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = resource_manager.c; sourceTree = "<group>"; };
+		63095A1319F43FEF0019B61F /* resource_manager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = resource_manager.h; sourceTree = "<group>"; };
 		6319AB3819AD0F1000032A1A /* OSXFUSE.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OSXFUSE.framework; path = ../../../../../Library/Frameworks/OSXFUSE.framework; sourceTree = "<group>"; };
 		6319AB3A19AD3B1100032A1A /* mlv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mlv.h; sourceTree = "<group>"; };
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
@@ -108,6 +111,8 @@
 			isa = PBXGroup;
 			children = (
 				63B6174119ACED9300F21CD0 /* main.c */,
+				63095A1219F43FEF0019B61F /* resource_manager.c */,
+				63095A1319F43FEF0019B61F /* resource_manager.h */,
 				6319AB3A19AD3B1100032A1A /* mlv.h */,
 				63B5F88019D761490028614C /* mlvfs.h */,
 				6319AB3B19AD4EEA00032A1A /* raw.h */,
@@ -204,6 +209,7 @@
 				63B5F88A19DA0B9E0028614C /* hdr.c in Sources */,
 				63B6174219ACED9300F21CD0 /* main.c in Sources */,
 				63B4287E19E7150100B83CD3 /* webgui.c in Sources */,
+				63095A1419F43FEF0019B61F /* resource_manager.c in Sources */,
 				63B5F88D19DA0BBF0028614C /* histogram.c in Sources */,
 				63B5F88319D76F240028614C /* cs.c in Sources */,
 				63DA867819B113A80065788E /* dng.c in Sources */,
