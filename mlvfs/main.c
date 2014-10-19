@@ -535,6 +535,19 @@ static int get_real_path(char * real_path, const char *path)
     return 0;
 }
 
+static void check_mld_exists(char * path)
+{
+    char temp[1024];
+    strncpy(temp, path, sizeof(temp));
+    char * mld_ext = strstr(temp, ".MLD");
+    *(mld_ext + 4) = 0x0;
+    struct stat mld_stat;
+    if(stat(temp, &mld_stat))
+    {
+        mkdir(temp, 0777);
+    }
+}
+
 static int process_frame(struct image_buffer * image_buffer)
 {
     char mlv_filename[1024];
@@ -677,13 +690,6 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
         int mlv_status = stat(mlv_filename, &mlv_stat);
         int mld_status = stat(mld_filename, &mld_stat);
         
-        if(mld && mld_status != 0 && string_ends_with(mld_filename, ".MLD"))
-        {
-            //the MLD directory doesn't exist, try to create it
-            mkdir(mld_filename, 0777);
-            mld_status = stat(mld_filename, &mld_stat);
-        }
-        
         if(mlv_status == 0 || mld_status == 0)
         {
             if ((string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")) && mlv_status == 0)
@@ -693,9 +699,9 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                     memcpy(stbuf, &mld_stat, sizeof(struct stat));
                     stbuf->st_size = mld_stat.st_size + mlv_get_frame_count(mlv_filename);
                 }
-                else //there's no MLD directory -> read only
+                else
                 {
-                    stbuf->st_mode = S_IFDIR | 0555;
+                    stbuf->st_mode = S_IFDIR | 0777;
                     stbuf->st_nlink = 3;
                     stbuf->st_size = mlv_get_frame_count(mlv_filename);
                 
@@ -895,6 +901,7 @@ static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
         char real_path[1024];
         if(get_real_path(real_path, path))
         {
+            check_mld_exists(real_path);
             int fd = open(real_path, fi->flags, mode);
             if (fd == -1) return -errno;
             fi->fh = fd;
@@ -920,6 +927,7 @@ static int mlvfs_mkdir(const char *path, mode_t mode)
     char real_path[1024];
     if(get_real_path(real_path, path))
     {
+        check_mld_exists(real_path);
         mkdir(real_path, mode);
         return 0;
     }
