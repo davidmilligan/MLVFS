@@ -41,7 +41,6 @@
 #define RATIONAL_ENTRY(a,b,c,d) (d/2), add_array(a, b, c, d)
 #define RATIONAL_ENTRY2(a,b,c,d) 1, add_rational(a, b, c, d)
 #define ARRAY_ENTRY(a,b,c,d) d, add_array(a, b, c, d)
-#define LINEARIZATION_TABLE(a,b,c) a, add_linearization_table(a, b, c)
 #define HEADER_SIZE 65536
 
 static uint16_t tiff_header[] = { byteOrderII, magicTIFF, 8, 0};
@@ -76,18 +75,6 @@ enum
     WB_CUSTOM       = 6,
     WB_KELVIN       = 9
 };
-
-
-static uint32_t add_linearization_table(uint32_t max, uint8_t * buffer, uint32_t * data_offset)
-{
-    uint32_t result = *data_offset;
-    for(uint16_t curr = 0; curr < max; curr++)
-    {
-        *(uint16_t*)(buffer + *data_offset) = curr;
-        *data_offset += sizeof(uint16_t);
-    }
-    return result;
-}
 
 static uint32_t add_array(int32_t * array, uint8_t * buffer, uint32_t * data_offset, size_t length)
 {
@@ -238,7 +225,6 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         uint32_t exif_ifd_offset = (uint32_t)(position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t));
         uint32_t data_offset = exif_ifd_offset + sizeof(uint16_t) + EXIF_IFD_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
         
-        int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
         //we get the active area of the original raw source, not the recorded data, so overwrite the active area if the recorded data does
         //not contain the OB areas
         if(frame_headers->rawi_hdr.xRes < frame_headers->rawi_hdr.raw_info.active_area.x1 + frame_headers->rawi_hdr.raw_info.active_area.x2 ||
@@ -285,7 +271,6 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcExifIFD,                     ttLong,     1,      exif_ifd_offset},
             {tcDNGVersion,                  ttByte,     4,      0x00000401}, //1.4.0.0 in little endian
             {tcUniqueCameraModel,           ttAscii,    STRING_ENTRY(model, header, &data_offset)},
-            //{tcLinearizationTable,          ttShort,    LINEARIZATION_TABLE((1 << bpp) - 1, header, &data_offset)},
             {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
             {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
             {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},
