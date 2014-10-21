@@ -73,8 +73,12 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
     if((split = strrchr(temp + 1, '/')) != NULL)
     {
         *split = 0x00;
-        sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, temp);
-        return (string_ends_with(mlv_filename, ".MLV") || string_ends_with(mlv_filename, ".mlv"));
+        char * found = lookup_mlv_name(temp);
+        if(found)
+        {
+            strcpy(mlv_filename, found);
+            return 1;
+        }
     }
     return 0;
 }
@@ -88,7 +92,7 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
 static int get_mlv_basename(const char *path, char * mlv_basename)
 {
     if(!(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))) return 0;
-    char *start = strrchr(path, '/') + 1;
+    const char *start = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
     char *dot = strchr(path, '.');
     strncpy(mlv_basename, start, dot - start);
     mlv_basename[dot - start] = '\0';
@@ -426,8 +430,14 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     else if(!strstr(path,"/._"))
     {
         char mld_filename[1024];
+        char temp[1024];
         int mld = get_real_path(mld_filename, path);
-        sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, path);
+        sprintf(temp, "%s/", path);
+        int is_mlv_dir = get_mlv_filename(temp, mlv_filename);
+        if(!is_mlv_dir)
+        {
+            sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, path);
+        }
         struct stat mlv_stat;
         struct stat mld_stat;
         int mlv_status = stat(mlv_filename, &mlv_stat);
@@ -435,7 +445,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
         
         if(mlv_status == 0 || mld_status == 0)
         {
-            if ((string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")) && mlv_status == 0)
+            if (is_mlv_dir && mlv_status == 0)
             {
                 if(mld && mld_status == 0) //there's an MLD directory, use it's stats
                 {
@@ -519,14 +529,19 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 {
     int result = -ENOENT;
     int mld = 0;
+    char temp[1024];
     char real_path[1024];
+    char mlv_basename[1024];
     if(string_ends_with(path, ".MLD")) return -ENOENT;
-    sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
-    if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
+    sprintf(temp, "%s/", path);
+    if(!get_mlv_filename(temp, real_path))
+    {
+        sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
+    }
+    else
     {
         char filename[1024];
-        char mlv_basename[1024];
-        get_mlv_basename(path, mlv_basename);
+        get_mlv_basename(real_path, mlv_basename);
         filler(buf, ".", NULL, 0);
         filler(buf, "..", NULL, 0);
         if(has_audio(real_path))
@@ -564,15 +579,22 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
         {
             if(!string_ends_with(child->d_name, ".MLD") && strcmp(child->d_name, "..") && strcmp(child->d_name, "."))
             {
-                if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || mld)
+                char real_file_path[1024];
+                sprintf(real_file_path, "%s/%s", real_path, child->d_name);
+                
+                if(get_mlv_basename(real_file_path, mlv_basename))
+                {
+                    filler(buf, mlv_basename, NULL, 0);
+                    sprintf(temp, "%s/%s", path, mlv_basename);
+                    register_mlv_name(real_file_path, temp);
+                }
+                else if(child->d_type == DT_DIR || mld)
                 {
                     filler(buf, child->d_name, NULL, 0);
                 }
                 else if (child->d_type == DT_UNKNOWN) // If d_type is not supported on this filesystem
                 {
                     struct stat file_stat;
-                    char real_file_path[1024];
-                    sprintf(real_file_path, "%s/%s", real_path, child->d_name);
                     if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
                     {
                         filler(buf, child->d_name, NULL, 0);
@@ -828,5 +850,6 @@ int main(int argc, char **argv)
     stripes_free_corrections();
     free_all_image_buffers();
     close_all_chunks();
+    free_mlv_name_mappings();
     return res;
 }

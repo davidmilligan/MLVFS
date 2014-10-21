@@ -253,3 +253,66 @@ FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count)
     UNLOCK(chunk_load_mutex)
     return chunk_files;
 }
+
+CREATE_MUTEX(mlv_name_mapping_mutex)
+
+static struct mlv_name_mapping * mlv_name_mappings = NULL;
+
+static char * lookup_mlv_name_internal(const char * virtual_path)
+{
+    for(struct mlv_name_mapping * current = mlv_name_mappings; current != NULL; current = current->next)
+    {
+        if(!strcmp(current->virtual_path, virtual_path)) return current->real_path;
+    }
+    return NULL;
+}
+
+char * lookup_mlv_name(const char * virtual_path)
+{
+    char * result = NULL;
+    RELOCK(mlv_name_mapping_mutex)
+    {
+        result = lookup_mlv_name_internal(virtual_path);
+    }
+    UNLOCK(mlv_name_mapping_mutex)
+    return result;
+}
+
+void register_mlv_name(const char * real_path, const char * virtual_path)
+{
+    RELOCK(mlv_name_mapping_mutex)
+    {
+        if(!lookup_mlv_name_internal(virtual_path))
+        {
+            struct mlv_name_mapping * new_buffer = (struct mlv_name_mapping *)malloc(sizeof(struct mlv_name_mapping));
+            if(new_buffer)
+            {
+                new_buffer->real_path = (char*)malloc((sizeof(char) * (strlen(real_path) + 2)));
+                strcpy(new_buffer->real_path, real_path);
+                new_buffer->virtual_path = (char*)malloc((sizeof(char) * (strlen(virtual_path) + 2)));
+                strcpy(new_buffer->virtual_path, virtual_path);
+                new_buffer->next = mlv_name_mappings;
+                mlv_name_mappings = new_buffer;
+            }
+        }
+    }
+    UNLOCK(mlv_name_mapping_mutex)
+}
+
+void free_mlv_name_mappings()
+{
+    RELOCK(mlv_name_mapping_mutex)
+    {
+        struct mlv_name_mapping * next = NULL;
+        struct mlv_name_mapping * current = mlv_name_mappings;
+        while(current != NULL)
+        {
+            next = current->next;
+            free(current->real_path);
+            free(current->virtual_path);
+            free(current);
+            current = next;
+        }
+    }
+    UNLOCK(mlv_name_mapping_mutex)
+}

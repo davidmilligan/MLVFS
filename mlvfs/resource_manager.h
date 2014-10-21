@@ -55,4 +55,16 @@ struct mlv_chunks
 FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count);
 void close_all_chunks();
 
+
+struct mlv_name_mapping
+{
+    struct mlv_name_mapping * next;
+    char *virtual_path;
+    char *real_path;
+};
+
+char * lookup_mlv_name(const char * virtual_path);
+void register_mlv_name(const char * real_path, const char * virtual_path);
+void free_mlv_name_mappings();
+
 #endif
