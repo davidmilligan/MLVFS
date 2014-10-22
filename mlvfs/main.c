@@ -84,22 +84,6 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
 }
 
 /**
- * Determines the MLV basename from the virtual path (should end in .MLV)
- * @param path The virtual path
- * @param mlv_basename [out] The MLV basename
- * @return 1 if successful, 0 otherwise
- */
-static int get_mlv_basename(const char *path, char * mlv_basename)
-{
-    if(!(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))) return 0;
-    const char *start = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
-    char *dot = strchr(path, '.');
-    strncpy(mlv_basename, start, dot - start);
-    mlv_basename[dot - start] = '\0';
-    return 1;
-}
-
-/**
  * Parse the frame number out of a file path and return it as an integer
  * @param path The virtual file path of the DNG
  * @return The frame number for that DNG
@@ -124,11 +108,8 @@ static int get_mlv_frame_number(const char *path)
  * @param frame_headers [out] All of the MLV blocks associated with the frame
  * @return 1 if successful, 0 otherwise
  */
-int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers)
+int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_headers * frame_headers)
 {
-    char mlv_filename[1024];
-    if (!get_mlv_filename(path, mlv_filename)) return 0;
-
     FILE **chunk_files = NULL;
     uint32_t chunk_count = 0;
 
@@ -265,6 +246,32 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
 }
 
 /**
+ * Generates a customizable virtual name for the MLV file (for the virtual directory)
+ * @param path The virtual path
+ * @param mlv_basename [out] The MLV basename
+ * @return 1 if successful, 0 otherwise
+ */
+static int get_mlv_basename(const char *path, char * mlv_basename)
+{
+    char temp[1024];
+    if(!(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))) return 0;
+    const char *start = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+    char *dot = strchr(path, '.');
+    strncpy(temp, start, dot - start);
+    temp[dot - start] = '\0';
+    struct frame_headers frame_headers;
+    if(mlv_get_frame_headers(path, 0, &frame_headers))
+    {
+        sprintf(mlv_basename, "%s_1_%d-%02d-%02d_%04d_C%04d", temp, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, 50, 0);
+    }
+    else
+    {
+        sprintf(mlv_basename, "%s", temp);
+    }
+    return 1;
+}
+
+/**
  * Converts a path in the MLVFS file system to a path in the real filesystem
  * @return 1 if the real path is inside a .MLD directory, 0 otherwise
  */
@@ -304,7 +311,7 @@ static int process_frame(struct image_buffer * image_buffer)
     {
         int frame_number = get_mlv_frame_number(path);
         struct frame_headers frame_headers;
-        if(mlv_get_frame_headers(path, frame_number, &frame_headers))
+        if(mlv_get_frame_headers(mlv_filename, frame_number, &frame_headers))
         {
             FILE **chunk_files = NULL;
             uint32_t chunk_count = 0;
@@ -388,7 +395,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 
             struct frame_headers frame_headers;
             int frame_number = string_ends_with(path, ".dng") ? get_mlv_frame_number(path) : 0;
-            if(mlv_get_frame_headers(path, frame_number, &frame_headers))
+            if(mlv_get_frame_headers(mlv_filename, frame_number, &frame_headers))
             {
                 struct tm tm_str;
                 tm_str.tm_sec = (int)(frame_headers.rtci_hdr.tm_sec + (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) / 1000000);
