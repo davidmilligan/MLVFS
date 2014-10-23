@@ -73,11 +73,19 @@ static int get_mlv_filename(const char *path, char * mlv_filename)
     if((split = strrchr(temp + 1, '/')) != NULL)
     {
         *split = 0x00;
-        char * found = lookup_mlv_name(temp);
-        if(found)
+        if(mlvfs.name_scheme)
         {
-            strcpy(mlv_filename, found);
-            return 1;
+            char * found = lookup_mlv_name(temp);
+            if(found)
+            {
+                strcpy(mlv_filename, found);
+                return 1;
+            }
+        }
+        else
+        {
+            sprintf(mlv_filename, "%s%s", mlvfs.mlv_path, temp);
+            return (string_ends_with(mlv_filename, ".MLV") || string_ends_with(mlv_filename, ".mlv"));
         }
     }
     return 0;
@@ -260,9 +268,9 @@ static int get_mlv_basename(const char *path, char * mlv_basename)
     strncpy(temp, start, dot - start);
     temp[dot - start] = '\0';
     struct frame_headers frame_headers;
-    if(mlv_get_frame_headers(path, 0, &frame_headers))
+    if(mlvfs.name_scheme == 1 && mlv_get_frame_headers(path, 0, &frame_headers))
     {
-        sprintf(mlv_basename, "%s_1_%d-%02d-%02d_%04d_C%04d", temp, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, 50, 0);
+        sprintf(mlv_basename, "%s_1_%d-%02d-%02d_%04d_C%04d", temp, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, 1, 0);
     }
     else
     {
@@ -278,13 +286,20 @@ static int get_mlv_basename(const char *path, char * mlv_basename)
 static int get_real_path(char * real_path, const char *path)
 {
     sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
-    char * mlv_ext = strstr(real_path, ".MLV");
-    if(mlv_ext == NULL) mlv_ext = strstr(real_path, ".mlv");
-    if(mlv_ext != NULL)
+    if(!mlvfs.name_scheme)
     {
-        //replace .MLV in the path with .MLD
-        mlv_ext[1] = 'M';mlv_ext[2] = 'L';mlv_ext[3] = 'D';
-        return 1;
+        char * mlv_ext = strstr(real_path, ".MLV");
+        if(mlv_ext == NULL) mlv_ext = strstr(real_path, ".mlv");
+        if(mlv_ext != NULL)
+        {
+            //replace .MLV in the path with .MLD
+            mlv_ext[1] = 'M';mlv_ext[2] = 'L';mlv_ext[3] = 'D';
+            return 1;
+        }
+    }
+    else
+    {
+        //TODO: make this work for custom naming schemes
     }
     return 0;
 }
@@ -564,11 +579,14 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
         }
         result = 0;
         
-        char *dot = strchr(real_path, '.');
-        if(dot)
+        if(!mlvfs.name_scheme)
         {
-            strcpy(dot, ".MLD");
-            mld = 1;
+            char *dot = strchr(real_path, '.');
+            if(dot)
+            {
+                strcpy(dot, ".MLD");
+                mld = 1;
+            }
         }
     }
     
@@ -589,13 +607,13 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
                 char real_file_path[1024];
                 sprintf(real_file_path, "%s/%s", real_path, child->d_name);
                 
-                if(get_mlv_basename(real_file_path, mlv_basename))
+                if(mlvfs.name_scheme && get_mlv_basename(real_file_path, mlv_basename))
                 {
                     filler(buf, mlv_basename, NULL, 0);
                     sprintf(temp, "%s/%s", path, mlv_basename);
                     register_mlv_name(real_file_path, temp);
                 }
-                else if(child->d_type == DT_DIR || mld)
+                else if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || mld)
                 {
                     filler(buf, child->d_name, NULL, 0);
                 }
@@ -785,6 +803,7 @@ static const struct fuse_opt mlvfs_opts[] =
 {
     { "--mlv_dir=%s", offsetof(struct mlvfs, mlv_path), 0 },
     { "--port=%s", offsetof(struct mlvfs, port), 0 },
+    { "--resolve-naming", offsetof(struct mlvfs, name_scheme), 1 },
     { "--cs2x2", offsetof(struct mlvfs, chroma_smooth), 2 },
     { "--cs3x3", offsetof(struct mlvfs, chroma_smooth), 3 },
     { "--cs5x5", offsetof(struct mlvfs, chroma_smooth), 5 },

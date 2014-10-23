@@ -54,6 +54,7 @@ static const char * HTML =
 "  <script> jQuery(function() {"
 "    $.ajax({ url: '/get_value', dataType: 'json', success: function(d) {"
 "      $('#dir').val(d.dir);"
+"      $('input:radio[name=\"name_scheme\"][value=' + d.name_scheme + ']').prop('checked', true);"
 "      $('input:radio[name=\"badpix\"][value=' + d.badpix + ']').prop('checked', true);"
 "      $('input:radio[name=\"chroma_smooth\"][value=' + d.chroma_smooth + ']').prop('checked', true);"
 "      $('input:radio[name=\"stripes\"][value=' + d.stripes + ']').prop('checked', true);"
@@ -67,6 +68,7 @@ static const char * HTML =
 "    $(document).on('click', 'input:radio', function() {"
 "      $.ajax({ url: '/set_value', dataType: 'json', "
 "      data: { "
+"        \"name_scheme\": $('input:radio[name=name_scheme]:checked').val(), "
 "        \"badpix\": $('input:radio[name=badpix]:checked').val(), "
 "        \"chroma_smooth\": $('input:radio[name=chroma_smooth]:checked').val(), "
 "        \"stripes\": $('input:radio[name=stripes]:checked').val(), "
@@ -87,9 +89,13 @@ static const char * HTML =
 "  <form>"
 "    <table>"
 "      <tr><th colspan=2>Configuration Options</th></tr>"
-"      <tr>"
+"      <tr class=odd>"
 "        <td>Source Directory</td>"
 "        <td><input type=text id=dir size=64 readonly/></td>"
+"      </tr>"
+"      <tr>"
+"        <td>Naming Scheme</td>"
+"        <td><input type=radio name=name_scheme value=0 >Default</input><input type=radio name=name_scheme value=1 >DaVinci Resolve</input></td>"
 "      </tr>"
 "      <tr class=odd>"
 "        <td>Bad Pixel Fix</td>"
@@ -235,8 +241,9 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         if (strcmp(conn->uri, "/get_value") == 0)
         {
             mg_printf_data(conn,
-                           "{\"dir\": \"%s\", \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
+                           "{\"dir\": \"%s\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
                            mlvfs_config->mlv_path,
+                           mlvfs_config->name_scheme,
                            mlvfs_config->fix_bad_pixels,
                            mlvfs_config->chroma_smooth,
                            mlvfs_config->fix_stripes,
@@ -249,6 +256,9 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         {
             // This Ajax endpoint sets the new value for the device variable
             char buf[100] = "";
+            mg_get_var(conn, "name_scheme", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->name_scheme = atoi(buf);
+            
             mg_get_var(conn, "badpix", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->fix_bad_pixels = atoi(buf);
             
