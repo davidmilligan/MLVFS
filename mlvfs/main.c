@@ -286,7 +286,7 @@ static int get_mlv_basename(const char *path, char * mlv_basename)
 static int get_real_path(char * real_path, const char *path)
 {
     sprintf(real_path, "%s%s", mlvfs.mlv_path, path);
-    if(!mlvfs.name_scheme)
+    if(!mlvfs.name_scheme || get_mlv_filename(path, real_path))
     {
         char * mlv_ext = strstr(real_path, ".MLV");
         if(mlv_ext == NULL) mlv_ext = strstr(real_path, ".mlv");
@@ -296,10 +296,6 @@ static int get_real_path(char * real_path, const char *path)
             mlv_ext[1] = 'M';mlv_ext[2] = 'L';mlv_ext[3] = 'D';
             return 1;
         }
-    }
-    else
-    {
-        //TODO: make this work for custom naming schemes
     }
     return 0;
 }
@@ -579,14 +575,11 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
         }
         result = 0;
         
-        if(!mlvfs.name_scheme)
+        char *dot = strchr(real_path, '.');
+        if(dot)
         {
-            char *dot = strchr(real_path, '.');
-            if(dot)
-            {
-                strcpy(dot, ".MLD");
-                mld = 1;
-            }
+            strcpy(dot, ".MLD");
+            mld = 1;
         }
     }
     
