@@ -603,7 +603,14 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
                 if(mlvfs.name_scheme && get_mlv_basename(real_file_path, mlv_basename))
                 {
                     filler(buf, mlv_basename, NULL, 0);
-                    sprintf(temp, "%s/%s", path, mlv_basename);
+                    if(string_ends_with(path, "/"))
+                    {
+                        sprintf(temp, "%s%s", path, mlv_basename);
+                    }
+                    else
+                    {
+                        sprintf(temp, "%s/%s", path, mlv_basename);
+                    }
                     register_mlv_name(real_file_path, temp);
                 }
                 else if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || mld)
