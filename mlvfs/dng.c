@@ -33,7 +33,7 @@
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
-#define IFD0_COUNT 33
+#define IFD0_COUNT 34
 #define EXIF_IFD_COUNT 8
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
@@ -111,6 +111,35 @@ static uint32_t add_rational(int32_t numerator, int32_t denominator, uint8_t * b
     *data_offset += sizeof(int32_t);
     *(int32_t*)(buffer + *data_offset) = denominator;
     *data_offset += sizeof(int32_t);
+    return result;
+}
+
+static inline uint8_t to_tc_byte(int value)
+{
+    return (((value / 10) << 4) | (value % 10));
+}
+
+static uint32_t add_timecode(double framerate, int drop_frame, uint64_t frame, uint8_t * buffer, uint32_t * data_offset)
+{
+    uint32_t result = *data_offset;
+    memset(buffer + *data_offset, 0, 8);
+    
+    //from raw2cdng, credits: chmee
+    int hours = (int)floor((double)frame / framerate / 3600);
+    frame = frame - (hours * 60 * 60 * (int)framerate);
+    int minutes = (int)floor((double)frame / framerate / 60);
+    frame = frame - (minutes * 60 * (int)framerate);
+    int seconds = (int)floor((double)frame / framerate) % 60;
+    frame = frame - (seconds * (int)framerate);
+    int frames = frame % (int)round(framerate);
+    
+    buffer[*data_offset] = to_tc_byte(frames) & 0x3F;
+    if(drop_frame) buffer[0] = buffer[0] | (1 << 7); //set the drop frame bit
+    buffer[*data_offset + 1] = to_tc_byte(seconds) & 0x7F;
+    buffer[*data_offset + 2] = to_tc_byte(minutes) & 0x7F;
+    buffer[*data_offset + 3] = to_tc_byte(hours) & 0x3F;
+    
+    *data_offset += 8;
     return result;
 }
 
@@ -236,6 +265,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_headers->rawi_hdr.raw_info.active_area.y2 = frame_headers->rawi_hdr.yRes;
         }
         int32_t frame_rate[2] = {frame_headers->file_hdr.sourceFpsNom, frame_headers->file_hdr.sourceFpsDenom};
+        double frame_rate_f = (double)frame_headers->file_hdr.sourceFpsNom / (double)frame_headers->file_hdr.sourceFpsDenom;
         char datetime[255];
         int32_t basline_exposure[2] = {frame_headers->rawi_hdr.raw_info.exposure_bias[0],frame_headers->rawi_hdr.raw_info.exposure_bias[1]};
         if(basline_exposure[1] == 0)
@@ -243,6 +273,10 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             basline_exposure[0] = 0;
             basline_exposure[1] = 1;
         }
+        
+        int drop_frame = frame_rate[1] % 10 != 0;
+        //number of frames since midnight
+        uint64_t tc_frame = (uint64_t)frame_headers->vidf_hdr.frameNumber + (uint64_t)(frame_headers->rtci_hdr.tm_hour * 3600 + frame_headers->rtci_hdr.tm_min * 60 + frame_headers->rtci_hdr.tm_sec) * frame_headers->file_hdr.sourceFpsNom / (uint64_t)frame_headers->file_hdr.sourceFpsDenom;
         
         int32_t wbal[6];
         get_white_balance(frame_headers->wbal_hdr, wbal, (char*)frame_headers->idnt_hdr.cameraName);
@@ -280,6 +314,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcBaselineExposure,            ttSRational,RATIONAL_ENTRY(basline_exposure, header, &data_offset, 2)},
             {tcCalibrationIlluminant1,      ttShort,    1,      lsD65},
             {tcActiveArea,                  ttLong,     ARRAY_ENTRY(frame_headers->rawi_hdr.raw_info.dng_active_area, header, &data_offset, 4)},
+            {tcTimeCodes,                   ttByte,    8,      add_timecode(frame_rate_f, drop_frame, tc_frame, header, &data_offset)},
             {tcFrameRate,                   ttSRational,RATIONAL_ENTRY(frame_rate, header, &data_offset, 2)},
             {tcBaselineExposureOffset,      ttSRational,RATIONAL_ENTRY2(0, 1, header, &data_offset)},
         };

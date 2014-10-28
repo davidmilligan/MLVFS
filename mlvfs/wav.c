@@ -49,6 +49,8 @@ static const char * iXML =
 "</SPEED>"
 "</BWFXML>";
 
+#pragma pack(push,1)
+
 struct wav_bext {
     char description[256];
     char originator[32];
@@ -94,6 +96,8 @@ struct wav_header {
     uint32_t subchunk2_size;
     //audio data start
 };
+
+#pragma pack(pop)
 
 int wav_get_headers(const char *path, mlv_file_hdr_t * file_hdr, mlv_wavi_hdr_t * wavi_hdr, mlv_rtci_hdr_t * rtci_hdr, mlv_idnt_hdr_t * idnt_hdr)
 {
@@ -233,7 +237,8 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
         .file_size = (uint32_t)file_size,
         .WAVE = "WAVE",
         .bext_id = "bext",
-        .bext_size = sizeof(struct wav_bext) + 4, //where do these 4 extra bytes come from????
+        .bext_size = sizeof(struct wav_bext),
+        .bext.time_reference = (uint64_t)(rtci_hdr->tm_hour * 3600 + rtci_hdr->tm_min * 60 + rtci_hdr->tm_sec) * (uint64_t)wavi_hdr->samplingRate,
         .iXML_id = "iXML",
         .iXML_size = 1024,
         .fmt = "fmt\x20",
@@ -248,12 +253,17 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
         .subchunk2_size = (uint32_t)(file_size - sizeof(struct wav_header) + 8),
     };
     #endif
+    printf("WAVE TC: %llu\n", header.bext.time_reference);
+    char temp[33];
+    snprintf(temp, sizeof(temp), "%s", idnt_hdr->cameraName);
+    memcpy(header.bext.originator, temp, 32);
+    snprintf(temp, sizeof(temp), "JPCAN%04d%.8s%02d%02d%02d%09d", idnt_hdr->cameraModel, idnt_hdr->cameraSerial , rtci_hdr->tm_hour, rtci_hdr->tm_min, rtci_hdr->tm_sec, rand());
+    memcpy(header.bext.originator_reference, temp, 32);
+    snprintf(temp, sizeof(temp), "%04d:%02d:%02d", 1900 + rtci_hdr->tm_year, rtci_hdr->tm_mon, rtci_hdr->tm_mday);
+    memcpy(header.bext.origination_date, temp, 10);
+    snprintf(temp, sizeof(temp), "%02d:%02d:%02d", rtci_hdr->tm_hour, rtci_hdr->tm_min, rtci_hdr->tm_sec);
+    memcpy(header.bext.origination_time, temp, 8);
     
-    snprintf(header.bext.origination_date, 10, "%04d:%02d:%02d", 1900 + rtci_hdr->tm_year, rtci_hdr->tm_mon, rtci_hdr->tm_mday);
-    snprintf(header.bext.origination_time, 8, "%02d:%02d:%02d", rtci_hdr->tm_hour, rtci_hdr->tm_min, rtci_hdr->tm_sec);
-    snprintf(header.bext.originator, 32, "%s", idnt_hdr->cameraName);
-    snprintf(header.bext.originator_reference, 32, "JPCAN%04d%.8s%02d%02d%02d%09d", idnt_hdr->cameraModel, idnt_hdr->cameraSerial , rtci_hdr->tm_hour, rtci_hdr->tm_min, rtci_hdr->tm_sec, rand());
-
     char * project = "Magic Lantern";
     char * notes = "";
     char * keywords = "";
