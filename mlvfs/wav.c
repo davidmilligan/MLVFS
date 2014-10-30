@@ -238,7 +238,7 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
         .WAVE = "WAVE",
         .bext_id = "bext",
         .bext_size = sizeof(struct wav_bext),
-        .bext.time_reference = (uint64_t)(rtci_hdr->tm_hour * 3600 + rtci_hdr->tm_min * 60 + rtci_hdr->tm_sec) * (uint64_t)wavi_hdr->samplingRate,
+        .bext.time_reference = 0,//(uint64_t)(rtci_hdr->tm_hour * 3600 + rtci_hdr->tm_min * 60 + rtci_hdr->tm_sec) * (uint64_t)wavi_hdr->samplingRate,
         .iXML_id = "iXML",
         .iXML_size = 1024,
         .fmt = "fmt\x20",
@@ -253,7 +253,7 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
         .subchunk2_size = (uint32_t)(file_size - sizeof(struct wav_header) + 8),
     };
     #endif
-    printf("WAVE TC: %llu\n", header.bext.time_reference);
+    
     char temp[33];
     snprintf(temp, sizeof(temp), "%s", idnt_hdr->cameraName);
     memcpy(header.bext.originator, temp, 32);

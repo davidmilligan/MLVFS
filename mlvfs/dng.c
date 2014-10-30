@@ -276,7 +276,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         
         int drop_frame = frame_rate[1] % 10 != 0;
         //number of frames since midnight
-        uint64_t tc_frame = (uint64_t)frame_headers->vidf_hdr.frameNumber + (uint64_t)(frame_headers->rtci_hdr.tm_hour * 3600 + frame_headers->rtci_hdr.tm_min * 60 + frame_headers->rtci_hdr.tm_sec) * frame_headers->file_hdr.sourceFpsNom / (uint64_t)frame_headers->file_hdr.sourceFpsDenom;
+        uint64_t tc_frame = (uint64_t)frame_headers->vidf_hdr.frameNumber;// + (uint64_t)((frame_headers->rtci_hdr.tm_hour * 3600 + frame_headers->rtci_hdr.tm_min * 60 + frame_headers->rtci_hdr.tm_sec) * frame_headers->file_hdr.sourceFpsNom) / (uint64_t)frame_headers->file_hdr.sourceFpsDenom;
         
         int32_t wbal[6];
         get_white_balance(frame_headers->wbal_hdr, wbal, (char*)frame_headers->idnt_hdr.cameraName);
