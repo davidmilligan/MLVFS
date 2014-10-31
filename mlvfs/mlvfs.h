@@ -22,6 +22,7 @@
 #define mlvfs_mlvfs_h
 
 #include <math.h>
+#include <stdint.h>
 #include "raw.h"
 #include "mlv.h"
 
