@@ -175,7 +175,9 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data,
     if(raw2ev == NULL) return;
     
     //just guess the dark noise for speed reasons
-    int dark_noise = 12;
+    int dark_noise = 12 ;
+    int dark_min = black - (dark_noise * 8);
+    int dark_max = black + (dark_noise * 8);
     int x,y;
     for (y = 6; y < h - 6; y ++)
     {
@@ -207,18 +209,18 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data,
                 }
             }
             
-            if (p < black - dark_noise * 8) //cold pixel
+            if (p < dark_min) //cold pixel
             {
                 image_data[x + y * w] = -median_int_wirth(neighbours, k);
             }
-            else if ((raw2ev[p] - raw2ev[-max2] > 2 * EV_RESOLUTION) && (p > black + 8 * dark_noise)) //hot pixel
+            else if ((raw2ev[p] - raw2ev[-max2] > 2 * EV_RESOLUTION) && (p > dark_max)) //hot pixel
             {
                 image_data[x + y * w] = -kth_smallest_int(neighbours, k, 2);
             }
             else if (aggressive)
             {
                 int max3 = kth_smallest_int(neighbours, k, 2);
-                if( ((raw2ev[p] - raw2ev[-max2] > EV_RESOLUTION/4) && (p > black + 8 * dark_noise)) || (raw2ev[p] - raw2ev[-max3] > EV_RESOLUTION/2))
+                if(((raw2ev[p] - raw2ev[-max2] > EV_RESOLUTION) || (raw2ev[p] - raw2ev[-max3] > EV_RESOLUTION)) && (p > dark_max))
                 {
                     image_data[x + y * w] = -max3;
                 }
