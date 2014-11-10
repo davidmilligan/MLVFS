@@ -390,7 +390,7 @@ static void check_mld_exists(char * path)
 
 static int process_frame(struct image_buffer * image_buffer)
 {
-    char * mlv_filename;
+    char * mlv_filename = NULL;
     const char * path = image_buffer->dng_filename;
     
     if(string_ends_with(path, ".dng") && get_mlv_filename(path, &mlv_filename))
@@ -467,7 +467,7 @@ static int process_frame(struct image_buffer * image_buffer)
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     int result = -ENOENT;
-    char * mlv_filename;
+    char * mlv_filename = NULL;
     memset(stbuf, 0, sizeof(struct stat));
 
     if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav"))
@@ -525,7 +525,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     }
     else if(!strstr(path,"/._"))
     {
-        char * mld_filename;
+        char * mld_filename = NULL;
         char * temp = concat_string(path, "/");
         int mld = get_real_path(&mld_filename, path);
         int is_mlv_dir = get_mlv_filename(temp, &mlv_filename);
@@ -597,7 +597,7 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
     {
-        char * real_path;
+        char * real_path = NULL;
         if(get_real_path(&real_path, path))
         {
             int fd;
@@ -721,7 +721,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 
 static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    char * mlv_filename;
+    char * mlv_filename = NULL;
     if(string_ends_with(path, ".dng") && get_mlv_filename(path, &mlv_filename))
     {
         size_t header_size = dng_get_header_size();
@@ -776,7 +776,7 @@ static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
     {
-        char * real_path;
+        char * real_path = NULL;
         if(get_real_path(&real_path, path))
         {
             check_mld_exists(real_path);
@@ -803,7 +803,7 @@ static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *
 
 static int mlvfs_mkdir(const char *path, mode_t mode)
 {
-    char * real_path;
+    char * real_path = NULL;
     if(get_real_path(&real_path, path))
     {
         check_mld_exists(real_path);
@@ -830,8 +830,8 @@ static int mlvfs_release(const char *path, struct fuse_file_info *fi)
 static int mlvfs_rename(const char *from, const char *to)
 {
     int result = -ENOENT;
-    char * real_from;
-    char * real_to;
+    char * real_from = NULL;
+    char * real_to = NULL;
     if(get_real_path(&real_from, from) && get_real_path(&real_to, to))
     {
         rename(real_from, real_to);
@@ -844,7 +844,7 @@ static int mlvfs_rename(const char *from, const char *to)
 
 static int mlvfs_rmdir(const char *path)
 {
-    char * real_path;
+    char * real_path = NULL;
     if(get_real_path(&real_path, path))
     {
         rmdir(real_path);
@@ -856,7 +856,7 @@ static int mlvfs_rmdir(const char *path)
 
 static int mlvfs_truncate(const char *path, off_t offset)
 {
-    char * real_path;
+    char * real_path = NULL;
     if(get_real_path(&real_path, path))
     {
         truncate(real_path, offset);
