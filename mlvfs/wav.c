@@ -335,7 +335,15 @@ size_t wav_get_size(const char *path)
     {
         if(fread(&mlv_file_hdr, sizeof(mlv_file_hdr_t), 1, mlv_file) && !memcmp(mlv_file_hdr.fileMagic, "MLVI", 4) && wav_get_headers(path, &mlv_file_hdr, &mlv_wavi_hdr, &rcti_hdr, &idnt_hdr))
         {
-            result = sizeof(struct wav_header) + (uint64_t)mlv_wavi_hdr.bytesPerSecond * (uint64_t)mlv_file_hdr.sourceFpsDenom * (uint64_t)mlv_get_frame_count(path) / (uint64_t)mlv_file_hdr.sourceFpsNom;
+            //prevent divide by zero errors
+            if(mlv_file_hdr.sourceFpsNom == 0)
+            {
+                result = 0;
+            }
+            else
+            {
+                result = sizeof(struct wav_header) + (uint64_t)mlv_wavi_hdr.bytesPerSecond * (uint64_t)mlv_file_hdr.sourceFpsDenom * (uint64_t)mlv_get_frame_count(path) / (uint64_t)mlv_file_hdr.sourceFpsNom;
+            }
         }
         fclose(mlv_file);
     }
