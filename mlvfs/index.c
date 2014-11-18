@@ -431,6 +431,8 @@ int mlv_get_frame_count(const char *real_path)
     uint32_t videoFrameCount = 0;
     
     mlv_xref_hdr_t *block_xref = get_index(real_path);
+    if(block_xref == NULL) return 0;
+    
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
     
     for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
