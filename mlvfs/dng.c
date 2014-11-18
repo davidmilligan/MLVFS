@@ -265,7 +265,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_headers->rawi_hdr.raw_info.active_area.y2 = frame_headers->rawi_hdr.yRes;
         }
         int32_t frame_rate[2] = {frame_headers->file_hdr.sourceFpsNom, frame_headers->file_hdr.sourceFpsDenom};
-        double frame_rate_f = (double)frame_headers->file_hdr.sourceFpsNom / (double)frame_headers->file_hdr.sourceFpsDenom;
+        double frame_rate_f = frame_headers->file_hdr.sourceFpsDenom == 0 ? 0 : (double)frame_headers->file_hdr.sourceFpsNom / (double)frame_headers->file_hdr.sourceFpsDenom;
         char datetime[255];
         int32_t basline_exposure[2] = {frame_headers->rawi_hdr.raw_info.exposure_bias[0],frame_headers->rawi_hdr.raw_info.exposure_bias[1]};
         if(basline_exposure[1] == 0)

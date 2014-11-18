@@ -165,10 +165,11 @@ static void webgui_generate_mlv_html(char * html, const char * path)
     struct frame_headers frame_headers;
     if(mlv_get_frame_headers(real_path, 0, &frame_headers))
     {
-        int duration = frame_count * frame_headers.file_hdr.sourceFpsDenom / frame_headers.file_hdr.sourceFpsNom;
+        int duration = frame_headers.file_hdr.sourceFpsNom == 0 ? 0 : frame_count * frame_headers.file_hdr.sourceFpsDenom / frame_headers.file_hdr.sourceFpsNom;
+        float frame_rate = frame_headers.file_hdr.sourceFpsDenom == 0 ? 0 : (float)frame_headers.file_hdr.sourceFpsNom / (float)frame_headers.file_hdr.sourceFpsDenom;
         snprintf(temp, HTML_SIZE, "<td>%d x %d</td>", frame_headers.rawi_hdr.xRes, frame_headers.rawi_hdr.yRes);
         strncat(html, temp, HTML_SIZE);
-        snprintf(temp, HTML_SIZE, "<td>%.3f</td>", (float)frame_headers.file_hdr.sourceFpsNom / (float)frame_headers.file_hdr.sourceFpsDenom);
+        snprintf(temp, HTML_SIZE, "<td>%.3f</td>", frame_rate);
         strncat(html, temp, HTML_SIZE);
         snprintf(temp, HTML_SIZE, "<td>%02d:%02d</td>", duration / 60, duration % 60);
         strncat(html, temp, HTML_SIZE);
