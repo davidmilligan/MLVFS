@@ -36,12 +36,13 @@ struct image_buffer
     int needs_destroy;
 };
 
-struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buffer_cbr)(struct image_buffer *));
+struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buffer_cbr)(struct image_buffer *), int * was_created);
 void free_image_buffer(struct image_buffer * image_buffer);
 void free_image_buffer_by_path(const char * path);
 void free_all_image_buffers();
 void image_buffer_read_end(struct image_buffer * image_buffer);
-
+int get_image_buffer_count();
+void image_buffer_cleanup(const char *current_path);
 
 struct mlv_chunks
 {

@@ -29,6 +29,8 @@ CREATE_MUTEX(image_buffer_mutex)
 
 static struct image_buffer * image_buffers = NULL;
 
+static int image_buffer_count = 0;
+
 static struct image_buffer * get_image_buffer(const char * dng_filename)
 {
     for(struct image_buffer * current = image_buffers; current != NULL; current = current->next)
@@ -45,6 +47,7 @@ static struct image_buffer * new_image_buffer(const char * dng_filename)
     struct image_buffer * new_buffer = malloc(sizeof(struct image_buffer));
     if(new_buffer == NULL) return NULL;
     
+    image_buffer_count++;
     memset(new_buffer, 0, sizeof(struct image_buffer));
     
     if(image_buffers == NULL)
@@ -66,9 +69,10 @@ static struct image_buffer * new_image_buffer(const char * dng_filename)
     return new_buffer;
 }
 
-struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buffer_cbr)(struct image_buffer *))
+struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buffer_cbr)(struct image_buffer *), int * was_created)
 {
     struct image_buffer * image_buffer = NULL;
+    *was_created = 0;
     
     RELOCK(image_buffer_mutex)
     {
@@ -76,6 +80,7 @@ struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buf
         if(!image_buffer)
         {
             image_buffer = new_image_buffer(path);
+            *was_created = 1;
         }
     }
     UNLOCK(image_buffer_mutex)
@@ -129,6 +134,7 @@ void free_image_buffer(struct image_buffer * image_buffer)
     free(image_buffer->dng_filename);
     free(image_buffer->data);
     free(image_buffer);
+    image_buffer_count--;
 }
 
 void free_image_buffer_by_path(const char * path)
@@ -175,6 +181,52 @@ void image_buffer_read_end(struct image_buffer * image_buffer)
         {
             free_image_buffer(image_buffer);
         }
+    }
+    UNLOCK(image_buffer_mutex)
+}
+
+int get_image_buffer_count()
+{
+    return image_buffer_count;
+}
+
+static char * trim_path(const char *path)
+{
+    char * path_copy = (char*)malloc(sizeof(char) * (strlen(path) + 1));
+    strcpy(path_copy, path);
+    char * end = strrchr(path_copy, '/');
+    if(end != NULL) *end = 0x0;
+    return path_copy;
+}
+
+/*
+ * Try and cleanup any potentially unused image_buffers
+ */
+void image_buffer_cleanup(const char * current_path)
+{
+    RELOCK(image_buffer_mutex)
+    {
+        char * current_path_base = trim_path(current_path);
+        for(struct image_buffer * current = image_buffers; current != NULL; current = current->next)
+        {
+            char * buffer_path_base = trim_path(current->dng_filename);
+            int in_use = 0;
+            RELOCK(current->mutex)
+            {
+                in_use = current->in_use;
+            }
+            UNLOCK(current->mutex)
+            if(!in_use && strcmp(current_path_base, buffer_path_base))
+            {
+                free_image_buffer(current);
+                free(buffer_path_base);
+                //freeing the buffer modifies our linked list, so we better exit the loop or screwy things could happen
+                //TODO: figure out how to cleanup everything in one pass
+                break;
+            }
+            free(buffer_path_base);
+        }
+        free(current_path_base);
     }
     UNLOCK(image_buffer_mutex)
 }

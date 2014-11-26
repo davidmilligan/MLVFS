@@ -464,6 +464,55 @@ static int process_frame(struct image_buffer * image_buffer)
     return 1;
 }
 
+static int change_dng_path(char *path, int new_number)
+{
+    char temp[7];
+    snprintf(temp, 7, "%06d", new_number);
+    char * overwrite_pos = path + strlen(path) - 10;
+    if(overwrite_pos < path) return 0;
+    memcpy(overwrite_pos, temp, sizeof(char) * 6);
+    return 1;
+}
+
+static void check_prefetch(const char *path);
+
+static void *do_prefetch(void* path)
+{
+    char * mlv_filename = NULL;
+    if(string_ends_with(path, ".dng") && get_mlv_filename(path, &mlv_filename))
+    {
+        int frame_number = get_mlv_frame_number(path) + 1;
+        if(frame_number < mlv_get_frame_count(mlv_filename) && change_dng_path(path, frame_number))
+        {
+            check_prefetch(path);
+            int was_created = 0;
+            struct image_buffer * prefetch_buffer = get_or_create_image_buffer(path, &process_frame, &was_created);
+            image_buffer_read_end(prefetch_buffer);
+        }
+        free(mlv_filename);
+    }
+    free(path);
+    pthread_exit(NULL);
+}
+
+static void check_prefetch(const char *path)
+{
+    if(path != NULL && string_ends_with(path, ".dng"))
+    {
+        if(get_image_buffer_count() >= mlvfs.prefetch)
+        {
+            image_buffer_cleanup(path);
+        }
+        if(get_image_buffer_count() < mlvfs.prefetch)
+        {
+            char * path_copy = (char*)malloc(sizeof(char) * (strlen(path) + 1));
+            strcpy(path_copy, path);
+            pthread_t thread;
+            pthread_create(&thread, NULL, do_prefetch, path_copy);
+        }
+    }
+}
+
 static int mlvfs_getattr(const char *path, struct stat *stbuf)
 {
     int result = -ENOENT;
@@ -727,8 +776,13 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         size_t header_size = dng_get_header_size();
         size_t remaining = 0;
         off_t image_offset = 0;
+        int was_created = 0;
         
-        struct image_buffer * image_buffer = get_or_create_image_buffer(path, &process_frame);
+        struct image_buffer * image_buffer = get_or_create_image_buffer(path, &process_frame, &was_created);
+        if(was_created)
+        {
+            check_prefetch(path);
+        }
         
         if(offset + size > image_buffer->header_size + image_buffer->size)
         {
@@ -911,6 +965,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--mean32", offsetof(struct mlvfs, hdr_interpolation_method), 1 },
     { "--no-alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 1 },
     { "--alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 0 },
+    { "--prefetch=%d", offsetof(struct mlvfs, prefetch), 0 },
     FUSE_OPT_END
 };
 
