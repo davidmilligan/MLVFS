@@ -56,6 +56,7 @@ static const char * HTML =
 "  <script> jQuery(function() {"
 "    $.ajax({ url: '/get_value', dataType: 'json', success: function(d) {"
 "      $('#dir').val(d.dir);"
+"      $('#prefetch').val(d.prefetch);"
 "      $('input:radio[name=\"name_scheme\"][value=' + d.name_scheme + ']').prop('checked', true);"
 "      $('input:radio[name=\"badpix\"][value=' + d.badpix + ']').prop('checked', true);"
 "      $('input:radio[name=\"chroma_smooth\"][value=' + d.chroma_smooth + ']').prop('checked', true);"
@@ -82,6 +83,12 @@ static const char * HTML =
 "      if($('input:radio[name=dual_iso]:checked').val() == 2){ $('#hdr_interpolation_method').show(); $('#hdr_no_alias_map').show(); $('#hdr_no_fullres').show(); }"
 "      else { $('#hdr_interpolation_method').hide(); $('#hdr_no_alias_map').hide(); $('#hdr_no_fullres').hide(); }"
 "      return true; });"
+"    $('#prefetch').on('change', function() {"
+"      $.ajax({ url: '/set_value', dataType: 'json', "
+"      data: { "
+"        \"prefetch\": $('#prefetch').val(), "
+"      } });"
+"      return true; });"
 "    });"
 "  </script>"
 "</head>"
@@ -91,9 +98,13 @@ static const char * HTML =
 "  <form>"
 "    <table>"
 "      <tr><th colspan=2>Configuration Options</th></tr>"
-"      <tr class=odd>"
+"      <tr>"
 "        <td>Source Directory</td>"
 "        <td><input type=text id=dir size=64 readonly/></td>"
+"      </tr>"
+"      <tr class=odd>"
+"        <td>Prefetch</td>"
+"        <td><input type=text id=prefetch size=8/> frames</td>"
 "      </tr>"
 "      <tr>"
 "        <td>Naming Scheme</td>"
@@ -261,8 +272,9 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         if (strcmp(conn->uri, "/get_value") == 0)
         {
             mg_printf_data(conn,
-                           "{\"dir\": \"%s\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
+                           "{\"dir\": \"%s\", \"prefetch\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
                            mlvfs_config->mlv_path,
+                           mlvfs_config->prefetch,
                            mlvfs_config->name_scheme,
                            mlvfs_config->fix_bad_pixels,
                            mlvfs_config->chroma_smooth,
@@ -276,6 +288,9 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         {
             // This Ajax endpoint sets the new value for the device variable
             char buf[100] = "";
+            mg_get_var(conn, "prefetch", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->prefetch = atoi(buf);
+            
             mg_get_var(conn, "name_scheme", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->name_scheme = atoi(buf);
             
