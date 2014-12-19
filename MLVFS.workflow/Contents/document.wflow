@@ -223,7 +223,7 @@
 				<key>ActionParameters</key>
 				<dict>
 					<key>COMMAND_STRING</key>
-					<string>nohup ~/Library/Services/MLVFS.workflow/Contents/mlvfs "$2" --mlv_dir="$1" -f &gt; /dev/null 2&gt;&amp;1 &amp;</string>
+					<string>nohup ~/Library/Services/MLVFS.workflow/Contents/mlvfs "$2" --mlv_dir="$1" -f -o volname="$(basename $2) (MLVFS Mount)" -o local -o allow_other &gt; /dev/null 2&gt;&amp;1 &amp;</string>
 					<key>CheckedForUserDefaultShell</key>
 					<true/>
 					<key>inputMethod</key>
@@ -397,7 +397,7 @@
 				<key>CFBundleVersion</key>
 				<string>2.0.1</string>
 				<key>CanShowSelectedItemsWhenRun</key>
-				<false/>
+				<true/>
 				<key>CanShowWhenRun</key>
 				<true/>
 				<key>Category</key>
@@ -443,7 +443,7 @@
 				<key>isViewVisible</key>
 				<true/>
 				<key>location</key>
-				<string>309.000000:687.000000</string>
+				<string>309.000000:635.000000</string>
 				<key>nibPath</key>
 				<string>/System/Library/Automator/Get Specified URLs.action/Contents/Resources/Base.lproj/main.nib</string>
 			</dict>
@@ -528,26 +528,26 @@
 	</array>
 	<key>connectors</key>
 	<dict>
-		<key>7103D053-0486-4ED0-81DF-A4D5D5CB6980</key>
+		<key>61A5F3F1-C171-4609-A41E-240A8FEE38E8</key>
+		<dict>
+			<key>from</key>
+			<string>D02801B5-3510-4471-A149-196C924EDA96 - D02801B5-3510-4471-A149-196C924EDA96</string>
+			<key>to</key>
+			<string>501156CF-9287-43ED-996B-10E09954FF5B - 501156CF-9287-43ED-996B-10E09954FF5B</string>
+		</dict>
+		<key>ABAB3E62-699D-4911-AE79-DFAA3C8C0A50</key>
 		<dict>
 			<key>from</key>
 			<string>D52DEC62-D1E1-46B9-A2E2-0909B62DCCC9 - D52DEC62-D1E1-46B9-A2E2-0909B62DCCC9</string>
 			<key>to</key>
 			<string>8C99B48B-8951-426B-9D12-A81A813ADC2F - 8C99B48B-8951-426B-9D12-A81A813ADC2F</string>
 		</dict>
-		<key>C480D498-0CDA-44F4-9FA0-8BF1908A7A12</key>
+		<key>D8019DF2-4FC9-4CCF-9E1A-6B81AC1D0BAF</key>
 		<dict>
 			<key>from</key>
 			<string>8C99B48B-8951-426B-9D12-A81A813ADC2F - 8C99B48B-8951-426B-9D12-A81A813ADC2F</string>
 			<key>to</key>
 			<string>D02801B5-3510-4471-A149-196C924EDA96 - D02801B5-3510-4471-A149-196C924EDA96</string>
-		</dict>
-		<key>F4C85281-D3D4-43F3-B594-171881B562BA</key>
-		<dict>
-			<key>from</key>
-			<string>D02801B5-3510-4471-A149-196C924EDA96 - D02801B5-3510-4471-A149-196C924EDA96</string>
-			<key>to</key>
-			<string>501156CF-9287-43ED-996B-10E09954FF5B - 501156CF-9287-43ED-996B-10E09954FF5B</string>
 		</dict>
 	</dict>
 	<key>variables</key>
