@@ -11,7 +11,6 @@
 		63095A1419F43FEF0019B61F /* resource_manager.c in Sources */ = {isa = PBXBuildFile; fileRef = 63095A1219F43FEF0019B61F /* resource_manager.c */; };
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
-		63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */ = {isa = PBXBuildFile; fileRef = 63A7C6DE19CB9D6800B4363E /* kelvin.c */; };
 		63B4287B19E7130B00B83CD3 /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B4287919E7130B00B83CD3 /* mongoose.c */; };
 		63B4287E19E7150100B83CD3 /* webgui.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B4287C19E7150100B83CD3 /* webgui.c */; };
 		63B5F88319D76F240028614C /* cs.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88119D76F240028614C /* cs.c */; };
@@ -46,8 +45,6 @@
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
 		634B603219BBFED2008CF973 /* wav.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = wav.c; sourceTree = "<group>"; };
 		634B603419BBFEE4008CF973 /* wav.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wav.h; sourceTree = "<group>"; };
-		63A7C6DE19CB9D6800B4363E /* kelvin.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = kelvin.c; sourceTree = "<group>"; };
-		63A7C6E019CB9DBD00B4363E /* kelvin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = kelvin.h; sourceTree = "<group>"; };
 		63B4287919E7130B00B83CD3 /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mongoose.c; sourceTree = "<group>"; };
 		63B4287A19E7130B00B83CD3 /* mongoose.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mongoose.h; sourceTree = "<group>"; };
 		63B4287C19E7150100B83CD3 /* webgui.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = webgui.c; sourceTree = "<group>"; };
@@ -125,8 +122,6 @@
 				63DA868119B51C080065788E /* index.h */,
 				634B603219BBFED2008CF973 /* wav.c */,
 				634B603419BBFEE4008CF973 /* wav.h */,
-				63A7C6DE19CB9D6800B4363E /* kelvin.c */,
-				63A7C6E019CB9DBD00B4363E /* kelvin.h */,
 				63E9DBA119D4BF1E00E70CAA /* stripes.c */,
 				63E9DBA219D4BF1E00E70CAA /* stripes.h */,
 				63B5F88419D779F40028614C /* opt_med.h */,
@@ -201,7 +196,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				63A7C6DF19CB9D6800B4363E /* kelvin.c in Sources */,
 				634B603319BBFED2008CF973 /* wav.c in Sources */,
 				63B4287B19E7130B00B83CD3 /* mongoose.c in Sources */,
 				63DA868219B51C080065788E /* index.c in Sources */,
