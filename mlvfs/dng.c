@@ -446,10 +446,10 @@ static uint32_t add_timecode(double framerate, int drop_frame, uint64_t frame, u
     frame = frame - (minutes * 60 * (int)framerate);
     int seconds = (int)floor((double)frame / framerate) % 60;
     frame = frame - (seconds * (int)framerate);
-    int frames = frame % (int)round(framerate);
+    int frames = frame % MAX(1,(int)round(framerate));
     
     buffer[*data_offset] = to_tc_byte(frames) & 0x3F;
-    if(drop_frame) buffer[0] = buffer[0] | (1 << 7); //set the drop frame bit
+    if(drop_frame) buffer[*data_offset] = buffer[*data_offset] | (1 << 7); //set the drop frame bit
     buffer[*data_offset + 1] = to_tc_byte(seconds) & 0x7F;
     buffer[*data_offset + 2] = to_tc_byte(minutes) & 0x7F;
     buffer[*data_offset + 3] = to_tc_byte(hours) & 0x3F;
