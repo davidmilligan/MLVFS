@@ -210,7 +210,7 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
             }
 
             /* unexpected block header size? */
-            if(buf.blockSize < sizeof(mlv_hdr_t) || buf.blockSize > 10 * 1024 * 1024)
+            if(buf.blockSize < sizeof(mlv_hdr_t) || buf.blockSize > 1024 * 1024 * 1024)
             {
                 //bmp_printf(FONT_MED, 30, 190, "Invalid header size: %d bytes at 0x%08X", buf.blockSize, position);
                 break;
