@@ -521,8 +521,8 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         
         //we get the active area of the original raw source, not the recorded data, so overwrite the active area if the recorded data does
         //not contain the OB areas
-        if(frame_headers->rawi_hdr.xRes < frame_headers->rawi_hdr.raw_info.active_area.x1 + frame_headers->rawi_hdr.raw_info.active_area.x2 ||
-           frame_headers->rawi_hdr.yRes < frame_headers->rawi_hdr.raw_info.active_area.y1 + frame_headers->rawi_hdr.raw_info.active_area.y2)
+        if(frame_headers->rawi_hdr.xRes < frame_headers->rawi_hdr.raw_info.active_area.x2 ||
+           frame_headers->rawi_hdr.yRes < frame_headers->rawi_hdr.raw_info.active_area.y2)
         {
             frame_headers->rawi_hdr.raw_info.active_area.x1 = 0;
             frame_headers->rawi_hdr.raw_info.active_area.y1 = 0;
@@ -583,7 +583,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
             {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
             {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},
-            {tcDefaultCropSize,             ttShort,    2,      PACK2(frame_headers->rawi_hdr.xRes,frame_headers->rawi_hdr.yRes)},
+            {tcDefaultCropSize,             ttShort,    2,      PACK2((frame_headers->rawi_hdr.raw_info.active_area.x2 - frame_headers->rawi_hdr.raw_info.active_area.x1), (frame_headers->rawi_hdr.raw_info.active_area.y2 - frame_headers->rawi_hdr.raw_info.active_area.y1))},
             {tcColorMatrix1,                ttSRational,RATIONAL_ENTRY(matricies.ColorMatrix1, header, &data_offset, 18)},
             {tcColorMatrix2,                ttSRational,RATIONAL_ENTRY(matricies.ColorMatrix2, header, &data_offset, 18)},
             {tcAsShotNeutral,               ttRational, RATIONAL_ENTRY(wbal, header, &data_offset, 6)},
