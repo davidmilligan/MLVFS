@@ -94,7 +94,7 @@ static inline float xdivf( float d, int n){
 
 #define bool int
 
-#undef __SSE2__
+//#undef __SSE2__
 
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
