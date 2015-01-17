@@ -39,6 +39,7 @@ struct mlvfs
     int hdr_no_fullres;
     int hdr_no_alias_map;
     int prefetch;
+    double fps;
 };
 
 //all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame

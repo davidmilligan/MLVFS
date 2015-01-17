@@ -413,7 +413,7 @@ static int process_frame(struct image_buffer * image_buffer)
             image_buffer->header_size = dng_get_header_size();
             image_buffer->header = (uint8_t*)malloc(image_buffer->header_size);
             
-            dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size);
+            dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps);
             get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_buffer->data, 0, image_buffer->size);
             
             if(mlvfs.fix_bad_pixels)
@@ -433,7 +433,7 @@ static int process_frame(struct image_buffer * image_buffer)
             if(mlvfs.dual_iso)
             {
                 //redo the dng header b/c white and black levels will be different
-                dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->size);
+                dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->size, mlvfs.fps);
             }
             
             if(mlvfs.chroma_smooth && mlvfs.dual_iso != 2)
@@ -966,6 +966,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--no-alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 1 },
     { "--alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 0 },
     { "--prefetch=%d", offsetof(struct mlvfs, prefetch), 0 },
+    { "--fps=%f", offsetof(struct mlvfs, fps), 0 },
     FUSE_OPT_END
 };
 

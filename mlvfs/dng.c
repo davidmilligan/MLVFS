@@ -490,7 +490,7 @@ static char * format_datetime(char * datetime, struct frame_headers * frame_head
  * @param frame_headers The MLV blocks associated with the frame
  * @return The size of the DNG header or 0 on failure
  */
-size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size)
+size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size, double fps_override)
 {
     /*
     - build the tiff header in a buffer
@@ -530,7 +530,12 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             frame_headers->rawi_hdr.raw_info.active_area.y2 = frame_headers->rawi_hdr.yRes;
         }
         int32_t frame_rate[2] = {frame_headers->file_hdr.sourceFpsNom, frame_headers->file_hdr.sourceFpsDenom};
-        double frame_rate_f = frame_headers->file_hdr.sourceFpsDenom == 0 ? 0 : (double)frame_headers->file_hdr.sourceFpsNom / (double)frame_headers->file_hdr.sourceFpsDenom;
+        if(fps_override > 0)
+        {
+            frame_rate[0] = (int32_t)fps_override * 1000;
+            frame_rate[1] = 1000;
+        }
+        double frame_rate_f = frame_rate[1] == 0 ? 0 : (double)frame_rate[0] / (double)frame_rate[1];
         char datetime[255];
         int32_t basline_exposure[2] = {frame_headers->rawi_hdr.raw_info.exposure_bias[0],frame_headers->rawi_hdr.raw_info.exposure_bias[1]};
         if(basline_exposure[1] == 0)
