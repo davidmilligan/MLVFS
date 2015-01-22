@@ -421,16 +421,17 @@ static int process_frame(struct image_buffer * image_buffer)
                 fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2);
             }
             
+            int is_dual_iso = 0;
             if(mlvfs.dual_iso == 1)
             {
-                hdr_convert_data(&frame_headers, image_buffer->data, 0, image_buffer->size);
+                is_dual_iso = hdr_convert_data(&frame_headers, image_buffer->data, 0, image_buffer->size);
             }
             else if(mlvfs.dual_iso == 2)
             {
-                cr2hdr20_convert_data(&frame_headers, image_buffer->data, mlvfs.hdr_interpolation_method, !mlvfs.hdr_no_fullres, !mlvfs.hdr_no_alias_map, mlvfs.chroma_smooth);
+                is_dual_iso = cr2hdr20_convert_data(&frame_headers, image_buffer->data, mlvfs.hdr_interpolation_method, !mlvfs.hdr_no_fullres, !mlvfs.hdr_no_alias_map, mlvfs.chroma_smooth);
             }
             
-            if(mlvfs.dual_iso)
+            if(is_dual_iso)
             {
                 //redo the dng header b/c white and black levels will be different
                 dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->size, mlvfs.fps);

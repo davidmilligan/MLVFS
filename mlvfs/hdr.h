@@ -24,7 +24,7 @@
 #include <sys/types.h>
 #include "dng.h"
 
-void hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, off_t offset, size_t max_size);
-void cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int interp_method, int fullres, int use_alias_map, int chroma_smooth);
+int hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, off_t offset, size_t max_size);
+int cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int interp_method, int fullres, int use_alias_map, int chroma_smooth);
 
 #endif
