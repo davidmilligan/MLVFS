@@ -681,7 +681,15 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packe
  */
 size_t dng_get_image_size(struct frame_headers * frame_headers)
 {
-    return (frame_headers->vidf_hdr.blockSize - frame_headers->vidf_hdr.frameSpace - sizeof(mlv_vidf_hdr_t)) * 16 / frame_headers->rawi_hdr.raw_info.bits_per_pixel; //16 bit
+    int compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LZMA;
+    if(compressed)
+    {
+        return frame_headers->rawi_hdr.xRes * frame_headers->rawi_hdr.yRes * 2;
+    }
+    else
+    {
+        return (frame_headers->vidf_hdr.blockSize - frame_headers->vidf_hdr.frameSpace - sizeof(mlv_vidf_hdr_t)) * 16 / frame_headers->rawi_hdr.raw_info.bits_per_pixel; //16 bit
+    }
 }
 
 /**

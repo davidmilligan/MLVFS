@@ -44,6 +44,7 @@
 #include "webgui.h"
 #include "resource_manager.h"
 #include "mlvfs.h"
+#include "LZMA/LzmaLib.h"
 
 static struct mlvfs mlvfs;
 
@@ -286,6 +287,7 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
  */
 static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
+    int compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LZMA;
     size_t result = 0;
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
     uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
@@ -293,19 +295,53 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
     size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
     uint64_t pixel_count = output_size / 2;
     uint64_t packed_size = (pixel_count + 2) * bpp / 16;
-    uint16_t * packed_bits = malloc((size_t)(packed_size * 2));
-    if(packed_bits)
+    if(compressed)
     {
-        file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
-        if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
+        file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t), SEEK_SET);
+        size_t frame_size = frame_headers->vidf_hdr.blockSize - (frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t));
+        uint8_t * frame_buffer = malloc(frame_size);
+        
+        if(fread(frame_buffer, frame_size, 1, file))
         {
-            result = dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
+            size_t lzma_out_size = *(uint32_t *)frame_buffer;
+            size_t lzma_in_size = frame_size - LZMA_PROPS_SIZE - 4;
+            size_t lzma_props_size = LZMA_PROPS_SIZE;
+            uint8_t *lzma_out = malloc(lzma_out_size);
+            
+            int ret = LzmaUncompress(lzma_out, &lzma_out_size,
+                                     &frame_buffer[4 + LZMA_PROPS_SIZE], &lzma_in_size,
+                                     &frame_buffer[4], lzma_props_size);
+            if(ret == SZ_OK)
+            {
+                result = dng_get_image_data(frame_headers, (uint16_t*)lzma_out, output_buffer, offset, max_size);
+            }
+            else
+            {
+                fprintf(stderr, "LZMA Failed!\n");
+            }
         }
         else
         {
             fprintf(stderr, "Error reading source data\n");
         }
-        free(packed_bits);
+    }
+    else
+    {
+        uint16_t * packed_bits = malloc((size_t)(packed_size * 2));
+        if(packed_bits)
+        {
+            
+            file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
+            if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
+            {
+                result = dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
+            }
+            else
+            {
+                fprintf(stderr, "Error reading source data\n");
+            }
+            free(packed_bits);
+        }
     }
     return result;
 }
