@@ -682,6 +682,7 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packe
 size_t dng_get_image_size(struct frame_headers * frame_headers)
 {
     int compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LZMA;
+    compressed |= frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LJ92;
     if(compressed)
     {
         return frame_headers->rawi_hdr.xRes * frame_headers->rawi_hdr.yRes * 2;

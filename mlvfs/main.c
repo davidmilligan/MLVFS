@@ -45,6 +45,7 @@
 #include "resource_manager.h"
 #include "mlvfs.h"
 #include "LZMA/LzmaLib.h"
+#include "lj92.h"
 
 static struct mlvfs mlvfs;
 
@@ -287,7 +288,8 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
  */
 static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
-    int compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LZMA;
+    int lzma_compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LZMA;
+    int lj92_compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LJ92;
     size_t result = 0;
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
     uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
@@ -295,7 +297,7 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
     size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
     uint64_t pixel_count = output_size / 2;
     uint64_t packed_size = (pixel_count + 2) * bpp / 16;
-    if(compressed)
+    if(lzma_compressed || lj92_compressed)
     {
         file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t), SEEK_SET);
         size_t frame_size = frame_headers->vidf_hdr.blockSize - (frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t));
@@ -303,27 +305,90 @@ static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, 
         
         if(fread(frame_buffer, frame_size, 1, file))
         {
-            size_t lzma_out_size = *(uint32_t *)frame_buffer;
-            size_t lzma_in_size = frame_size - LZMA_PROPS_SIZE - 4;
-            size_t lzma_props_size = LZMA_PROPS_SIZE;
-            uint8_t *lzma_out = malloc(lzma_out_size);
-            
-            int ret = LzmaUncompress(lzma_out, &lzma_out_size,
-                                     &frame_buffer[4 + LZMA_PROPS_SIZE], &lzma_in_size,
-                                     &frame_buffer[4], lzma_props_size);
-            if(ret == SZ_OK)
+            if(lzma_compressed)
             {
-                result = dng_get_image_data(frame_headers, (uint16_t*)lzma_out, output_buffer, offset, max_size);
+                size_t lzma_out_size = *(uint32_t *)frame_buffer;
+                size_t lzma_in_size = frame_size - LZMA_PROPS_SIZE - 4;
+                size_t lzma_props_size = LZMA_PROPS_SIZE;
+                uint8_t *lzma_out = malloc(lzma_out_size);
+                
+                int ret = LzmaUncompress(lzma_out, &lzma_out_size,
+                                         &frame_buffer[4 + LZMA_PROPS_SIZE], &lzma_in_size,
+                                         &frame_buffer[4], lzma_props_size);
+                if(ret == SZ_OK)
+                {
+                    result = dng_get_image_data(frame_headers, (uint16_t*)lzma_out, output_buffer, offset, max_size);
+                }
+                else
+                {
+                    fprintf(stderr, "LZMA Failed!\n");
+                }
             }
-            else
+            else if(lj92_compressed)
             {
-                fprintf(stderr, "LZMA Failed!\n");
+                lj92 handle;
+                int lj92_width = 0;
+                int lj92_height = 0;
+                int lj92_bitdepth = 0;
+                int video_xRes = frame_headers->rawi_hdr.xRes;
+                int video_yRes = frame_headers->rawi_hdr.yRes;
+                
+                int ret = lj92_open(&handle, (uint8_t *)&frame_buffer[4], (int)frame_size - 4, &lj92_width, &lj92_height, &lj92_bitdepth);
+                
+                size_t out_size_stored = *(uint32_t *)frame_buffer;
+                size_t out_size = lj92_width * lj92_height * sizeof(uint16_t);
+                
+                if(out_size != out_size_stored)
+                {
+                    fprintf(stderr, "LJ92: non-critical internal error occurred: frame size mismatch (%d != %d)\n", (uint32_t)out_size, (uint32_t)out_size_stored);
+                }
+                
+                if(ret == LJ92_ERROR_NONE)
+                {
+                    /* we need a temporary buffer so we dont overwrite source data */
+                    uint16_t *decompressed = malloc(out_size);
+                    
+                    ret = lj92_decode(handle, decompressed, lj92_width * lj92_height, 0, NULL, 0);
+                    
+                    if(ret == LJ92_ERROR_NONE)
+                    {
+                        /* restore 16bpp pixel data and untile if necessary */
+                        //uint32_t shift_value = MIN(16,MAX(0, 16 - lj92_bitdepth));
+                        uint16_t *dst_buf = (uint16_t *)output_buffer;
+                        uint16_t *src_buf = (uint16_t *)decompressed;
+                        
+                        for(int y = 0; y < video_yRes; y++)
+                        {
+                            int dst_y = ((2 * y) % video_yRes) + ((2 * y) / video_yRes);
+                            
+                            uint16_t *src_line = &src_buf[y * video_xRes];
+                            uint16_t *dst_line = &dst_buf[dst_y * video_xRes];
+                            
+                            for(int x = 0; x < video_xRes; x++)
+                            {
+                                int dst_x = ((2 * x) % video_xRes) + ((2 * x) / video_xRes);
+                                dst_line[dst_x] = src_line[x];
+                            }
+                        }
+                        
+                        free(decompressed);
+                    }
+                    else
+                    {
+                        fprintf(stderr, "LJ92: Failed (%d)\n", ret);
+                    }
+                }
+                else
+                {
+                    fprintf(stderr, "LJ92: Failed (%d)\n", ret);
+                }
             }
         }
         else
         {
             fprintf(stderr, "Error reading source data\n");
         }
+        free(frame_buffer);
     }
     else
     {

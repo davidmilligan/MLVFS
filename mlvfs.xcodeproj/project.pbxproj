@@ -50,6 +50,7 @@
 		63DA867819B113A80065788E /* dng.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA867719B113A80065788E /* dng.c */; };
 		63DA868219B51C080065788E /* index.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA868019B51C080065788E /* index.c */; };
 		63E9DBA319D4BF1E00E70CAA /* stripes.c in Sources */ = {isa = PBXBuildFile; fileRef = 63E9DBA119D4BF1E00E70CAA /* stripes.c */; };
+		63FF20021A8FC30500CD44B7 /* lj92.c in Sources */ = {isa = PBXBuildFile; fileRef = 63FF20001A8FC30500CD44B7 /* lj92.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -157,6 +158,8 @@
 		63DA868119B51C080065788E /* index.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = index.h; sourceTree = "<group>"; };
 		63E9DBA119D4BF1E00E70CAA /* stripes.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = stripes.c; sourceTree = "<group>"; };
 		63E9DBA219D4BF1E00E70CAA /* stripes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = stripes.h; sourceTree = "<group>"; };
+		63FF20001A8FC30500CD44B7 /* lj92.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = lj92.c; sourceTree = "<group>"; };
+		63FF20011A8FC30500CD44B7 /* lj92.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lj92.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -287,6 +290,8 @@
 				63B4287D19E7150100B83CD3 /* webgui.h */,
 				63B4287919E7130B00B83CD3 /* mongoose.c */,
 				63B4287A19E7130B00B83CD3 /* mongoose.h */,
+				63FF20001A8FC30500CD44B7 /* lj92.c */,
+				63FF20011A8FC30500CD44B7 /* lj92.h */,
 				63B5F88719D79C510028614C /* Makefile */,
 				6302E2D71A8416BD000F76D9 /* LZMA */,
 			);
@@ -364,6 +369,7 @@
 				6302E3171A8416D4000F76D9 /* Alloc.c in Sources */,
 				6302E3231A8416D4000F76D9 /* LzmaDec.c in Sources */,
 				6302E31A1A8416D4000F76D9 /* Bra86.c in Sources */,
+				63FF20021A8FC30500CD44B7 /* lj92.c in Sources */,
 				6302E3281A8416D4000F76D9 /* Ppmd7Enc.c in Sources */,
 				63B6174219ACED9300F21CD0 /* main.c in Sources */,
 				63B4287E19E7150100B83CD3 /* webgui.c in Sources */,
