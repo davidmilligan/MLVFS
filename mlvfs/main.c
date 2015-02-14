@@ -697,13 +697,14 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 if(mld && mld_status == 0) //there's an MLD directory, use it's stats
                 {
                     memcpy(stbuf, &mld_stat, sizeof(struct stat));
-                    stbuf->st_size = mld_stat.st_size + mlv_get_frame_count(mlv_filename);
+                    //stbuf->st_size = mld_stat.st_size + mlv_get_frame_count(mlv_filename);
                 }
                 else
                 {
                     stbuf->st_mode = S_IFDIR | 0777;
                     stbuf->st_nlink = 3;
-                    stbuf->st_size = mlv_get_frame_count(mlv_filename);
+                    //doesn't really seem necessary to set the st_size correctly for dirs, so don't call mlv_get_frame_count, so there's no delay for IDX generation when listing parent dir
+                    //stbuf->st_size = mlv_get_frame_count(mlv_filename);
                 
                     // OS-specific timestamps
                     #if __DARWIN_UNIX03
