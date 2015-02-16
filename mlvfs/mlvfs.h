@@ -21,6 +21,7 @@
 #ifndef mlvfs_mlvfs_h
 #define mlvfs_mlvfs_h
 
+#include <stdio.h>
 #include <math.h>
 #include <stdint.h>
 #include "raw.h"
@@ -64,7 +65,10 @@ struct frame_headers
 #define ALLOW_WRITEABLE_DNGS
 
 int string_ends_with(const char *source, const char *ending);
+FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count);
 int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers);
+int mlv_get_frame_count(const char *real_path);
+size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size);
 
 #ifndef _WIN32
 #include <pthread.h>

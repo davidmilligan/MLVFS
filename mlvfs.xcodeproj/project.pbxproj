@@ -51,6 +51,7 @@
 		63DA868219B51C080065788E /* index.c in Sources */ = {isa = PBXBuildFile; fileRef = 63DA868019B51C080065788E /* index.c */; };
 		63E9DBA319D4BF1E00E70CAA /* stripes.c in Sources */ = {isa = PBXBuildFile; fileRef = 63E9DBA119D4BF1E00E70CAA /* stripes.c */; };
 		63FF20021A8FC30500CD44B7 /* lj92.c in Sources */ = {isa = PBXBuildFile; fileRef = 63FF20001A8FC30500CD44B7 /* lj92.c */; };
+		63FF20051A912D1B00CD44B7 /* gif.c in Sources */ = {isa = PBXBuildFile; fileRef = 63FF20031A912D1B00CD44B7 /* gif.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -160,6 +161,8 @@
 		63E9DBA219D4BF1E00E70CAA /* stripes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = stripes.h; sourceTree = "<group>"; };
 		63FF20001A8FC30500CD44B7 /* lj92.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = lj92.c; sourceTree = "<group>"; };
 		63FF20011A8FC30500CD44B7 /* lj92.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lj92.h; sourceTree = "<group>"; };
+		63FF20031A912D1B00CD44B7 /* gif.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = gif.c; sourceTree = "<group>"; };
+		63FF20041A912D1B00CD44B7 /* gif.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gif.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -292,6 +295,8 @@
 				63B4287A19E7130B00B83CD3 /* mongoose.h */,
 				63FF20001A8FC30500CD44B7 /* lj92.c */,
 				63FF20011A8FC30500CD44B7 /* lj92.h */,
+				63FF20031A912D1B00CD44B7 /* gif.c */,
+				63FF20041A912D1B00CD44B7 /* gif.h */,
 				63B5F88719D79C510028614C /* Makefile */,
 				6302E2D71A8416BD000F76D9 /* LZMA */,
 			);
@@ -349,6 +354,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				63FF20051A912D1B00CD44B7 /* gif.c in Sources */,
 				634B603319BBFED2008CF973 /* wav.c in Sources */,
 				6302E3201A8416D4000F76D9 /* Lzma2Enc.c in Sources */,
 				6302E31F1A8416D4000F76D9 /* Lzma2Dec.c in Sources */,

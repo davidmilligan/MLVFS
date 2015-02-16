@@ -46,6 +46,7 @@
 #include "mlvfs.h"
 #include "LZMA/LzmaLib.h"
 #include "lj92.h"
+#include "gif.h"
 
 static struct mlvfs mlvfs;
 
@@ -286,7 +287,7 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
  * @param max_size The amount of frame data to read
  * @return the number of bytes retrieved, or 0 if failure.
  */
-static size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
+size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     int lzma_compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LZMA;
     int lj92_compressed = frame_headers->file_hdr.videoClass & MLV_VIDEO_CLASS_FLAG_LJ92;
@@ -566,6 +567,27 @@ static int process_frame(struct image_buffer * image_buffer)
     return 1;
 }
 
+static int create_preview(struct image_buffer * image_buffer)
+{
+    char * mlv_filename = NULL;
+    const char * path = image_buffer->dng_filename;
+    
+    if(string_ends_with(path, ".gif") && get_mlv_filename(path, &mlv_filename))
+    {
+        struct frame_headers frame_headers;
+        if(mlv_get_frame_headers(mlv_filename, 0, &frame_headers))
+        {
+            image_buffer->size = gif_get_size(&frame_headers);
+            image_buffer->data = (uint16_t*)malloc(image_buffer->size);
+            image_buffer->header_size = 0;
+            image_buffer->header = NULL;
+            gif_get_data(mlv_filename, (uint8_t*)image_buffer->data, 0, image_buffer->size);
+        }
+        free(mlv_filename);
+    }
+    return 1;
+}
+
 static int change_dng_path(char *path, int new_number)
 {
     char temp[7];
@@ -621,7 +643,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     char * mlv_filename = NULL;
     memset(stbuf, 0, sizeof(struct stat));
 
-    if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav"))
+    if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif"))
     {
         if(get_mlv_filename(path, &mlv_filename))
         {
@@ -664,6 +686,10 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 if(string_ends_with(path, ".dng"))
                 {
                     stbuf->st_size = dng_get_size(&frame_headers);
+                }
+                else if(string_ends_with(path, ".gif"))
+                {
+                    stbuf->st_size = gif_get_size(&frame_headers);
                 }
                 else
                 {
@@ -747,7 +773,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
     {
         char * real_path = NULL;
         if(get_real_path(&real_path, path))
@@ -807,6 +833,8 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
                 sprintf(filename, "%s_%06d.dng", mlv_basename, i);
                 filler(buf, filename, NULL, 0);
             }
+            sprintf(filename, "_PREVIEW.gif");
+            filler(buf, filename, NULL, 0);
             result = 0;
             
             char *dot = strrchr(real_path, '.');
@@ -918,6 +946,15 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         int result = (int)wav_get_data(mlv_filename, (uint8_t*)buf, offset, size);
         free(mlv_filename);
         return result;
+    }
+    else if(string_ends_with(path, ".gif") && get_mlv_filename(path, &mlv_filename))
+    {
+        int was_created;
+        struct image_buffer * image_buffer = get_or_create_image_buffer(path, &create_preview, &was_created);
+        memcpy(buf, ((uint8_t*)image_buffer->data) + offset, MIN(size, image_buffer->size - offset));
+        image_buffer_read_end(image_buffer);
+        free(mlv_filename);
+        return (int)size;
     }
     else
     {
