@@ -567,7 +567,7 @@ static int process_frame(struct image_buffer * image_buffer)
     return 1;
 }
 
-static int create_preview(struct image_buffer * image_buffer)
+int create_preview(struct image_buffer * image_buffer)
 {
     char * mlv_filename = NULL;
     const char * path = image_buffer->dng_filename;

@@ -112,4 +112,9 @@ static int pthread_mutex_unlock(pthread_mutex_t *m)
 #define log2(x) log((float)(x))/log(2.)
 #endif
 
+
+#include "resource_manager.h"
+
+int create_preview(struct image_buffer * image_buffer);
+
 #endif

@@ -31,6 +31,7 @@
 #include "wav.h"
 #include "dng.h"
 #include "index.h"
+#include "resource_manager.h"
 #include "webgui.h"
 #include "mongoose.h"
 
@@ -160,6 +161,7 @@ static const char * HTML =
 static const char * TABLE_HEADER =
 "<table><tr>"
 "<th>Filename</th>"
+"<th>Preview</th>"
 "<th>Frames</th>"
 "<th>Audio</th>"
 "<th>Resolution</th>"
@@ -224,8 +226,13 @@ static char * webgui_generate_html(const char * path)
     {
         snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", path);
         strncat(html, temp, HTML_SIZE);
+        snprintf(temp, HTML_SIZE, "<td><img src=\"%s/_PREVIEW.gif\" width=\"100\"/></td>", path);
+        strncat(html, temp, HTML_SIZE);
         webgui_generate_mlv_html(html, path);
         strncat(html, "</tr>", HTML_SIZE);
+        strncat(html, "</table>", HTML_SIZE);
+        snprintf(temp, HTML_SIZE, "<hr/><img src=\"%s/_PREVIEW.gif\"/>", path);
+        strncat(html, temp, HTML_SIZE);
     }
     else
     {
@@ -246,12 +253,14 @@ static char * webgui_generate_html(const char * path)
                         if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
                         {
                             char child_path[1024];
+                            snprintf(temp, HTML_SIZE, "<td><img src=\"%s/%s/_PREVIEW.gif\" width=\"100\"/></td>", path+ 1, child->d_name);
+                            strncat(html, temp, HTML_SIZE);
                             sprintf(child_path, "%s/%s", path, child->d_name);
                             webgui_generate_mlv_html(html, child_path);
                         }
                         else
                         {
-                            strncat(html, "<td colspan=12 />", HTML_SIZE);
+                            strncat(html, "<td colspan=13 />", HTML_SIZE);
                         }
                         strncat(html, "</tr>", HTML_SIZE);
                     }
@@ -262,7 +271,7 @@ static char * webgui_generate_html(const char * path)
                         sprintf(real_file_path, "%s/%s", real_path, child->d_name);
                         if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td><td colspan=12 /></tr>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
                             strncat(html, temp, HTML_SIZE);
                         }
                     }
@@ -270,8 +279,8 @@ static char * webgui_generate_html(const char * path)
             }
             closedir(dir);
         }
+        strncat(html, "</table>", HTML_SIZE);
     }
-    strncat(html, "</table>", HTML_SIZE);
     free(temp);
     return html;
 }
@@ -335,6 +344,14 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         else if (strcmp(conn->uri, "/jquery-1.11.0.min.js") == 0)
         {
             mg_printf_data(conn, "%s", JQUERY);
+        }
+        else if(string_ends_with(conn->uri, "_PREVIEW.gif"))
+        {
+            int was_created;
+            struct image_buffer * image_buffer = get_or_create_image_buffer(conn->uri, &create_preview, &was_created);
+            mg_send_header(conn, "Content-Type", "image/gif");
+            mg_send_data(conn, image_buffer->data, (int)image_buffer->size);
+            image_buffer_read_end(image_buffer);
         }
         else
         {
