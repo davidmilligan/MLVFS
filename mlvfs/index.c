@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "raw.h"
 #include "mlv.h"
@@ -95,11 +96,19 @@ void xref_sort(frame_xref_t *table, uint32_t entries)
 
 mlv_xref_hdr_t *load_index(const char *base_filename)
 {
+    size_t filename_size = (strlen(base_filename) + 1) * sizeof(char);
+    char * filename = (char*)malloc(filename_size);
+    
+    if(!filename)
+    {
+        fprintf(stderr, "load_index: malloc error (requested size %zu)", filename_size);
+        return NULL;
+    }
+    strncpy(filename, base_filename, filename_size);
+    
     mlv_xref_hdr_t *block_hdr = NULL;
-    char filename[128];
     FILE *in_file = NULL;
 
-    strncpy(filename, base_filename, sizeof(filename));
     strcpy(&filename[strlen(filename) - 3], "IDX");
 
     in_file = fopen(filename, "rb");
@@ -155,10 +164,18 @@ mlv_xref_hdr_t *load_index(const char *base_filename)
 
 void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fileCount, mlv_xref_hdr_t *index)
 {
-    char filename[128];
+    size_t filename_size = (strlen(base_filename) + 1) * sizeof(char);
+    char * filename = (char*)malloc(filename_size);
+    
+    if(!filename)
+    {
+        fprintf(stderr, "save_index: malloc error (requested size %zu)", filename_size);
+        return;
+    }
+    strncpy(filename, base_filename, filename_size);
+    
     FILE *out_file = NULL;
 
-    strncpy(filename, base_filename, sizeof(filename));
     strcpy(&filename[strlen(filename) - 3], "IDX");
 
     out_file = fopen(filename, "wb+");
@@ -306,7 +323,11 @@ void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_c
     // TODO: add some error checking
     mlv_file_hdr_t main_header;
     file_set_pos(chunk_files[0], 0, SEEK_SET);
-    fread(&main_header, sizeof(mlv_file_hdr_t), 1, chunk_files[0]);
+    if(!fread(&main_header, sizeof(mlv_file_hdr_t), 1, chunk_files[0]))
+    {
+        int err = errno;
+        fprintf(stderr, "build_index: fread error: %s\n", strerror(err));
+    }
 
     mlv_xref_hdr_t *index = make_index(chunk_files, chunk_count);
     save_index(base_filename, &main_header, chunk_count, index);
@@ -317,16 +338,23 @@ void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_c
 FILE **load_chunks(const char *base_filename, uint32_t *entries)
 {
     uint32_t seq_number = 0;
-    char filename[128];
+    size_t filename_size = (strlen(base_filename) + 1) * sizeof(char);
+    char * filename = (char*)malloc(filename_size);
 
+    if(!filename)
+    {
+        fprintf(stderr, "load_chunks: malloc error (requested size %zu)", filename_size);
+        return NULL;
+    }
     *entries = 0;
 
-    strncpy(filename, base_filename, sizeof(filename));
+    strncpy(filename, base_filename, filename_size);
     FILE **files = (FILE **)malloc(sizeof(FILE*));
 
     files[0] = fopen(filename, "rb");
     if (!files[0])
     {
+        fprintf(stderr, "load_chunks: malloc error (requested size %zu)", sizeof(FILE*));
         return NULL;
     }
 
@@ -359,6 +387,7 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
             break;
         }
     }
+    free(filename);
     return files;
 }
 

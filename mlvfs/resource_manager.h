@@ -21,6 +21,9 @@
 #ifndef mlvfs_resource_manager_h
 #define mlvfs_resource_manager_h
 
+//Uncomment to keep FILE* open and reuse them, this improves performance on OSX for exFAT filesystems, but causes "Bad file descriptor" errors when trying to read
+//#define KEEP_FILES_OPEN
+
 #include <stdio.h>
 
 struct image_buffer
@@ -54,6 +57,7 @@ struct mlv_chunks
 };
 
 FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count);
+void mlvfs_close_chunks(FILE **chunk_files, uint32_t chunk_count);
 void close_all_chunks();
 
 

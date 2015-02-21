@@ -231,6 +231,7 @@ void image_buffer_cleanup(const char * current_path)
     UNLOCK(image_buffer_mutex)
 }
 
+#ifdef KEEP_FILES_OPEN
 static struct mlv_chunks * loaded_chunks = NULL;
 
 static struct mlv_chunks * get_chunks(const char * path)
@@ -268,9 +269,11 @@ static struct mlv_chunks * new_chunks(const char * path, FILE** files, uint32_t 
     new_buffer->thread_id = CURRENT_THREAD;
     return new_buffer;
 }
+#endif
 
 void close_all_chunks()
 {
+#ifdef KEEP_FILES_OPEN
     struct mlv_chunks * next = NULL;
     struct mlv_chunks * current = loaded_chunks;
     while(current != NULL)
@@ -281,10 +284,12 @@ void close_all_chunks()
         free(current);
         current = next;
     }
+#endif
 }
 
 FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count)
 {
+#ifdef KEEP_FILES_OPEN
     FILE **chunk_files = NULL;
     *chunk_count = 0;
     
@@ -304,6 +309,16 @@ FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count)
     }
     UNLOCK(chunk_load_mutex)
     return chunk_files;
+#else
+    return load_chunks(path, chunk_count);
+#endif
+}
+
+void mlvfs_close_chunks(FILE **chunk_files, uint32_t chunk_count)
+{
+#ifndef KEEP_FILES_OPEN
+    close_chunks(chunk_files, chunk_count);
+#endif
 }
 
 CREATE_MUTEX(mlv_name_mapping_mutex)

@@ -329,6 +329,7 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
     
     free(block_xref);
 
+    mlvfs_close_chunks(chunk_files, chunk_count);
     return found && rawi_found;
 }
 
@@ -612,11 +613,12 @@ static int process_frame(struct image_buffer * image_buffer)
                     }
                     else
                     {
-                        fprintf(stderr, "MLVFS: malloc error\n");
+                        fprintf(stderr, "malloc error\n");
                     }
                 }
                 stripes_apply_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
             }
+            mlvfs_close_chunks(chunk_files, chunk_count);
         }
         free(mlv_filename);
     }
@@ -976,7 +978,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
             size = (size_t)(image_buffer->header_size + image_buffer->size - offset);
         }
         
-        if(offset < header_size)
+        if(offset < header_size && image_buffer->header_size > 0)
         {
             remaining = MIN(size, header_size - offset);
             memcpy(buf, image_buffer->header + offset, remaining);
