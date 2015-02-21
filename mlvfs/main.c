@@ -193,6 +193,7 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
 
     int found = 0;
+    int rawi_found = 0;
     uint32_t vidf_counter = 0;
     mlv_hdr_t mlv_hdr;
     uint32_t hdr_size;
@@ -219,7 +220,11 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
                     fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
                     file_set_pos(in_file, position, SEEK_SET);
                     hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->vidf_hdr, hdr_size, 1, in_file);
+                    if(!fread(&frame_headers->vidf_hdr, hdr_size, 1, in_file))
+                    {
+                        int err = errno;
+                        fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                    }
                 }
                 else
                 {
@@ -233,49 +238,98 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
             case MLV_FRAME_UNSPECIFIED:
             default:
                 file_set_pos(in_file, position, SEEK_SET);
-                fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
-                file_set_pos(in_file, position, SEEK_SET);
-                if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
+                if(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file))
                 {
-                    hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->file_hdr, hdr_size, 1, in_file);
+                    file_set_pos(in_file, position, SEEK_SET);
+                    if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
+                        if(!fread(&frame_headers->file_hdr, hdr_size, 1, in_file))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                        }
+                    }
+                    else if(!memcmp(mlv_hdr.blockType, "RTCI", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_rtci_hdr_t), mlv_hdr.blockSize);
+                        if(!fread(&frame_headers->rtci_hdr, hdr_size, 1, in_file))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                        }
+                    }
+                    else if(!memcmp(mlv_hdr.blockType, "IDNT", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_idnt_hdr_t), mlv_hdr.blockSize);
+                        if(!fread(&frame_headers->idnt_hdr, hdr_size, 1, in_file))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                        }
+                    }
+                    else if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_rawi_hdr_t), mlv_hdr.blockSize);
+                        if(!fread(&frame_headers->rawi_hdr, hdr_size, 1, in_file))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                        }
+                        else
+                        {
+                            rawi_found = 1;
+                        }
+                    }
+                    else if(!memcmp(mlv_hdr.blockType, "EXPO", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_expo_hdr_t), mlv_hdr.blockSize);
+                        if(!fread(&frame_headers->expo_hdr, hdr_size, 1, in_file))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                        }
+                    }
+                    else if(!memcmp(mlv_hdr.blockType, "LENS", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_lens_hdr_t), mlv_hdr.blockSize);
+                        if(!fread(&frame_headers->lens_hdr, hdr_size, 1, in_file))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                        }
+                    }
+                    else if(!memcmp(mlv_hdr.blockType, "WBAL", 4))
+                    {
+                        hdr_size = MIN(sizeof(mlv_wbal_hdr_t), mlv_hdr.blockSize);
+                        if(!fread(&frame_headers->wbal_hdr, hdr_size, 1, in_file))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+                        }
+                    }
                 }
-                else if(!memcmp(mlv_hdr.blockType, "RTCI", 4))
+                else
                 {
-                    hdr_size = MIN(sizeof(mlv_rtci_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->rtci_hdr, hdr_size, 1, in_file);
-                }
-                else if(!memcmp(mlv_hdr.blockType, "IDNT", 4))
-                {
-                    hdr_size = MIN(sizeof(mlv_idnt_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->idnt_hdr, hdr_size, 1, in_file);
-                }
-                else if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
-                {
-                    hdr_size = MIN(sizeof(mlv_rawi_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->rawi_hdr, hdr_size, 1, in_file);
-                }
-                else if(!memcmp(mlv_hdr.blockType, "EXPO", 4))
-                {
-                    hdr_size = MIN(sizeof(mlv_expo_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->expo_hdr, hdr_size, 1, in_file);
-                }
-                else if(!memcmp(mlv_hdr.blockType, "LENS", 4))
-                {
-                    hdr_size = MIN(sizeof(mlv_lens_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->lens_hdr, hdr_size, 1, in_file);
-                }
-                else if(!memcmp(mlv_hdr.blockType, "WBAL", 4))
-                {
-                    hdr_size = MIN(sizeof(mlv_wbal_hdr_t), mlv_hdr.blockSize);
-                    fread(&frame_headers->wbal_hdr, hdr_size, 1, in_file);
+                    int err = errno;
+                    fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
                 }
         }
     }
-
+    
+    if(found && !rawi_found)
+    {
+        fprintf(stderr, "Error reading frame headers: no rawi block was found\n");
+    }
+    
+    if(!found)
+    {
+        fprintf(stderr, "Error reading frame headers: vidf block for frame %d was not found\n", index);
+    }
+    
     free(block_xref);
 
-    return found;
+    return found && rawi_found;
 }
 
 /**
@@ -376,18 +430,19 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                     }
                     else
                     {
-                        fprintf(stderr, "LJ92: Failed (%d)\n", ret);
+                        fprintf(stderr, "get_image_data: LJ92: Failed (%d)\n", ret);
                     }
                 }
                 else
                 {
-                    fprintf(stderr, "LJ92: Failed (%d)\n", ret);
+                    fprintf(stderr, "get_image_data: LJ92: Failed (%d)\n", ret);
                 }
             }
         }
         else
         {
-            fprintf(stderr, "Error reading source data\n");
+            int err = errno;
+            fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
         }
         free(frame_buffer);
     }
@@ -404,7 +459,8 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
             }
             else
             {
-                fprintf(stderr, "Error reading source data\n");
+                int err = errno;
+                fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
             }
             free(packed_bits);
         }
@@ -932,7 +988,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         
         uint8_t* image_output_buf = (uint8_t*)buf + remaining;
         
-        if(remaining < size)
+        if(remaining < size && image_buffer->size > 0)
         {
             memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(size - remaining, image_buffer->size - image_offset));
         }

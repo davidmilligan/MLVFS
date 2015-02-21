@@ -19,6 +19,7 @@
  */
 
 #include "gif.h"
+#include "index.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -86,7 +87,7 @@ size_t gif_get_data(const char * path, uint8_t * output_buffer, off_t offset, si
         int frame_count = mlv_get_frame_count(path);
         FILE **chunk_files = NULL;
         uint32_t chunk_count = 0;
-        chunk_files = mlvfs_load_chunks(path, &chunk_count);
+        chunk_files = load_chunks(path, &chunk_count);
         if(!chunk_files || !chunk_count)
         {
             return 0;
@@ -199,7 +200,13 @@ size_t gif_get_data(const char * path, uint8_t * output_buffer, off_t offset, si
             
             memcpy(output_buffer, gif_buffer + offset, MIN(max_size, gif_size - offset));
             free(gif_buffer);
+            close_chunks(chunk_files, chunk_count);
             return max_size;
+        }
+        else
+        {
+            close_chunks(chunk_files, chunk_count);
+            fprintf(stderr, "malloc error (requested size: %zu)\n", image_data_size);
         }
     }
     return 0;
