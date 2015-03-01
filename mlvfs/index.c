@@ -101,7 +101,7 @@ mlv_xref_hdr_t *load_index(const char *base_filename)
     
     if(!filename)
     {
-        fprintf(stderr, "load_index: malloc error (requested size %zu)", filename_size);
+        fprintf(stderr, "load_index: malloc error (requested size %zu)\n", filename_size);
         return NULL;
     }
     strncpy(filename, base_filename, filename_size);
@@ -169,7 +169,7 @@ void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fil
     
     if(!filename)
     {
-        fprintf(stderr, "save_index: malloc error (requested size %zu)", filename_size);
+        fprintf(stderr, "save_index: malloc error (requested size %zu)\n", filename_size);
         return;
     }
     strncpy(filename, base_filename, filename_size);
@@ -343,7 +343,7 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
 
     if(!filename)
     {
-        fprintf(stderr, "load_chunks: malloc error (requested size %zu)", filename_size);
+        fprintf(stderr, "load_chunks: malloc error (requested size %zu)\n", filename_size);
         return NULL;
     }
     *entries = 0;
@@ -354,7 +354,8 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
     files[0] = fopen(filename, "rb");
     if (!files[0])
     {
-        fprintf(stderr, "load_chunks: malloc error (requested size %zu)", sizeof(FILE*));
+        int err = errno;
+        fprintf(stderr, "build_index: fopen error: %s\n", strerror(err));
         return NULL;
     }
 
@@ -395,7 +396,7 @@ void close_chunks(FILE **chunk_files, uint32_t chunk_count)
 {
     if(!chunk_files || !chunk_count || chunk_count > 100)
     {
-        //bmp_printf(FONT_MED, 30, 400, "mlv_play_close_chunks(): faulty parameters");
+        fprintf(stderr, "close_chunks: faulty parameters\n");
         return;
     }
 
