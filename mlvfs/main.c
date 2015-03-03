@@ -572,7 +572,14 @@ static int process_frame(struct image_buffer * image_buffer)
             image_buffer->header_size = dng_get_header_size();
             image_buffer->header = (uint8_t*)malloc(image_buffer->header_size);
             
-            dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps);
+            char * mlv_basename = copy_string(image_buffer->dng_filename);
+            if(mlv_basename != NULL)
+            {
+                char * dir = strrchr(mlv_basename, '/');
+                if(dir != NULL) *dir = 0;
+            }
+            
+            dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps, mlv_basename);
             get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_buffer->data, 0, image_buffer->size);
             
             if(mlvfs.fix_bad_pixels)
@@ -593,7 +600,7 @@ static int process_frame(struct image_buffer * image_buffer)
             if(is_dual_iso)
             {
                 //redo the dng header b/c white and black levels will be different
-                dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->size, mlvfs.fps);
+                dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->size, mlvfs.fps, mlv_basename);
             }
             
             if(mlvfs.chroma_smooth && mlvfs.dual_iso != 2)
@@ -619,6 +626,7 @@ static int process_frame(struct image_buffer * image_buffer)
                 stripes_apply_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
             }
             mlvfs_close_chunks(chunk_files, chunk_count);
+            free(mlv_basename);
         }
         free(mlv_filename);
     }

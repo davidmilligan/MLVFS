@@ -32,7 +32,7 @@
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
-#define IFD0_COUNT 38
+#define IFD0_COUNT 39
 #define EXIF_IFD_COUNT 8
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
@@ -490,7 +490,7 @@ static char * format_datetime(char * datetime, struct frame_headers * frame_head
  * @param frame_headers The MLV blocks associated with the frame
  * @return The size of the DNG header or 0 on failure
  */
-size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size, double fps_override)
+size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * output_buffer, off_t offset, size_t max_size, double fps_override, char * mlv_basename)
 {
     /*
     - build the tiff header in a buffer
@@ -598,8 +598,9 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcActiveArea,                  ttLong,     ARRAY_ENTRY(frame_headers->rawi_hdr.raw_info.dng_active_area, header, &data_offset, 4)},
             {tcForwardMatrix1,              ttSRational,RATIONAL_ENTRY(matricies.ForwardMatrix1, header, &data_offset, 18)},
             {tcForwardMatrix2,              ttSRational,RATIONAL_ENTRY(matricies.ForwardMatrix2, header, &data_offset, 18)},
-            {tcTimeCodes,                   ttByte,    8,      add_timecode(frame_rate_f, drop_frame, tc_frame, header, &data_offset)},
+            {tcTimeCodes,                   ttByte,     8,      add_timecode(frame_rate_f, drop_frame, tc_frame, header, &data_offset)},
             {tcFrameRate,                   ttSRational,RATIONAL_ENTRY(frame_rate, header, &data_offset, 2)},
+            {tcReelName,                    ttAscii,    STRING_ENTRY(mlv_basename, header, &data_offset)},
             {tcBaselineExposureOffset,      ttSRational,RATIONAL_ENTRY2(0, 1, header, &data_offset)},
         };
         
