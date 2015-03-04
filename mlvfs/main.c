@@ -1160,7 +1160,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso),                   1 },
     { "--dual-iso",         offsetof(struct mlvfs, dual_iso),                   2 },
     { "--amaze-edge",       offsetof(struct mlvfs, hdr_interpolation_method),   0 },
-    { "--mean32",           offsetof(struct mlvfs, hdr_interpolation_method),   1 },
+    { "--mean23",           offsetof(struct mlvfs, hdr_interpolation_method),   1 },
     { "--no-alias-map",     offsetof(struct mlvfs, hdr_no_alias_map),           1 },
     { "--alias-map",        offsetof(struct mlvfs, hdr_no_alias_map),           0 },
     { "--prefetch=%d",      offsetof(struct mlvfs, prefetch),                   0 },
