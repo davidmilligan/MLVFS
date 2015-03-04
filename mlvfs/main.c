@@ -1174,7 +1174,7 @@ static void display_help()
     printf("\n");
 
     /* display FUSE options */
-    const char * help_opts[] = {"mlvfs", "-h"};
+    char * help_opts[] = {"mlvfs", "-h"};
     fuse_main(2, help_opts, NULL, NULL);
 
     /* display MLVFS options */
