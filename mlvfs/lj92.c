@@ -651,12 +651,16 @@ int lj92_open(lj92* lj,
     int ret = findSoI(self);
 
     if (ret == LJ92_ERROR_NONE) {
-        u16* rowcache = calloc(self->x * 2,sizeof(u16));
-        if (rowcache == NULL) ret = LJ92_ERROR_NO_MEMORY;
-        else {
-            self->rowcache = rowcache;
-            self->outrow[0] = rowcache;
-            self->outrow[1] = &rowcache[self->x];
+        if (self->x <= 0) {
+            ret = LJ92_ERROR_CORRUPT;
+        } else {
+            u16* rowcache = calloc(self->x * 2,sizeof(u16));
+            if (rowcache == NULL) ret = LJ92_ERROR_NO_MEMORY;
+            else {
+                self->rowcache = rowcache;
+                self->outrow[0] = rowcache;
+                self->outrow[1] = &rowcache[self->x];
+            }
         }
     }
 
