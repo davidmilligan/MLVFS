@@ -212,6 +212,7 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
     uint32_t frame_xref_entries = 0;
     uint32_t frame_xref_allocated = 0;
     mlv_file_hdr_t main_header;
+    memset(&main_header, 0, sizeof(mlv_file_hdr_t));
 
     for(uint32_t chunk = 0; chunk < chunk_count; chunk++)
     {
