@@ -1169,6 +1169,25 @@ static const struct fuse_opt mlvfs_opts[] =
     FUSE_OPT_END
 };
 
+static void display_help()
+{
+    printf("\n");
+
+    /* display FUSE options */
+    const char * help_opts[] = {"mlvfs", "-h"};
+    fuse_main(2, help_opts, NULL, NULL);
+
+    /* display MLVFS options */
+    /* todo: print a description for each option */
+    printf("\nMLVFS options:\n");
+    int num_opts = sizeof(mlvfs_opts) / sizeof(mlvfs_opts[0]) - 1;
+    for (int i = 1; i < num_opts; i++)
+    {
+        printf("    %s\n", mlvfs_opts[i].templ);
+    }
+    printf("\n");
+}
+
 int main(int argc, char **argv)
 {
     mlvfs.mlv_path = NULL;
@@ -1219,6 +1238,7 @@ int main(int argc, char **argv)
     else
     {
         fprintf(stderr, "MLVFS: no mlv path specified\n");
+        display_help();
     }
 
     fuse_opt_free_args(&args);
