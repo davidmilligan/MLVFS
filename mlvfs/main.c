@@ -564,6 +564,7 @@ static int process_frame(struct image_buffer * image_buffer)
             chunk_files = mlvfs_load_chunks(mlv_filename, &chunk_count);
             if(!chunk_files || !chunk_count)
             {
+                free(mlv_filename);
                 return 0;
             }
             
@@ -839,6 +840,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
+    int result = 0;
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
     {
         char * real_path = NULL;
@@ -846,25 +848,29 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
         {
             int fd;
             fd = open(real_path, fi->flags);
-            if (fd == -1) {
-                return -errno;
+            if (fd == -1)
+            {
+                result = -errno;
             }
-            fi->fh = fd;
-            free(real_path);
-            return 0;
+            else
+            {
+                fi->fh = fd;
+                result = 0;
+            }
         }
         else
         {
-            return -ENOENT;
+            result = -ENOENT;
         }
+        free(real_path);
     }
     
     #ifndef ALLOW_WRITEABLE_DNGS
     if ((fi->flags & O_ACCMODE) != O_RDONLY) /* Only reading allowed. */
-        return -EACCES;
+        result = -EACCES;
     #endif
     
-    return 0;
+    return result;
 }
 
 static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
@@ -1034,6 +1040,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
 
 static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
+    int result = -ENOENT;
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
     {
         char * real_path = NULL;
@@ -1041,13 +1048,19 @@ static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
         {
             check_mld_exists(real_path);
             int fd = open(real_path, fi->flags, mode);
-            free(real_path);
-            if (fd == -1) return -errno;
-            fi->fh = fd;
-            return 0;
+            if (fd == -1)
+            {
+                result = -errno;
+            }
+            else
+            {
+                fi->fh = fd;
+                result = 0;
+            }
         }
+        free(real_path);
     }
-    return -ENOENT;
+    return result;
 }
 
 static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
@@ -1063,15 +1076,16 @@ static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *
 
 static int mlvfs_mkdir(const char *path, mode_t mode)
 {
+    int result = -ENOENT;
     char * real_path = NULL;
     if(get_real_path(&real_path, path))
     {
         check_mld_exists(real_path);
         mkdir(real_path, mode);
-        free(real_path);
-        return 0;
+        result = 0;
     }
-    return -ENOENT;
+    free(real_path);
+    return result;
 }
 
 static int mlvfs_release(const char *path, struct fuse_file_info *fi)
@@ -1104,26 +1118,28 @@ static int mlvfs_rename(const char *from, const char *to)
 
 static int mlvfs_rmdir(const char *path)
 {
+    int result = -ENOENT;
     char * real_path = NULL;
     if(get_real_path(&real_path, path))
     {
         rmdir(real_path);
-        free(real_path);
-        return 0;
+        result = 0;
     }
-    return -ENOENT;
+    free(real_path);
+    return result;
 }
 
 static int mlvfs_truncate(const char *path, off_t offset)
 {
+    int result = -ENOENT;
     char * real_path = NULL;
     if(get_real_path(&real_path, path))
     {
         truncate(real_path, offset);
-        free(real_path);
-        return 0;
+        result = 0;
     }
-    return -ENOENT;
+    free(real_path);
+    return result;
 }
 
 static int mlvfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)

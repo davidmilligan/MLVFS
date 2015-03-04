@@ -112,6 +112,8 @@ mlv_xref_hdr_t *load_index(const char *base_filename)
     strcpy(&filename[strlen(filename) - 3], "IDX");
 
     in_file = fopen(filename, "rb");
+    
+    free(filename);
 
     if (!in_file)
     {
@@ -179,6 +181,8 @@ void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fil
     strcpy(&filename[strlen(filename) - 3], "IDX");
 
     out_file = fopen(filename, "wb+");
+    
+    free(filename);
 
     if (!out_file)
     {
