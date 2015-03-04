@@ -1148,25 +1148,45 @@ static struct fuse_operations mlvfs_filesystem_operations =
 
 static const struct fuse_opt mlvfs_opts[] =
 {
-    { "--mlv_dir=%s", offsetof(struct mlvfs, mlv_path), 0 },
-    { "--port=%s", offsetof(struct mlvfs, port), 0 },
-    { "--resolve-naming", offsetof(struct mlvfs, name_scheme), 1 },
-    { "--cs2x2", offsetof(struct mlvfs, chroma_smooth), 2 },
-    { "--cs3x3", offsetof(struct mlvfs, chroma_smooth), 3 },
-    { "--cs5x5", offsetof(struct mlvfs, chroma_smooth), 5 },
-    { "--bad-pix", offsetof(struct mlvfs, fix_bad_pixels), 1 },
-    { "--really-bad-pix", offsetof(struct mlvfs, fix_bad_pixels), 2 },
-    { "--stripes", offsetof(struct mlvfs, fix_stripes), 1 },
-    { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso), 1 },
-    { "--dual-iso", offsetof(struct mlvfs, dual_iso), 2 },
-    { "--amaze-edge", offsetof(struct mlvfs, hdr_interpolation_method), 0 },
-    { "--mean32", offsetof(struct mlvfs, hdr_interpolation_method), 1 },
-    { "--no-alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 1 },
-    { "--alias-map", offsetof(struct mlvfs, hdr_no_alias_map), 0 },
-    { "--prefetch=%d", offsetof(struct mlvfs, prefetch), 0 },
-    { "--fps=%f", offsetof(struct mlvfs, fps), 0 },
+    { "--mlv_dir=%s",       offsetof(struct mlvfs, mlv_path),                   0 },
+    { "--mlv-dir=%s",       offsetof(struct mlvfs, mlv_path),                   0 },
+    { "--port=%s",          offsetof(struct mlvfs, port),                       0 },
+    { "--resolve-naming",   offsetof(struct mlvfs, name_scheme),                1 },
+    { "--cs2x2",            offsetof(struct mlvfs, chroma_smooth),              2 },
+    { "--cs3x3",            offsetof(struct mlvfs, chroma_smooth),              3 },
+    { "--cs5x5",            offsetof(struct mlvfs, chroma_smooth),              5 },
+    { "--bad-pix",          offsetof(struct mlvfs, fix_bad_pixels),             1 },
+    { "--really-bad-pix",   offsetof(struct mlvfs, fix_bad_pixels),             2 },
+    { "--stripes",          offsetof(struct mlvfs, fix_stripes),                1 },
+    { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso),                   1 },
+    { "--dual-iso",         offsetof(struct mlvfs, dual_iso),                   2 },
+    { "--amaze-edge",       offsetof(struct mlvfs, hdr_interpolation_method),   0 },
+    { "--mean23",           offsetof(struct mlvfs, hdr_interpolation_method),   1 },
+    { "--no-alias-map",     offsetof(struct mlvfs, hdr_no_alias_map),           1 },
+    { "--alias-map",        offsetof(struct mlvfs, hdr_no_alias_map),           0 },
+    { "--prefetch=%d",      offsetof(struct mlvfs, prefetch),                   0 },
+    { "--fps=%f",           offsetof(struct mlvfs, fps),                        0 },
     FUSE_OPT_END
 };
+
+static void display_help()
+{
+    printf("\n");
+
+    /* display FUSE options */
+    char * help_opts[] = {"mlvfs", "-h"};
+    fuse_main(2, help_opts, NULL, NULL);
+
+    /* display MLVFS options */
+    /* todo: print a description for each option */
+    printf("\nMLVFS options:\n");
+    int num_opts = sizeof(mlvfs_opts) / sizeof(mlvfs_opts[0]) - 1;
+    for (int i = 1; i < num_opts; i++)
+    {
+        printf("    %s\n", mlvfs_opts[i].templ);
+    }
+    printf("\n");
+}
 
 int main(int argc, char **argv)
 {
@@ -1218,6 +1238,7 @@ int main(int argc, char **argv)
     else
     {
         fprintf(stderr, "MLVFS: no mlv path specified\n");
+        display_help();
     }
 
     fuse_opt_free_args(&args);
