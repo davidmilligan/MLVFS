@@ -258,6 +258,8 @@ static void white_detect(struct raw_info raw_info, uint16_t * image_data, int* w
     int max_pix = raw_info.width * raw_info.height / 2 / 9;
     pixels[0] = malloc(max_pix * sizeof(pixels[0][0]));
     pixels[1] = malloc(max_pix * sizeof(pixels[0][0]));
+    memset(pixels[0], 0, sizeof(max_pix * sizeof(pixels[0][0])));
+    memset(pixels[1], 0, sizeof(max_pix * sizeof(pixels[0][0])));
     int counts[2] = {0, 0};
     
     /* collect all the pixels and find the k-th max, thus ignoring hot pixels */
@@ -552,14 +554,12 @@ static int identify_bright_and_dark_fields(struct raw_info raw_info, uint16_t * 
     int ref_off = hist_total * 0.05;
     for (ref = 0; ref < ref_max; ref++)
     {
-        int changed = 0;
         for (int i = 0; i < 4; i++)
         {
             while (acc[i] < ref)
             {
                 acc[i] += hist[i][raw[i]];
                 raw[i]++;
-                changed = 1;
             }
         }
         
@@ -807,7 +807,6 @@ static int match_exposures(struct raw_info raw_info, uint32_t * raw_buffer_32, d
     if (factor < 1.2 || !isfinite(factor))
     {
         printf("Doesn't look like interlaced ISO\n");
-        factor = 1;
         return 0;
     }
     
@@ -952,8 +951,8 @@ static inline void amaze_interpolate(struct raw_info raw_info, uint32_t * raw_bu
     int w = raw_info.width;
     int h = raw_info.height;
     
-    int* squeezed = malloc(h * sizeof(squeezed));
-    memset(squeezed, 0, h * sizeof(squeezed));
+    int* squeezed = malloc(h * sizeof(int));
+    memset(squeezed, 0, h * sizeof(int));
     
     float** rawData = malloc(h * sizeof(rawData[0]));
     float** red     = malloc(h * sizeof(red[0]));
@@ -1702,7 +1701,7 @@ static inline void final_blend(struct raw_info raw_info, uint32_t* raw_buffer_32
                 int frev = raw2ev[fr];
                 int frsev = raw2ev[frs];
                 
-                int output = hrev;
+                int output = 0;
                 
                 /* blending factor */
                 double f = fullres_curve[b & 0xFFFFF];
@@ -1771,6 +1770,8 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
 {
     int w = raw_info.width;
     int h = raw_info.height;
+    
+    if (w <= 0 || h <= 0) return 0;
     
     /* RGGB or GBRG? */
     int rggb = identify_rggb_or_gbrg(raw_info, image_data);
@@ -1906,7 +1907,6 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     
     if (!rggb) /* back to GBRG */
     {
-        image_data -= raw_info.pitch;
         raw_info.active_area.y1--;
         raw_info.active_area.y2++;
         raw_info.height++;
