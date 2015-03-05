@@ -820,7 +820,7 @@ static SRes SzReadSubStreamsInfo(
       Byte *digestsDefined2 = 0;
       UInt32 *digests2 = 0;
       SRes res = SzReadHashDigests(sd, numDigests, &digestsDefined2, &digests2, allocTemp);
-      if (res == SZ_OK)
+      if (res == SZ_OK && digests2)
       {
         for (i = 0; i < numFolders; i++)
         {

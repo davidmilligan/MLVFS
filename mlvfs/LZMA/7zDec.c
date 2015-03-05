@@ -359,7 +359,7 @@ static SRes SzFolder_Decode2(const CSzFolder *folder, const UInt64 *packSizes,
       {
         UInt32 indices[] = { 3, 2, 0 };
         UInt64 unpackSize = folder->UnpackSizes[ci];
-        si = indices[ci];
+          si = ci < 3 ? indices[ci] : 0;
         if (ci < 2)
         {
           Byte *temp;

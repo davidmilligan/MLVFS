@@ -343,7 +343,7 @@ static CTX_PTR CreateSuccessors(CPpmd7 *p, Bool skip)
   CPpmd_State upState;
   CTX_PTR c = p->MinContext;
   CPpmd_Byte_Ref upBranch = (CPpmd_Byte_Ref)SUCCESSOR(p->FoundState);
-  CPpmd_State *ps[PPMD7_MAX_ORDER];
+  CPpmd_State *ps[PPMD7_MAX_ORDER]; memset(ps, 0, sizeof(ps));
   unsigned numPs = 0;
   
   if (!skip)

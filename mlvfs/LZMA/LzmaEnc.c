@@ -1909,7 +1909,6 @@ static SRes LzmaEnc_Alloc(CLzmaEnc *p, UInt32 keepWindowSize, ISzAlloc *alloc, I
   Bool btMode;
   if (!RangeEnc_Alloc(&p->rc, alloc))
     return SZ_ERROR_MEM;
-  btMode = (p->matchFinderBase.btMode != 0);
   #ifndef _7ZIP_ST
   p->mtMode = (p->multiThread && !p->fastMode && btMode);
   #endif

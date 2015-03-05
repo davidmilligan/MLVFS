@@ -99,7 +99,6 @@ static SRes Lzma2EncInt_EncodeSubblock(CLzma2EncInt *p, Byte *outBuf,
   {
     if (res != SZ_ERROR_OUTPUT_EOF)
       return res;
-    res = SZ_OK;
     useCopyBlock = True;
   }
 
