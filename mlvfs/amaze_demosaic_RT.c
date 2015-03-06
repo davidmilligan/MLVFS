@@ -66,6 +66,7 @@ _a * _a; })
 
 #define min MIN
 
+#ifndef __SSE2__
 /* from RT sleef.c */
 static inline float xmul2f(float d) {
     if (*(int*)&d & 0x7FFFFFFF) { // if f==0 do nothing
@@ -73,6 +74,7 @@ static inline float xmul2f(float d) {
     }
     return d;
 }
+#endif
 
 static inline float xdiv2f(float d) {
     if (*(int*)&d & 0x7FFFFFFF) { // if f==0 do nothing
