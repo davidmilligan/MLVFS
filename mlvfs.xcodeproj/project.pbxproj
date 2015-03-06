@@ -41,7 +41,6 @@
 		63095A1419F43FEF0019B61F /* resource_manager.c in Sources */ = {isa = PBXBuildFile; fileRef = 63095A1219F43FEF0019B61F /* resource_manager.c */; };
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
-		63B4287B19E7130B00B83CD3 /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B4287919E7130B00B83CD3 /* mongoose.c */; };
 		63B4287E19E7150100B83CD3 /* webgui.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B4287C19E7150100B83CD3 /* webgui.c */; };
 		63B5F88319D76F240028614C /* cs.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88119D76F240028614C /* cs.c */; };
 		63B5F88A19DA0B9E0028614C /* hdr.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88819DA0B9E0028614C /* hdr.c */; };
@@ -52,6 +51,7 @@
 		63E9DBA319D4BF1E00E70CAA /* stripes.c in Sources */ = {isa = PBXBuildFile; fileRef = 63E9DBA119D4BF1E00E70CAA /* stripes.c */; };
 		63FF20021A8FC30500CD44B7 /* lj92.c in Sources */ = {isa = PBXBuildFile; fileRef = 63FF20001A8FC30500CD44B7 /* lj92.c */; };
 		63FF20051A912D1B00CD44B7 /* gif.c in Sources */ = {isa = PBXBuildFile; fileRef = 63FF20031A912D1B00CD44B7 /* gif.c */; };
+		63FF20101AA93ED800CD44B7 /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = 63FF200E1AA93ED800CD44B7 /* mongoose.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -132,8 +132,6 @@
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
 		634B603219BBFED2008CF973 /* wav.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = wav.c; sourceTree = "<group>"; };
 		634B603419BBFEE4008CF973 /* wav.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wav.h; sourceTree = "<group>"; };
-		63B4287919E7130B00B83CD3 /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mongoose.c; sourceTree = "<group>"; };
-		63B4287A19E7130B00B83CD3 /* mongoose.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mongoose.h; sourceTree = "<group>"; };
 		63B4287C19E7150100B83CD3 /* webgui.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = webgui.c; sourceTree = "<group>"; };
 		63B4287D19E7150100B83CD3 /* webgui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = webgui.h; sourceTree = "<group>"; };
 		63B4287F19EB1F9600B83CD3 /* build_installer.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build_installer.sh; sourceTree = "<group>"; };
@@ -163,6 +161,8 @@
 		63FF20011A8FC30500CD44B7 /* lj92.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lj92.h; sourceTree = "<group>"; };
 		63FF20031A912D1B00CD44B7 /* gif.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = gif.c; sourceTree = "<group>"; };
 		63FF20041A912D1B00CD44B7 /* gif.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gif.h; sourceTree = "<group>"; };
+		63FF200E1AA93ED800CD44B7 /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose.c; path = "../../../mlvfs bak/mlvfs/mlvfs/mongoose/mongoose.c"; sourceTree = "<group>"; };
+		63FF200F1AA93ED800CD44B7 /* mongoose.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mongoose.h; path = "../../../mlvfs bak/mlvfs/mlvfs/mongoose/mongoose.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -289,10 +289,10 @@
 				63B5F88919DA0B9E0028614C /* hdr.h */,
 				63B5F88B19DA0BBF0028614C /* histogram.c */,
 				63B5F88C19DA0BBF0028614C /* histogram.h */,
+				63FF200E1AA93ED800CD44B7 /* mongoose.c */,
+				63FF200F1AA93ED800CD44B7 /* mongoose.h */,
 				63B4287C19E7150100B83CD3 /* webgui.c */,
 				63B4287D19E7150100B83CD3 /* webgui.h */,
-				63B4287919E7130B00B83CD3 /* mongoose.c */,
-				63B4287A19E7130B00B83CD3 /* mongoose.h */,
 				63FF20001A8FC30500CD44B7 /* lj92.c */,
 				63FF20011A8FC30500CD44B7 /* lj92.h */,
 				63FF20031A912D1B00CD44B7 /* gif.c */,
@@ -361,7 +361,6 @@
 				6302E3111A8416D4000F76D9 /* 7zCrc.c in Sources */,
 				6302E3241A8416D4000F76D9 /* LzmaEnc.c in Sources */,
 				6302E3271A8416D4000F76D9 /* Ppmd7Dec.c in Sources */,
-				63B4287B19E7130B00B83CD3 /* mongoose.c in Sources */,
 				6302E3191A8416D4000F76D9 /* Bra.c in Sources */,
 				6302E3131A8416D4000F76D9 /* 7zDec.c in Sources */,
 				6302E32A1A8416D4000F76D9 /* Xz.c in Sources */,
@@ -385,6 +384,7 @@
 				6302E30E1A8416D4000F76D9 /* 7zAlloc.c in Sources */,
 				6302E3121A8416D4000F76D9 /* 7zCrcOpt.c in Sources */,
 				6302E3291A8416D4000F76D9 /* Sha256.c in Sources */,
+				63FF20101AA93ED800CD44B7 /* mongoose.c in Sources */,
 				6302E3181A8416D4000F76D9 /* Bcj2.c in Sources */,
 				63B5F88319D76F240028614C /* cs.c in Sources */,
 				6302E3221A8416D4000F76D9 /* Lzma86Enc.c in Sources */,

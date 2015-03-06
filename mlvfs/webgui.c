@@ -33,7 +33,7 @@
 #include "index.h"
 #include "resource_manager.h"
 #include "webgui.h"
-#include "mongoose.h"
+#include "mongoose/mongoose.h"
 
 static int halt_webgui = 0;
 static struct mlvfs * mlvfs_config = NULL;
