@@ -714,55 +714,65 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     {
         if(get_mlv_filename(path, &mlv_filename))
         {
-            #ifdef ALLOW_WRITEABLE_DNGS
-            stbuf->st_mode = S_IFREG | 0666;
-            #else
-            stbuf->st_mode = S_IFREG | 0444;
-            #endif
-            stbuf->st_nlink = 1;
-                
-            struct frame_headers frame_headers;
-            int frame_number = string_ends_with(path, ".dng") ? get_mlv_frame_number(path) : 0;
-            if(mlv_get_frame_headers(mlv_filename, frame_number, &frame_headers))
+            struct stat * dng_st = NULL;
+            if (string_ends_with(path, ".dng") && (dng_st = lookup_dng_attr(mlv_filename)) != NULL)
             {
-                struct tm tm_str;
-                tm_str.tm_sec = (int)(frame_headers.rtci_hdr.tm_sec + (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) / 1000000);
-                tm_str.tm_min = frame_headers.rtci_hdr.tm_min;
-                tm_str.tm_hour = frame_headers.rtci_hdr.tm_hour;
-                tm_str.tm_mday = frame_headers.rtci_hdr.tm_mday;
-                tm_str.tm_mon = frame_headers.rtci_hdr.tm_mon;
-                tm_str.tm_year = frame_headers.rtci_hdr.tm_year;
-                tm_str.tm_isdst = frame_headers.rtci_hdr.tm_isdst;
-
-                struct timespec timespec_str;
-                timespec_str.tv_sec = mktime(&tm_str);
-                timespec_str.tv_nsec = ((frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) % 1000000) * 1000;
-
-                // OS-specific timestamps
-                #if __DARWIN_UNIX03
-                memcpy(&stbuf->st_atimespec, &timespec_str, sizeof(struct timespec));
-                memcpy(&stbuf->st_birthtimespec, &timespec_str, sizeof(struct timespec));
-                memcpy(&stbuf->st_ctimespec, &timespec_str, sizeof(struct timespec));
-                memcpy(&stbuf->st_mtimespec, &timespec_str, sizeof(struct timespec));
+                memcpy(stbuf, dng_st, sizeof(struct stat));
+                result = 0;
+            }
+            else
+            {
+                #ifdef ALLOW_WRITEABLE_DNGS
+                stbuf->st_mode = S_IFREG | 0666;
                 #else
-                memcpy(&stbuf->st_atim, &timespec_str, sizeof(struct timespec));
-                memcpy(&stbuf->st_ctim, &timespec_str, sizeof(struct timespec));
-                memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
+                stbuf->st_mode = S_IFREG | 0444;
                 #endif
-
-                if(string_ends_with(path, ".dng"))
+                stbuf->st_nlink = 1;
+                
+                struct frame_headers frame_headers;
+                int frame_number = string_ends_with(path, ".dng") ? get_mlv_frame_number(path) : 0;
+                if(mlv_get_frame_headers(mlv_filename, frame_number, &frame_headers))
                 {
-                    stbuf->st_size = dng_get_size(&frame_headers);
+                    struct tm tm_str;
+                    tm_str.tm_sec = (int)(frame_headers.rtci_hdr.tm_sec + (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) / 1000000);
+                    tm_str.tm_min = frame_headers.rtci_hdr.tm_min;
+                    tm_str.tm_hour = frame_headers.rtci_hdr.tm_hour;
+                    tm_str.tm_mday = frame_headers.rtci_hdr.tm_mday;
+                    tm_str.tm_mon = frame_headers.rtci_hdr.tm_mon;
+                    tm_str.tm_year = frame_headers.rtci_hdr.tm_year;
+                    tm_str.tm_isdst = frame_headers.rtci_hdr.tm_isdst;
+                    
+                    struct timespec timespec_str;
+                    timespec_str.tv_sec = mktime(&tm_str);
+                    timespec_str.tv_nsec = ((frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) % 1000000) * 1000;
+                    
+                    // OS-specific timestamps
+                    #if __DARWIN_UNIX03
+                    memcpy(&stbuf->st_atimespec, &timespec_str, sizeof(struct timespec));
+                    memcpy(&stbuf->st_birthtimespec, &timespec_str, sizeof(struct timespec));
+                    memcpy(&stbuf->st_ctimespec, &timespec_str, sizeof(struct timespec));
+                    memcpy(&stbuf->st_mtimespec, &timespec_str, sizeof(struct timespec));
+                    #else
+                    memcpy(&stbuf->st_atim, &timespec_str, sizeof(struct timespec));
+                    memcpy(&stbuf->st_ctim, &timespec_str, sizeof(struct timespec));
+                    memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
+                    #endif
+                    
+                    if(string_ends_with(path, ".dng"))
+                    {
+                        stbuf->st_size = dng_get_size(&frame_headers);
+                        register_dng_attr(mlv_filename, stbuf);
+                    }
+                    else if(string_ends_with(path, ".gif"))
+                    {
+                        stbuf->st_size = gif_get_size(&frame_headers);
+                    }
+                    else
+                    {
+                        stbuf->st_size = wav_get_size(mlv_filename);
+                    }
+                    result = 0; // DNG frame found
                 }
-                else if(string_ends_with(path, ".gif"))
-                {
-                    stbuf->st_size = gif_get_size(&frame_headers);
-                }
-                else
-                {
-                    stbuf->st_size = wav_get_size(mlv_filename);
-                }
-                result = 0; // DNG frame found
             }
             free(mlv_filename);
         }
@@ -1271,5 +1281,6 @@ int main(int argc, char **argv)
     free_all_image_buffers();
     close_all_chunks();
     free_mlv_name_mappings();
+    free_dng_attr_mappings();
     return res;
 }

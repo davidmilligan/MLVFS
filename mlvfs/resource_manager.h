@@ -72,4 +72,16 @@ char * lookup_mlv_name(const char * virtual_path);
 void register_mlv_name(const char * real_path, const char * virtual_path);
 void free_mlv_name_mappings();
 
+
+struct dng_attr_mapping
+{
+    struct dng_attr_mapping * next;
+    char *path;
+    struct stat *attr;
+};
+
+struct stat * lookup_dng_attr(const char * path);
+void register_dng_attr(const char * path, struct stat *attr);
+void free_dng_attr_mappings();
+
 #endif

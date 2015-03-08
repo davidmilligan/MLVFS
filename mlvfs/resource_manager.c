@@ -24,6 +24,7 @@
 #include "index.h"
 #include "mlvfs.h"
 #include "resource_manager.h"
+#include "sys/stat.h"
 
 CREATE_MUTEX(image_buffer_mutex)
 
@@ -382,4 +383,67 @@ void free_mlv_name_mappings()
         }
     }
     UNLOCK(mlv_name_mapping_mutex)
+}
+
+CREATE_MUTEX(dng_attr_mapping_mutex)
+
+static struct dng_attr_mapping * dng_attr_mappings = NULL;
+
+static struct stat * lookup_dng_attr_internal(const char * path)
+{
+    for(struct dng_attr_mapping * current = dng_attr_mappings; current != NULL; current = current->next)
+    {
+        if(!strcmp(current->path, path)) return current->attr;
+    }
+    return NULL;
+}
+
+struct stat * lookup_dng_attr(const char * path)
+{
+    struct stat * result = NULL;
+    RELOCK(dng_attr_mapping_mutex)
+    {
+        result = lookup_dng_attr_internal(path);
+    }
+    UNLOCK(dng_attr_mapping_mutex)
+    return result;
+}
+
+void register_dng_attr(const char * path, struct stat *attr)
+{
+    RELOCK(dng_attr_mapping_mutex)
+    {
+        if(!lookup_dng_attr_internal(path))
+        {
+            struct dng_attr_mapping * new_buffer = (struct dng_attr_mapping *)malloc(sizeof(struct dng_attr_mapping));
+            if(new_buffer)
+            {
+                new_buffer->path = (char*)malloc((sizeof(char) * (strlen(path) + 2)));
+                strcpy(new_buffer->path, path);
+                new_buffer->attr = (struct stat*)malloc(sizeof(struct stat));
+                memcpy(new_buffer->attr, attr, sizeof(struct stat));
+                new_buffer->next = dng_attr_mappings;
+                dng_attr_mappings = new_buffer;
+            }
+        }
+    }
+    UNLOCK(dng_attr_mapping_mutex)
+}
+
+void free_dng_attr_mappings()
+{
+    RELOCK(dng_attr_mapping_mutex)
+    {
+        struct dng_attr_mapping * next = NULL;
+        struct dng_attr_mapping * current = dng_attr_mappings;
+        while(current != NULL)
+        {
+            next = current->next;
+            free(current->path);
+            free(current->attr);
+            free(current);
+            current = next;
+        }
+    }
+    UNLOCK(dng_attr_mapping_mutex)
 }
