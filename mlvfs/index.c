@@ -224,17 +224,18 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
         {
             mlv_hdr_t buf;
             uint64_t timestamp = 0;
+            int read;
 
-            if(fread(&buf, sizeof(mlv_hdr_t), 1, chunk_files[chunk]) != 1)
+            if((read = fread(&buf, sizeof(mlv_hdr_t), 1, chunk_files[chunk])) != 1)
             {
-                //bmp_printf(FONT_MED, 30, 190, "File #%d ends prematurely, %d bytes read", chunk, read);
+                fprintf(stderr, "File #%d ends prematurely, %d bytes read\n", chunk, read);
                 break;
             }
 
             /* unexpected block header size? */
             if(buf.blockSize < sizeof(mlv_hdr_t) || buf.blockSize > 1024 * 1024 * 1024)
             {
-                //bmp_printf(FONT_MED, 30, 190, "Invalid header size: %d bytes at 0x%08X", buf.blockSize, position);
+                fprintf(stderr, "Invalid header size: %d bytes at 0x%08X\n", buf.blockSize, position);
                 break;
             }
 
