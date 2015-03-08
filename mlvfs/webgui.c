@@ -181,6 +181,7 @@ static void webgui_generate_mlv_html(char * html, const char * path)
     char real_path[1024];
     char * temp = malloc(sizeof(char) * HTML_SIZE);
     sprintf(real_path, "%s%s", mlvfs_config->mlv_path, path);
+    fprintf(stderr, "webgui: analyzing %s...\n", real_path);
     int frame_count = mlv_get_frame_count(real_path);
     snprintf(temp, HTML_SIZE, "<td>%d</td>", frame_count);
     strncat(html, temp, HTML_SIZE);
@@ -222,6 +223,7 @@ static char * webgui_generate_html(const char * path)
     snprintf(html, HTML_SIZE, "%s", TABLE_HEADER);
     char real_path[1024];
     sprintf(real_path, "%s%s", mlvfs_config->mlv_path, path);
+    fprintf(stderr, "webgui: scanning %s...\n", real_path);
     if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
         snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", path);
