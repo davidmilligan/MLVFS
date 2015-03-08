@@ -76,6 +76,8 @@ void xref_resize(frame_xref_t **table, uint32_t entries, uint32_t *allocated)
 
 void xref_sort(frame_xref_t *table, uint32_t entries)
 {
+    if (!entries) return;
+    
     uint32_t n = entries;
     do
     {
