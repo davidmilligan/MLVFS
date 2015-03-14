@@ -170,6 +170,100 @@ static int get_mlv_frame_number(const char *path)
 }
 
 /**
+ * Make sure you free() the result!!!
+ */
+static char * mlv_read_debug_log(const char *mlv_filename)
+{
+    FILE **chunk_files = NULL;
+    uint32_t chunk_count = 0;
+    
+    chunk_files = mlvfs_load_chunks(mlv_filename, &chunk_count);
+    if(!chunk_files || !chunk_count)
+    {
+        return NULL;
+    }
+    
+    mlv_xref_hdr_t *block_xref = get_index(mlv_filename);
+    mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
+    
+    mlv_hdr_t mlv_hdr;
+    mlv_debg_hdr_t debg_hdr;
+    uint32_t hdr_size;
+    char * result = NULL;
+    
+    for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
+    {
+        /* get the file and position of the next block */
+        uint32_t in_file_num = xrefs[block_xref_pos].fileNumber;
+        int64_t position = xrefs[block_xref_pos].frameOffset;
+        
+        /* select file */
+        FILE *in_file = chunk_files[in_file_num];
+        
+        if(xrefs[block_xref_pos].frameType == MLV_FRAME_UNSPECIFIED)
+        {
+            file_set_pos(in_file, position, SEEK_SET);
+            if(fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file))
+            {
+                file_set_pos(in_file, position, SEEK_SET);
+                if(!memcmp(mlv_hdr.blockType, "DEBG", 4))
+                {
+                    hdr_size = MIN(sizeof(mlv_debg_hdr_t), mlv_hdr.blockSize);
+                    if(fread(&debg_hdr, hdr_size, 1, in_file))
+                    {
+                        char * temp = NULL;
+                        if(result)
+                        {
+                            size_t current_size = strlen(result);
+                            result = realloc(result, current_size + debg_hdr.length + 1);
+                            temp = result + current_size;
+                        }
+                        else
+                        {
+                            result = malloc(debg_hdr.length + 1);
+                            temp = result;
+                        }
+                        if(result)
+                        {
+                            if(fread(temp, debg_hdr.length, 1, in_file))
+                            {
+                                //make sure the string is terminated
+                                if(temp[debg_hdr.length - 1] != 0)
+                                {
+                                    temp[debg_hdr.length] = 0;
+                                }
+                            }
+                            else
+                            {
+                                int err = errno;
+                                fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
+                            }
+                        }
+                        else
+                        {
+                            int err = errno;
+                            fprintf(stderr, "mlv_read_debug_log: malloc error: %s\n", strerror(err));
+                        }
+                    }
+                    else
+                    {
+                        int err = errno;
+                        fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
+                    }
+                }
+            }
+            else
+            {
+                int err = errno;
+                fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
+            }
+        }
+    }
+    
+    return result;
+}
+
+/**
  * Retrieves all the mlv headers associated a particular video frame
  * @param path The path to the MLV file containing the video frame
  * @param index The index of the video frame
@@ -710,7 +804,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
     char * mlv_filename = NULL;
     memset(stbuf, 0, sizeof(struct stat));
 
-    if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif"))
+    if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".log"))
     {
         if(get_mlv_filename(path, &mlv_filename))
         {
@@ -766,6 +860,15 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                     else if(string_ends_with(path, ".gif"))
                     {
                         stbuf->st_size = gif_get_size(&frame_headers);
+                    }
+                    else if(string_ends_with(path, ".log"))
+                    {
+                        char * log = mlv_read_debug_log(mlv_filename);
+                        if(log)
+                        {
+                            stbuf->st_size = strlen(log);
+                            free(log);
+                        }
                     }
                     else
                     {
@@ -851,7 +954,7 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
     int result = 0;
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
+    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".log") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
     {
         char * real_path = NULL;
         if(get_real_path(&real_path, path))
@@ -909,6 +1012,8 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
                 sprintf(filename, "%s.wav", mlv_basename);
                 filler(buf, filename, NULL, 0);
             }
+            sprintf(filename, "%s.log", mlv_basename);
+            filler(buf, filename, NULL, 0);
             int frame_count = mlv_get_frame_count(real_path);
             for (int i = 0; i < frame_count; i++)
             {
@@ -1035,6 +1140,17 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
         struct image_buffer * image_buffer = get_or_create_image_buffer(path, &create_preview, &was_created);
         memcpy(buf, ((uint8_t*)image_buffer->data) + offset, MIN(size, image_buffer->size - offset));
         image_buffer_read_end(image_buffer);
+        free(mlv_filename);
+        return (int)size;
+    }
+    else if(string_ends_with(path, ".log") && get_mlv_filename(path, &mlv_filename))
+    {
+        char * log = mlv_read_debug_log(mlv_filename);
+        if(log)
+        {
+            memcpy(buf, log + offset, MIN(size, strlen(log) - offset + 1));
+            free(log);
+        }
         free(mlv_filename);
         return (int)size;
     }
