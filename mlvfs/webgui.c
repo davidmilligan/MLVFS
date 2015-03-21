@@ -161,7 +161,7 @@ static const char * HTML =
 static const char * TABLE_HEADER =
 "<table><tr>"
 "<th>Filename</th>"
-"<th>Preview</th>"
+"<th>Preview <input type=button onclick=\"$(this).hide(); $('img').each(function(){$(this).attr('src', $(this).attr('delayedsrc'));});\" value=\"Load\"></input></th>"
 "<th>Frames</th>"
 "<th>Audio</th>"
 "<th>Resolution</th>"
@@ -255,7 +255,7 @@ static char * webgui_generate_html(const char * path)
                         if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
                         {
                             char child_path[1024];
-                            snprintf(temp, HTML_SIZE, "<td><img src=\"%s/%s/_PREVIEW.gif\" width=\"100\"/></td>", path+ 1, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/%s/_PREVIEW.gif\" width=\"100\"/></td>", path+ 1, child->d_name);
                             strncat(html, temp, HTML_SIZE);
                             sprintf(child_path, "%s/%s", path, child->d_name);
                             webgui_generate_mlv_html(html, child_path);
