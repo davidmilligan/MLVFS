@@ -230,14 +230,18 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
 
             if((read = fread(&buf, sizeof(mlv_hdr_t), 1, chunk_files[chunk])) != 1)
             {
-                fprintf(stderr, "File #%d ends prematurely, %zu bytes read\n", chunk, read);
+                if(ferror(chunk_files[chunk]))
+                {
+                    int err = errno;
+                    fprintf(stderr, "make_index: File #%d, %zu bytes read, fread error: %s\n", chunk, read, strerror(err));
+                }
                 break;
             }
 
             /* unexpected block header size? */
             if(buf.blockSize < sizeof(mlv_hdr_t) || buf.blockSize > 1024 * 1024 * 1024)
             {
-                fprintf(stderr, "Invalid header size: %d bytes at 0x%08llX\n", buf.blockSize, position);
+                fprintf(stderr, "make_index: Invalid header size: %d bytes at 0x%08llX\n", buf.blockSize, position);
                 break;
             }
 
@@ -333,8 +337,15 @@ void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_c
     file_set_pos(chunk_files[0], 0, SEEK_SET);
     if(!fread(&main_header, sizeof(mlv_file_hdr_t), 1, chunk_files[0]))
     {
-        int err = errno;
-        fprintf(stderr, "build_index: fread error: %s\n", strerror(err));
+        if(ferror(chunk_files[0]))
+        {
+            int err = errno;
+            fprintf(stderr, "build_index: fread error: %s\n", strerror(err));
+        }
+        else
+        {
+            fprintf(stderr, "build_index: could not read main header\n");
+        }
     }
 
     mlv_xref_hdr_t *index = make_index(chunk_files, chunk_count);

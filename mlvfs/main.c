@@ -74,7 +74,8 @@ static char * copy_string(const char * source)
     }
     else
     {
-        fprintf(stderr, "MLVFS: malloc error\n");
+        int err = errno;
+        fprintf(stderr, "copy_string: malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -92,7 +93,8 @@ static char * concat_string(const char * str1, const char * str2)
     }
     else
     {
-        fprintf(stderr, "MLVFS: malloc error\n");
+        int err = errno;
+        fprintf(stderr, "concat_string: malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -110,7 +112,8 @@ static char * concat_string3(const char * str1, const char * str2, const char * 
     }
     else
     {
-        fprintf(stderr, "MLVFS: malloc error\n");
+        int err = errno;
+        fprintf(stderr, "concat_string3: malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -233,11 +236,6 @@ static char * mlv_read_debug_log(const char *mlv_filename)
                                     temp[debg_hdr.length] = 0;
                                 }
                             }
-                            else
-                            {
-                                int err = errno;
-                                fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
-                            }
                         }
                         else
                         {
@@ -245,14 +243,9 @@ static char * mlv_read_debug_log(const char *mlv_filename)
                             fprintf(stderr, "mlv_read_debug_log: malloc error: %s\n", strerror(err));
                         }
                     }
-                    else
-                    {
-                        int err = errno;
-                        fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
-                    }
                 }
             }
-            else
+            if(ferror(in_file))
             {
                 int err = errno;
                 fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
@@ -314,11 +307,7 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
                     fread(&mlv_hdr, sizeof(mlv_hdr_t), 1, in_file);
                     file_set_pos(in_file, position, SEEK_SET);
                     hdr_size = MIN(sizeof(mlv_vidf_hdr_t), mlv_hdr.blockSize);
-                    if(!fread(&frame_headers->vidf_hdr, hdr_size, 1, in_file))
-                    {
-                        int err = errno;
-                        fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                    }
+                    fread(&frame_headers->vidf_hdr, hdr_size, 1, in_file);
                 }
                 else
                 {
@@ -338,39 +327,22 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
                     if(!memcmp(mlv_hdr.blockType, "MLVI", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_file_hdr_t), mlv_hdr.blockSize);
-                        if(!fread(&frame_headers->file_hdr, hdr_size, 1, in_file))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                        }
+                        fread(&frame_headers->file_hdr, hdr_size, 1, in_file);
                     }
                     else if(!memcmp(mlv_hdr.blockType, "RTCI", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_rtci_hdr_t), mlv_hdr.blockSize);
-                        if(!fread(&frame_headers->rtci_hdr, hdr_size, 1, in_file))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                        }
+                        fread(&frame_headers->rtci_hdr, hdr_size, 1, in_file);
                     }
                     else if(!memcmp(mlv_hdr.blockType, "IDNT", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_idnt_hdr_t), mlv_hdr.blockSize);
-                        if(!fread(&frame_headers->idnt_hdr, hdr_size, 1, in_file))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                        }
+                        fread(&frame_headers->idnt_hdr, hdr_size, 1, in_file);
                     }
                     else if(!memcmp(mlv_hdr.blockType, "RAWI", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_rawi_hdr_t), mlv_hdr.blockSize);
-                        if(!fread(&frame_headers->rawi_hdr, hdr_size, 1, in_file))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                        }
-                        else
+                        if(fread(&frame_headers->rawi_hdr, hdr_size, 1, in_file))
                         {
                             rawi_found = 1;
                         }
@@ -378,36 +350,25 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
                     else if(!memcmp(mlv_hdr.blockType, "EXPO", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_expo_hdr_t), mlv_hdr.blockSize);
-                        if(!fread(&frame_headers->expo_hdr, hdr_size, 1, in_file))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                        }
+                        fread(&frame_headers->expo_hdr, hdr_size, 1, in_file);
                     }
                     else if(!memcmp(mlv_hdr.blockType, "LENS", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_lens_hdr_t), mlv_hdr.blockSize);
-                        if(!fread(&frame_headers->lens_hdr, hdr_size, 1, in_file))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                        }
+                        fread(&frame_headers->lens_hdr, hdr_size, 1, in_file);
                     }
                     else if(!memcmp(mlv_hdr.blockType, "WBAL", 4))
                     {
                         hdr_size = MIN(sizeof(mlv_wbal_hdr_t), mlv_hdr.blockSize);
-                        if(!fread(&frame_headers->wbal_hdr, hdr_size, 1, in_file))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                        }
+                        fread(&frame_headers->wbal_hdr, hdr_size, 1, in_file);
                     }
                 }
-                else
-                {
-                    int err = errno;
-                    fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
-                }
+        }
+        
+        if(ferror(in_file))
+        {
+            int err = errno;
+            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
         }
     }
     
@@ -534,7 +495,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                 }
             }
         }
-        else
+        if(ferror(file))
         {
             int err = errno;
             fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
@@ -552,7 +513,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
             {
                 result = dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
             }
-            else
+            if(ferror(file))
             {
                 int err = errno;
                 fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
@@ -715,7 +676,8 @@ static int process_frame(struct image_buffer * image_buffer)
                     }
                     else
                     {
-                        fprintf(stderr, "malloc error\n");
+                        int err = errno;
+                        fprintf(stderr, "process_frame: malloc error: %s\n", strerror(err));
                     }
                 }
                 stripes_apply_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
@@ -1034,7 +996,8 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
         }
         else
         {
-            fprintf(stderr, "MLVFS: malloc error!\n");
+            int err = errno;
+            fprintf(stderr, "mlvfs_readdir: malloc error: %s\n", strerror(err));
             result = -ENOENT;
         }
         free(mlv_basename);
