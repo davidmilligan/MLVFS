@@ -32,7 +32,7 @@
 #include "dng_tag_types.h"
 #include "dng_tag_values.h"
 
-#define IFD0_COUNT 39
+#define IFD0_COUNT 40
 #define EXIF_IFD_COUNT 8
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
@@ -526,6 +526,18 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         uint32_t exif_ifd_offset = (uint32_t)(position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t));
         uint32_t data_offset = exif_ifd_offset + sizeof(uint16_t) + EXIF_IFD_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
         
+        int32_t par[4] = {1,1,1,1};
+        double rawW = frame_headers->rawi_hdr.raw_info.active_area.x2 - frame_headers->rawi_hdr.raw_info.active_area.x1;
+        double rawH = frame_headers->rawi_hdr.raw_info.active_area.y2 - frame_headers->rawi_hdr.raw_info.active_area.y1;
+        double aspect_ratio = rawW / rawH;
+        //check the aspect ratio of the original raw buffer, if it's > 2 and we're not in crop mode, then this is probably squeezed footage
+        //TODO: can we be more precise about detecting this?
+        if(aspect_ratio > 2.0 && rawH <= 720)
+        {
+            // 5x3 line skpping
+            par[2] = 5; par[3] = 3;
+        }
+        
         //we get the active area of the original raw source, not the recorded data, so overwrite the active area if the recorded data does
         //not contain the OB areas
         if(frame_headers->rawi_hdr.xRes < frame_headers->rawi_hdr.raw_info.active_area.x2 ||
@@ -564,7 +576,6 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
                 break;
             }
         }
-        
         int32_t wbal[6];
         get_white_balance(frame_headers->wbal_hdr, wbal, &matricies);
         
@@ -594,6 +605,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcUniqueCameraModel,           ttAscii,    STRING_ENTRY(model, header, &data_offset)},
             {tcBlackLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.black_level},
             {tcWhiteLevel,                  ttLong,     1,      frame_headers->rawi_hdr.raw_info.white_level},
+            {tcDefaultScale,                ttRational, RATIONAL_ENTRY(par, header, &data_offset, 4)},
             {tcDefaultCropOrigin,           ttShort,    2,      PACK(frame_headers->rawi_hdr.raw_info.crop.origin)},
             {tcDefaultCropSize,             ttShort,    2,      PACK2((frame_headers->rawi_hdr.raw_info.active_area.x2 - frame_headers->rawi_hdr.raw_info.active_area.x1), (frame_headers->rawi_hdr.raw_info.active_area.y2 - frame_headers->rawi_hdr.raw_info.active_area.y1))},
             {tcColorMatrix1,                ttSRational,RATIONAL_ENTRY(matricies.ColorMatrix1, header, &data_offset, 18)},
