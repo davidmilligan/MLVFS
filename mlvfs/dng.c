@@ -33,7 +33,7 @@
 #include "dng_tag_values.h"
 
 #define IFD0_COUNT 40
-#define EXIF_IFD_COUNT 8
+#define EXIF_IFD_COUNT 11
 #define PACK(a) (((uint16_t)a[1] << 16) | ((uint16_t)a[0]))
 #define PACK2(a,b) (((uint16_t)b << 16) | ((uint16_t)a))
 #define STRING_ENTRY(a,b,c) (uint32_t)(strlen(a) + 1), add_string(a, b, c)
@@ -163,6 +163,23 @@ static const struct cam_matrices cam_matrices[] =
         { 6602, 10000, -841, 10000, -939, 10000, -4472, 10000, 12458, 10000, 2247, 10000, -975, 10000, 2039, 10000, 6148, 10000 },
         { 7747, 10000, 485, 10000, 1411, 10000, 2340, 10000, 8840, 10000, -1180, 10000, 105, 10000, -4147, 10000, 12293, 10000 },
         { 7397, 10000, 1199, 10000, 1047, 10000, 2650, 10000, 9355, 10000, -2005, 10000, 193, 10000, -2113, 10000, 10171, 10000 }
+    }
+};
+
+struct camera_focal_resolution{
+    char * camera;
+    int32_t focal_resolution_x[2];
+    int32_t focal_resolution_y[2];
+    int32_t unit;
+};
+
+static const struct camera_focal_resolution camera_focal_resolutions[] =
+{
+    {
+        "Canon EOS 60D",
+        { 5184000, 905 },
+        { 3456000, 595 },
+        2
     }
 };
 
@@ -526,6 +543,18 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         uint32_t exif_ifd_offset = (uint32_t)(position + sizeof(uint16_t) + IFD0_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t));
         uint32_t data_offset = exif_ifd_offset + sizeof(uint16_t) + EXIF_IFD_COUNT * sizeof(struct directory_entry) + sizeof(uint32_t);
         
+        struct camera_focal_resolution camera_focal_resolution = camera_focal_resolutions[0];
+        for(int i = 0; i < COUNT(camera_focal_resolutions); i++)
+        {
+            if(!strcmp(camera_focal_resolutions[i].camera, model))
+            {
+                camera_focal_resolution = camera_focal_resolutions[i];
+                break;
+            }
+        }
+        int32_t focal_resolution_x[2] = {camera_focal_resolution.focal_resolution_x[0], camera_focal_resolution.focal_resolution_x[1]};
+        int32_t focal_resolution_y[2] = {camera_focal_resolution.focal_resolution_y[0], camera_focal_resolution.focal_resolution_y[1]};
+        
         int32_t par[4] = {1,1,1,1};
         double rawW = frame_headers->rawi_hdr.raw_info.active_area.x2 - frame_headers->rawi_hdr.raw_info.active_area.x1;
         double rawH = frame_headers->rawi_hdr.raw_info.active_area.y2 - frame_headers->rawi_hdr.raw_info.active_area.y1;
@@ -536,6 +565,15 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
         {
             // 5x3 line skpping
             par[2] = 5; par[3] = 3;
+            focal_resolution_x[1] = focal_resolution_x[1] * 3;
+            focal_resolution_y[1] = focal_resolution_y[1] * 5;
+        }
+        //if the width is larger than 2000, we're probably not in crop mode
+        //TODO: this may not be the safest assumption, esp. if adtg control of sensor resolution/crop is implemented, currently it is true for all ML cameras
+        else if(rawW < 2000)
+        {
+            focal_resolution_x[1] = focal_resolution_x[1] * 3;
+            focal_resolution_y[1] = focal_resolution_y[1] * 3;
         }
         
         //we get the active area of the original raw source, not the recorded data, so overwrite the active area if the recorded data does
@@ -632,6 +670,9 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcExifVersion,                 ttUndefined,4,      0x30333230},
             {tcSubjectDistance,             ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.focalDist, 1, header, &data_offset)},
             {tcFocalLength,                 ttRational, RATIONAL_ENTRY2(frame_headers->lens_hdr.focalLength, 1, header, &data_offset)},
+            {tcFocalPlaneXResolutionExif,   ttRational, RATIONAL_ENTRY(focal_resolution_x, header, &data_offset, 2)},
+            {tcFocalPlaneYResolutionExif,   ttRational, RATIONAL_ENTRY(focal_resolution_y, header, &data_offset, 2)},
+            {tcFocalPlaneResolutionUnitExif,ttShort,    1,      camera_focal_resolution.unit}, //inches
             {tcLensModelExif,               ttAscii,    STRING_ENTRY((char*)frame_headers->lens_hdr.lensName, header, &data_offset)},
         };
         
