@@ -176,9 +176,27 @@ struct camera_focal_resolution{
 static const struct camera_focal_resolution camera_focal_resolutions[] =
 {
     {
+        "Canon EOS 5D Mark III",
+        { 5760000, 1461 },
+        { 3840000, 972 },
+        2
+    },
+    {
         "Canon EOS 60D",
         { 5184000, 905 },
         { 3456000, 595 },
+        2
+    },
+    {
+        "Canon EOS 70D",
+        { 5472000, 899 },
+        { 3648000, 599 },
+        2
+    },
+    {
+        "Canon EOS M",
+        { 5184000, 894 },
+        { 3456000, 597 },
         2
     }
 };
