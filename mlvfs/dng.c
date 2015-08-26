@@ -182,6 +182,12 @@ static const struct camera_focal_resolution camera_focal_resolutions[] =
         2
     },
     {
+        "Canon EOS 7D",
+        { 5184000, 907 },
+        { 3456000, 595 },
+        2
+    },
+    {
         "Canon EOS 60D",
         { 5184000, 905 },
         { 3456000, 595 },
