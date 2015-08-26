@@ -182,9 +182,21 @@ static const struct camera_focal_resolution camera_focal_resolutions[] =
         2
     },
     {
+        "Canon EOS 5D Mark II",
+        { 5616000, 1459 },
+        { 3744000, 958 },
+        2
+    },
+    {
         "Canon EOS 7D",
         { 5184000, 907 },
         { 3456000, 595 },
+        2
+    },
+    {
+        "Canon EOS 6D",
+        { 5472000, 1436 },
+        { 3648000, 956 },
         2
     },
     {
@@ -197,6 +209,48 @@ static const struct camera_focal_resolution camera_focal_resolutions[] =
         "Canon EOS 70D",
         { 5472000, 899 },
         { 3648000, 599 },
+        2
+    },
+    {
+        "Canon EOS 50D",
+        { 4752000, 894 },
+        { 3168000, 597 },
+        2
+    },
+    {
+        "Canon EOS 500D",
+        { 4752000, 894 },
+        { 3168000, 593 },
+        2
+    },
+    {
+        "Canon EOS 550D",
+        { 5184000, 905 },
+        { 3456000, 595 },
+        2
+    },
+    {
+        "Canon EOS 600D",
+        { 5184000, 905 },
+        { 3456000, 595 },
+        2
+    },
+    {
+        "Canon EOS 650D",
+        { 5184000, 894 },
+        { 3456000, 597 },
+        2
+    },
+    {
+        "Canon EOS 700D",
+        { 5184000, 894 },
+        { 3456000, 597 },
+        2
+    },
+    {
+        "Canon EOS 1100D",
+        { 4272000, 905 },
+        { 2848000, 595 },
         2
     },
     {
