@@ -47,6 +47,7 @@
 #include "LZMA/LzmaLib.h"
 #include "lj92.h"
 #include "gif.h"
+#include "histogram.h"
 
 static struct mlvfs mlvfs;
 
@@ -602,6 +603,19 @@ static void check_mld_exists(char * path)
     free(temp);
 }
 
+static void deflicker(struct frame_headers * frame_headers, int target, uint16_t * data, size_t size)
+{
+    uint16_t black = frame_headers->rawi_hdr.raw_info.black_level;
+    uint16_t white = (1 << frame_headers->rawi_hdr.raw_info.bits_per_pixel) + 1;
+    
+    struct histogram * hist = hist_create(white);
+    hist_add(hist, data + 1, (uint32_t)((size -  1) / 2), 1);
+    uint16_t median = hist_median(hist);
+    double correction = log2((double) (target - black) / (median - black));
+    frame_headers->rawi_hdr.raw_info.exposure_bias[0] = correction * 10000;
+    frame_headers->rawi_hdr.raw_info.exposure_bias[1] = 10000;
+}
+
 static int process_frame(struct image_buffer * image_buffer)
 {
     char * mlv_filename = NULL;
@@ -635,8 +649,9 @@ static int process_frame(struct image_buffer * image_buffer)
                 if(dir != NULL) *dir = 0;
             }
             
-            dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps, mlv_basename);
             get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_buffer->data, 0, image_buffer->size);
+            if(mlvfs.deflicker) deflicker(&frame_headers, mlvfs.deflicker, image_buffer->data, image_buffer->size);
+            dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps, mlv_basename);
             
             if(mlvfs.fix_bad_pixels)
             {
@@ -1279,6 +1294,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--alias-map",        offsetof(struct mlvfs, hdr_no_alias_map),           0 },
     { "--prefetch=%d",      offsetof(struct mlvfs, prefetch),                   0 },
     { "--fps=%f",           offsetof(struct mlvfs, fps),                        0 },
+    { "--deflicker=%d",     offsetof(struct mlvfs, deflicker),                  0 },
     FUSE_OPT_END
 };
 
