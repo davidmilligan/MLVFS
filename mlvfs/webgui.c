@@ -59,6 +59,7 @@ static const char * HTML =
 "      $('#dir').val(d.dir);"
 "      $('#prefetch').val(d.prefetch);"
 "      $('#fps').val(d.fps);"
+"      $('#deflicker').val(d.deflicker);"
 "      $('input:radio[name=\"name_scheme\"][value=' + d.name_scheme + ']').prop('checked', true);"
 "      $('input:radio[name=\"badpix\"][value=' + d.badpix + ']').prop('checked', true);"
 "      $('input:radio[name=\"chroma_smooth\"][value=' + d.chroma_smooth + ']').prop('checked', true);"
@@ -91,6 +92,12 @@ static const char * HTML =
 "        \"prefetch\": $('#prefetch').val(), "
 "      } });"
 "      return true; });"
+"    $('#deflicker').on('change', function() {"
+"      $.ajax({ url: '/set_value', dataType: 'json', "
+"      data: { "
+"        \"deflicker\": $('#deflicker').val(), "
+"      } });"
+"      return true; });"
 "    $('#fps').on('change', function() {"
 "      $.ajax({ url: '/set_value', dataType: 'json', "
 "      data: { "
@@ -106,21 +113,25 @@ static const char * HTML =
 "  <form>"
 "    <table>"
 "      <tr><th colspan=2>Configuration Options</th></tr>"
-"      <tr class=odd>"
+"      <tr>"
 "        <td>Source Directory</td>"
 "        <td><input type=text id=dir size=64 readonly/></td>"
 "      </tr>"
-"      <tr>"
+"      <tr class=odd>"
 "        <td>Prefetch</td>"
 "        <td><input type=text id=prefetch size=8/> frames</td>"
 "      </tr>"
-"      <tr class=odd>"
+"      <tr>"
 "        <td>Override Framerate</td>"
 "        <td><input type=text id=fps size=8/> FPS (0 = disabled)</td>"
 "      </tr>"
-"      <tr>"
+"      <tr class=odd>"
 "        <td>Naming Scheme</td>"
 "        <td><input type=radio name=name_scheme value=0 >Default</input><input type=radio name=name_scheme value=1 >DaVinci Resolve</input></td>"
+"      </tr>"
+"      <tr>"
+"        <td>Deflicker</td>"
+"        <td><input type=text id=deflicker size=8/> Deflicker (0 = disabled, value is target median in raw units ex: 3072)</td>"
 "      </tr>"
 "      <tr class=odd>"
 "        <td>Bad Pixel Fix</td>"
@@ -294,10 +305,11 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         if (strcmp(conn->uri, "/get_value") == 0)
         {
             mg_printf_data(conn,
-                           "{\"dir\": \"%s\", \"prefetch\": \"%d\", \"fps\": \"%f\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
+                           "{\"dir\": \"%s\", \"prefetch\": \"%d\", \"fps\": \"%f\", \"deflicker\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
                            mlvfs_config->mlv_path,
-                           mlvfs_config->fps,
                            mlvfs_config->prefetch,
+                           mlvfs_config->fps,
+                           mlvfs_config->deflicker,
                            mlvfs_config->name_scheme,
                            mlvfs_config->fix_bad_pixels,
                            mlvfs_config->chroma_smooth,
@@ -316,6 +328,9 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
             
             mg_get_var(conn, "fps", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->fps = atof(buf);
+            
+            mg_get_var(conn, "deflicker", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->deflicker = atof(buf);
             
             mg_get_var(conn, "name_scheme", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->name_scheme = atoi(buf);
