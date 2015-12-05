@@ -52,6 +52,7 @@ static const char * HTML =
 "    td, th { border: 1px solid #369; padding: 3px 7px 2px 7px; }"
 "    th { text-align: left; padding-top: 5px; padding-bottom: 4px; background-color: #48D; color: #FFF; }"
 "    tr.odd td { color: #000; background-color: #EEF; }"
+"    tr.delayedodd td { color: #000; background-color: #EEF; }"
 "  </style>"
 "  <script src=\"/jquery-1.11.0.min.js\"></script>"
 "  <script> jQuery(function() {"
@@ -104,6 +105,10 @@ static const char * HTML =
 "        \"fps\": $('#fps').val(), "
 "      } });"
 "      return true; });"
+"    });"
+"    $(document).ready(function(){"
+"      $('.delayedodd').each(function(){$(this).load($(this).attr('delayedsrc'));});"
+"      $('.delayedeven').each(function(){$(this).load($(this).attr('delayedsrc'));});"
 "    });"
 "  </script>"
 "</head>"
@@ -227,6 +232,19 @@ static void webgui_generate_mlv_html(char * html, const char * path)
     free(temp);
 }
 
+static char * webgui_generate_row_html(const char * path)
+{
+    char * temp = malloc(sizeof(char) * (HTML_SIZE + 1));
+    char * html = malloc(sizeof(char) * (HTML_SIZE + 1));
+    snprintf(temp, HTML_SIZE, "<td><a href=\"%s\">%s</a></td>", path, path);
+    strncat(html, temp, HTML_SIZE);
+    snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/_PREVIEW.gif\" width=\"100\"/></td>", path);
+    strncat(html, temp, HTML_SIZE);
+    webgui_generate_mlv_html(html, path);
+    free(temp);
+    return html;
+}
+
 static char * webgui_generate_html(const char * path)
 {
     char * temp = malloc(sizeof(char) * (HTML_SIZE + 1));
@@ -261,18 +279,20 @@ static char * webgui_generate_html(const char * path)
                 {
                     if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
                     {
-                        snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
-                        strncat(html, temp, HTML_SIZE - strlen(html));
                         if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
                         {
-                            char child_path[1024];
-                            snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/%s/_PREVIEW.gif\" width=\"100\"/></td>", path+ 1, child->d_name);
-                            strncat(html, temp, HTML_SIZE);
-                            sprintf(child_path, "%s/%s", path, child->d_name);
-                            webgui_generate_mlv_html(html, child_path);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\" delayedsrc=\"%s/%s_ROWDATA.html\"><td><a href=\"%s/%s\">%s</a> (Loading...)</td>", (i++ % 2 ? "delayedeven" : "delayedodd"), path + 1, child->d_name, path + 1, child->d_name, child->d_name);
+                            strncat(html, temp, HTML_SIZE - strlen(html));
+                            //char child_path[1024];
+                            //snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/%s/_PREVIEW.gif\" width=\"100\"/></td>", path+ 1, child->d_name);
+                            //strncat(html, temp, HTML_SIZE);
+                            //sprintf(child_path, "%s/%s", path, child->d_name);
+                            //webgui_generate_mlv_html(html, child_path);
                         }
                         else
                         {
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
+                            strncat(html, temp, HTML_SIZE - strlen(html));
                             strncat(html, "<td colspan=13 />", HTML_SIZE);
                         }
                         strncat(html, "</tr>", HTML_SIZE - strlen(html));
@@ -361,6 +381,19 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         else if (strcmp(conn->uri, "/jquery-1.11.0.min.js") == 0)
         {
             mg_printf_data(conn, "%s", JQUERY);
+        }
+        else if(string_ends_with(conn->uri, "_ROWDATA.html"))
+        {
+            char * path = malloc((strlen(conn->uri) + 1 )* sizeof(char));
+            strcpy(path, conn->uri);
+            path[strlen(path) - strlen("_ROWDATA.html")] = 0x0;
+            char * html = webgui_generate_row_html(path);
+            if(html)
+            {
+                mg_printf_data(conn, "%s", html);
+                free(html);
+            }
+            free(path);
         }
         else if(string_ends_with(conn->uri, "_PREVIEW.gif"))
         {
