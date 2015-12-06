@@ -177,7 +177,7 @@ static const char * HTML =
 static const char * TABLE_HEADER =
 "<table><tr>"
 "<th>Filename</th>"
-"<th>Preview <input type=button onclick=\"$(this).hide(); $('img').each(function(){$(this).attr('src', $(this).attr('delayedsrc'));});\" value=\"Load\"></input></th>"
+"<th>Preview <input type=button onclick=\"$(this).hide(); $('img').each(function(){$(this).attr('src', $(this).attr('delayedsrc'));$(this).attr('width','100');});\" value=\"Load\"></input></th>"
 "<th>Frames</th>"
 "<th>Audio</th>"
 "<th>Resolution</th>"
@@ -236,9 +236,10 @@ static char * webgui_generate_row_html(const char * path)
 {
     char * temp = malloc(sizeof(char) * (HTML_SIZE + 1));
     char * html = malloc(sizeof(char) * (HTML_SIZE + 1));
-    snprintf(temp, HTML_SIZE, "<td><a href=\"%s\">%s</a></td>", path, path);
+    const char *short_path = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+    snprintf(temp, HTML_SIZE, "<td><a href=\"%s\">%s</a></td>", path, short_path);
     strncat(html, temp, HTML_SIZE);
-    snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/_PREVIEW.gif\" width=\"100\"/></td>", path);
+    snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/_PREVIEW.gif\"/></td>", path);
     strncat(html, temp, HTML_SIZE);
     webgui_generate_mlv_html(html, path);
     free(temp);
@@ -257,7 +258,7 @@ static char * webgui_generate_html(const char * path)
     {
         snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", path);
         strncat(html, temp, HTML_SIZE);
-        snprintf(temp, HTML_SIZE, "<td><img src=\"%s/_PREVIEW.gif\" width=\"100\"/></td>", path);
+        snprintf(temp, HTML_SIZE, "<td><img src=\"%s/_PREVIEW.gif\"/></td>", path);
         strncat(html, temp, HTML_SIZE);
         webgui_generate_mlv_html(html, path);
         strncat(html, "</tr>", HTML_SIZE);
@@ -281,21 +282,13 @@ static char * webgui_generate_html(const char * path)
                     {
                         if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\" delayedsrc=\"%s/%s_ROWDATA.html\"><td><a href=\"%s/%s\">%s</a> (Loading...)</td>", (i++ % 2 ? "delayedeven" : "delayedodd"), path + 1, child->d_name, path + 1, child->d_name, child->d_name);
-                            strncat(html, temp, HTML_SIZE - strlen(html));
-                            //char child_path[1024];
-                            //snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/%s/_PREVIEW.gif\" width=\"100\"/></td>", path+ 1, child->d_name);
-                            //strncat(html, temp, HTML_SIZE);
-                            //sprintf(child_path, "%s/%s", path, child->d_name);
-                            //webgui_generate_mlv_html(html, child_path);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\" delayedsrc=\"%s/%s_ROWDATA.html\"><td><a href=\"%s/%s\">%s</a> (Loading...)</td></tr>", (i++ % 2 ? "delayedeven" : "delayedodd"), path, child->d_name, path + 1, child->d_name, child->d_name);
                         }
                         else
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
-                            strncat(html, temp, HTML_SIZE - strlen(html));
-                            strncat(html, "<td colspan=13 />", HTML_SIZE);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
                         }
-                        strncat(html, "</tr>", HTML_SIZE - strlen(html));
+                        strncat(html, temp, HTML_SIZE - strlen(html));
                     }
                     else if (child->d_type == DT_UNKNOWN) // If d_type is not supported on this filesystem
                     {
