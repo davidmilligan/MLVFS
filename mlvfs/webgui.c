@@ -107,8 +107,7 @@ static const char * HTML =
 "      return true; });"
 "    });"
 "    $(document).ready(function(){"
-"      $('.delayedodd').each(function(){$(this).load($(this).attr('delayedsrc'));});"
-"      $('.delayedeven').each(function(){$(this).load($(this).attr('delayedsrc'));});"
+"      $('.delayedodd, .delayedeven').each(function(){$(this).load($(this).attr('delayedsrc'));});"
 "    });"
 "  </script>"
 "</head>"
@@ -173,6 +172,23 @@ static const char * HTML =
 "  %s"
 "</body>"
 "</html>";
+
+static const char * TABLE_HEADER_NO_PREVIEW =
+"<table><tr>"
+"<th>Filename</th>"
+"<th>Frames</th>"
+"<th>Audio</th>"
+"<th>Resolution</th>"
+"<th>Framerate</th>"
+"<th>Duration</th>"
+"<th>Camera Model</th>"
+"<th>Camera Serial</th>"
+"<th>Lens Name</th>"
+"<th>Date/Time</th>"
+"<th>Shutter</th>"
+"<th>ISO</th>"
+"<th>Aperture</th>"
+"</tr>";
 
 static const char * TABLE_HEADER =
 "<table><tr>"
@@ -250,15 +266,14 @@ static char * webgui_generate_html(const char * path)
 {
     char * temp = malloc(sizeof(char) * (HTML_SIZE + 1));
     char * html = malloc(sizeof(char) * (HTML_SIZE + 1));
-    snprintf(html, HTML_SIZE, "%s", TABLE_HEADER);
     char real_path[1024];
     sprintf(real_path, "%s%s", mlvfs_config->mlv_path, path);
     fprintf(stderr, "webgui: scanning %s...\n", real_path);
     if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
-        snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", path);
-        strncat(html, temp, HTML_SIZE);
-        snprintf(temp, HTML_SIZE, "<td><img src=\"%s/_PREVIEW.gif\"/></td>", path);
+        snprintf(html, HTML_SIZE, "%s", TABLE_HEADER_NO_PREVIEW);
+        const char *short_path = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+        snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", short_path);
         strncat(html, temp, HTML_SIZE);
         webgui_generate_mlv_html(html, path);
         strncat(html, "</tr>", HTML_SIZE);
@@ -268,6 +283,7 @@ static char * webgui_generate_html(const char * path)
     }
     else
     {
+        snprintf(html, HTML_SIZE, "%s", TABLE_HEADER);
         DIR * dir = opendir(real_path);
         if (dir != NULL)
         {
@@ -282,11 +298,11 @@ static char * webgui_generate_html(const char * path)
                     {
                         if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\" delayedsrc=\"%s/%s_ROWDATA.html\"><td><a href=\"%s/%s\">%s</a> (Loading...)</td></tr>", (i++ % 2 ? "delayedeven" : "delayedodd"), path, child->d_name, path + 1, child->d_name, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\" delayedsrc=\"%s_ROWDATA.html\"><td><a href=\"%s\">%s</a> (Loading...)</td></tr>", (i++ % 2 ? "delayedeven" : "delayedodd"), child->d_name, child->d_name, child->d_name);
                         }
                         else
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), child->d_name, child->d_name);
                         }
                         strncat(html, temp, HTML_SIZE - strlen(html));
                     }
@@ -297,7 +313,7 @@ static char * webgui_generate_html(const char * path)
                         sprintf(real_file_path, "%s/%s", real_path, child->d_name);
                         if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/%s\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), path + 1, child->d_name, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), child->d_name, child->d_name);
                             strncat(html, temp, HTML_SIZE - strlen(html));
                         }
                     }
