@@ -43,6 +43,7 @@
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
 		634BD5A31AACE4550022FD14 /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = 634BD5A11AACE4550022FD14 /* mongoose.c */; };
 		63B4287E19E7150100B83CD3 /* webgui.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B4287C19E7150100B83CD3 /* webgui.c */; };
+		63B5F2131C38B04900BDB3CC /* patternnoise.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F2111C38B04900BDB3CC /* patternnoise.c */; settings = {ASSET_TAGS = (); }; };
 		63B5F88319D76F240028614C /* cs.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88119D76F240028614C /* cs.c */; };
 		63B5F88A19DA0B9E0028614C /* hdr.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88819DA0B9E0028614C /* hdr.c */; };
 		63B5F88D19DA0BBF0028614C /* histogram.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B5F88B19DA0BBF0028614C /* histogram.c */; };
@@ -137,6 +138,8 @@
 		63B4287C19E7150100B83CD3 /* webgui.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = webgui.c; sourceTree = "<group>"; };
 		63B4287D19E7150100B83CD3 /* webgui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = webgui.h; sourceTree = "<group>"; };
 		63B4287F19EB1F9600B83CD3 /* build_installer.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build_installer.sh; sourceTree = "<group>"; };
+		63B5F2111C38B04900BDB3CC /* patternnoise.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = patternnoise.c; sourceTree = "<group>"; };
+		63B5F2121C38B04900BDB3CC /* patternnoise.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = patternnoise.h; sourceTree = "<group>"; };
 		63B5F88019D761490028614C /* mlvfs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mlvfs.h; sourceTree = "<group>"; };
 		63B5F88119D76F240028614C /* cs.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cs.c; sourceTree = "<group>"; };
 		63B5F88219D76F240028614C /* cs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cs.h; sourceTree = "<group>"; };
@@ -297,6 +300,8 @@
 				63FF20011A8FC30500CD44B7 /* lj92.h */,
 				63FF20031A912D1B00CD44B7 /* gif.c */,
 				63FF20041A912D1B00CD44B7 /* gif.h */,
+				63B5F2111C38B04900BDB3CC /* patternnoise.c */,
+				63B5F2121C38B04900BDB3CC /* patternnoise.h */,
 				63B5F88719D79C510028614C /* Makefile */,
 				6302E2D71A8416BD000F76D9 /* LZMA */,
 			);
@@ -373,6 +378,7 @@
 				63B5F88A19DA0B9E0028614C /* hdr.c in Sources */,
 				6302E3171A8416D4000F76D9 /* Alloc.c in Sources */,
 				6302E3231A8416D4000F76D9 /* LzmaDec.c in Sources */,
+				63B5F2131C38B04900BDB3CC /* patternnoise.c in Sources */,
 				6302E31A1A8416D4000F76D9 /* Bra86.c in Sources */,
 				63FF20021A8FC30500CD44B7 /* lj92.c in Sources */,
 				6302E3281A8416D4000F76D9 /* Ppmd7Enc.c in Sources */,

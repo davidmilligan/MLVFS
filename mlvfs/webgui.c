@@ -69,6 +69,7 @@ static const char * HTML =
 "      $('input:radio[name=\"hdr_interpolation_method\"][value=' + d.hdr_interpolation_method + ']').prop('checked', true);"
 "      $('input:radio[name=\"hdr_no_alias_map\"][value=' + d.hdr_no_alias_map + ']').prop('checked', true);"
 "      $('input:radio[name=\"hdr_no_fullres\"][value=' + d.hdr_no_fullres + ']').prop('checked', true);"
+"      $('input:radio[name=\"fix_pattern_noise\"][value=' + d.fix_pattern_noise + ']').prop('checked', true);"
 "      if(d.dual_iso == 2){ $('#hdr_interpolation_method').show(); $('#hdr_no_alias_map').show(); $('#hdr_no_fullres').show(); }"
 "      else { $('#hdr_interpolation_method').hide(); $('#hdr_no_alias_map').hide(); $('#hdr_no_fullres').hide(); }"
 "    }});"
@@ -82,7 +83,8 @@ static const char * HTML =
 "        \"dual_iso\": $('input:radio[name=dual_iso]:checked').val(), "
 "        \"hdr_interpolation_method\": $('input:radio[name=hdr_interpolation_method]:checked').val(), "
 "        \"hdr_no_alias_map\": $('input:radio[name=hdr_no_alias_map]:checked').val(), "
-"        \"hdr_no_fullres\": $('input:radio[name=hdr_no_fullres]:checked').val() "
+"        \"hdr_no_fullres\": $('input:radio[name=hdr_no_fullres]:checked').val(), "
+"        \"fix_pattern_noise\": $('input:radio[name=fix_pattern_noise]:checked').val() "
 "      } });"
 "      if($('input:radio[name=dual_iso]:checked').val() == 2){ $('#hdr_interpolation_method').show(); $('#hdr_no_alias_map').show(); $('#hdr_no_fullres').show(); }"
 "      else { $('#hdr_interpolation_method').hide(); $('#hdr_no_alias_map').hide(); $('#hdr_no_fullres').hide(); }"
@@ -150,18 +152,22 @@ static const char * HTML =
 "        <td><input type=radio name=chroma_smooth value=0 >None</input><input type=radio name=chroma_smooth value=2 >2x2</input><input type=radio name=chroma_smooth value=3 >3x3</input><input type=radio name=chroma_smooth value=5 >5x5</input></td>"
 "      </tr>"
 "      <tr>"
+"        <td>Fix Pattern Noise</td>"
+"        <td><input type=radio name=fix_pattern_noise value=0 >Off</input><input type=radio name=fix_pattern_noise value=1 >On</input></td>"
+"      </tr>"
+"      <tr class=odd>"
 "        <td>Dual ISO</td>"
 "        <td><input type=radio name=dual_iso value=0 >Off</input><input type=radio name=dual_iso value=1 >Preview</input><input type=radio name=dual_iso value=2 >Full (20bit)</input></td>"
 "      </tr>"
-"      <tr class=odd id=hdr_interpolation_method >"
+"      <tr id=hdr_interpolation_method >"
 "        <td> Interpolation</td>"
 "        <td><input type=radio name=hdr_interpolation_method value=0 >AMaZE</input><input type=radio name=hdr_interpolation_method value=1 >mean32</input></td>"
 "      </tr>"
-"      <tr id=hdr_no_alias_map >"
+"      <tr class=odd id=hdr_no_alias_map >"
 "        <td> Alias Map</td>"
 "        <td><input type=radio name=hdr_no_alias_map value=1 >Off</input><input type=radio name=hdr_no_alias_map value=0 >On</input></td>"
 "      </tr>"
-"      <tr class=odd id=hdr_no_fullres >"
+"      <tr id=hdr_no_fullres >"
 "        <td> Fullres Blending</td>"
 "        <td><input type=radio name=hdr_no_fullres value=1 >Off</input><input type=radio name=hdr_no_fullres value=0 >On</input></td>"
 "      </tr>"
@@ -334,7 +340,7 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         if (strcmp(conn->uri, "/get_value") == 0)
         {
             mg_printf_data(conn,
-                           "{\"dir\": \"%s\", \"prefetch\": \"%d\", \"fps\": \"%f\", \"deflicker\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
+                           "{\"dir\": \"%s\", \"prefetch\": \"%d\", \"fps\": \"%f\", \"deflicker\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"fix_pattern_noise\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
                            mlvfs_config->mlv_path,
                            mlvfs_config->prefetch,
                            mlvfs_config->fps,
@@ -343,6 +349,7 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
                            mlvfs_config->fix_bad_pixels,
                            mlvfs_config->chroma_smooth,
                            mlvfs_config->fix_stripes,
+                           mlvfs_config->fix_pattern_noise,
                            mlvfs_config->dual_iso,
                            mlvfs_config->hdr_interpolation_method,
                            mlvfs_config->hdr_no_alias_map,
@@ -372,6 +379,9 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
             
             mg_get_var(conn, "stripes", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->fix_stripes = atoi(buf);
+            
+            mg_get_var(conn, "fix_pattern_noise", buf, sizeof(buf));
+            if(strlen(buf) > 0) mlvfs_config->fix_pattern_noise = atoi(buf);
             
             mg_get_var(conn, "dual_iso", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->dual_iso = atoi(buf);

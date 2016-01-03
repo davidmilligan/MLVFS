@@ -48,6 +48,7 @@
 #include "lj92.h"
 #include "gif.h"
 #include "histogram.h"
+#include "patternnoise.h"
 
 static struct mlvfs mlvfs;
 
@@ -658,6 +659,11 @@ static int process_frame(struct image_buffer * image_buffer)
             if(mlvfs.fix_bad_pixels)
             {
                 fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2);
+            }
+            
+            if(mlvfs.fix_pattern_noise)
+            {
+                fix_pattern_noise(&(frame_headers.rawi_hdr.raw_info), (int16_t*)image_buffer->data, 0);
             }
             
             int is_dual_iso = 0;
@@ -1297,6 +1303,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--prefetch=%d",      offsetof(struct mlvfs, prefetch),                   0 },
     { "--fps=%f",           offsetof(struct mlvfs, fps),                        0 },
     { "--deflicker=%d",     offsetof(struct mlvfs, deflicker),                  0 },
+    { "--fix-pattern-noise",offsetof(struct mlvfs, fix_pattern_noise),          1 },
     FUSE_OPT_END
 };
 

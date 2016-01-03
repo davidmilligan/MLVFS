@@ -42,6 +42,7 @@ struct mlvfs
     int prefetch;
     double fps;
     int deflicker;
+    int fix_pattern_noise;
 };
 
 //all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame
