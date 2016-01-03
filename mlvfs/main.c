@@ -415,7 +415,13 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
         size_t frame_size = frame_headers->vidf_hdr.blockSize - (frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t));
         uint8_t * frame_buffer = malloc(frame_size);
         
-        if(fread(frame_buffer, frame_size, 1, file))
+        fread(frame_buffer, sizeof(uint8_t), frame_size, file);
+        if(ferror(file))
+        {
+            int err = errno;
+            fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
+        }
+        else
         {
             if(lzma_compressed)
             {
@@ -496,28 +502,24 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                 }
             }
         }
-        if(ferror(file))
-        {
-            int err = errno;
-            fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
-        }
         free(frame_buffer);
     }
     else
     {
-        uint16_t * packed_bits = malloc((size_t)(packed_size * 2));
+        uint16_t * packed_bits = calloc((size_t)(packed_size * 2), 1);
         if(packed_bits)
         {
             
             file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t) + pixel_start_address * 2, SEEK_SET);
-            if(fread(packed_bits, (size_t)packed_size * 2, 1, file))
-            {
-                result = dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
-            }
+            fread(packed_bits, sizeof(uint16_t), (size_t)packed_size, file);
             if(ferror(file))
             {
                 int err = errno;
                 fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
+            }
+            else
+            {
+                result = dng_get_image_data(frame_headers, packed_bits, output_buffer, offset, max_size);
             }
             free(packed_bits);
         }
