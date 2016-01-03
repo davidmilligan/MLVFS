@@ -524,9 +524,9 @@ static uint32_t add_string(char * str, uint8_t * buffer, uint32_t * data_offset)
 static uint32_t add_rational(int32_t numerator, int32_t denominator, uint8_t * buffer, uint32_t * data_offset)
 {
     uint32_t result = *data_offset;
-    *(int32_t*)(buffer + *data_offset) = numerator;
+    memcpy(buffer + *data_offset, &numerator, sizeof(int32_t));
     *data_offset += sizeof(int32_t);
-    *(int32_t*)(buffer + *data_offset) = denominator;
+    memcpy(buffer + *data_offset, &denominator, sizeof(int32_t));
     *data_offset += sizeof(int32_t);
     return result;
 }
@@ -560,13 +560,13 @@ static uint32_t add_timecode(double framerate, int drop_frame, uint64_t frame, u
     return result;
 }
 
-static void add_ifd(struct directory_entry * ifd, uint8_t * header, size_t * position, int count)
+static void add_ifd(struct directory_entry * ifd, uint8_t * header, size_t * position, int count, uint32_t next_ifd_offset)
 {
     *(uint16_t*)(header + *position) = count;
     *position += sizeof(uint16_t);
     memcpy(header + *position, ifd, count * sizeof(struct directory_entry));
     *position += count * sizeof(struct directory_entry);
-    *(uint32_t*)(header + *position) = 0;
+    memcpy(header + *position, &next_ifd_offset, sizeof(uint32_t));
     *position += sizeof(uint32_t);
 }
 
@@ -754,8 +754,8 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcLensModelExif,               ttAscii,    STRING_ENTRY((char*)frame_headers->lens_hdr.lensName, header, &data_offset)},
         };
         
-        add_ifd(IFD0, header, &position, IFD0_COUNT);
-        add_ifd(EXIF_IFD, header, &position, EXIF_IFD_COUNT);
+        add_ifd(IFD0, header, &position, IFD0_COUNT, 0);
+        add_ifd(EXIF_IFD, header, &position, EXIF_IFD_COUNT, 0);
         
         size_t output_size = MIN(max_size, header_size - (size_t)MIN(0, offset));
         if(output_size)
