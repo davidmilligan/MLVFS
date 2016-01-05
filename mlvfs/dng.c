@@ -579,7 +579,7 @@ static char * format_datetime(char * datetime, struct frame_headers * frame_head
     //TODO: days could also overflow in the month, but this is no longer simple modulo arithmetic like with hr:min:sec
     sprintf(datetime, "%04d:%02d:%02d %02d:%02d:%02d",
             1900 + frame_headers->rtci_hdr.tm_year,
-            frame_headers->rtci_hdr.tm_mon,
+            frame_headers->rtci_hdr.tm_mon + 1,
             days,
             hours % 24,
             minutes % 60,

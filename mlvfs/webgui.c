@@ -242,7 +242,7 @@ static void webgui_generate_mlv_html(char * html, const char * path)
         strncat(html, temp, HTML_SIZE);
         snprintf(temp, HTML_SIZE, "<td>%s</td>", frame_headers.lens_hdr.lensName);
         strncat(html, temp, HTML_SIZE);
-        snprintf(temp, HTML_SIZE, "<td>%d-%d-%d %02d:%02d:%02d</td>", 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, frame_headers.rtci_hdr.tm_hour, frame_headers.rtci_hdr.tm_min, frame_headers.rtci_hdr.tm_sec);
+        snprintf(temp, HTML_SIZE, "<td>%d-%d-%d %02d:%02d:%02d</td>", 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon + 1, frame_headers.rtci_hdr.tm_mday, frame_headers.rtci_hdr.tm_hour, frame_headers.rtci_hdr.tm_min, frame_headers.rtci_hdr.tm_sec);
         strncat(html, temp, HTML_SIZE);
         snprintf(temp, HTML_SIZE, "<td>%dms</td>", (int)frame_headers.expo_hdr.shutterValue/1000);
         strncat(html, temp, HTML_SIZE);
