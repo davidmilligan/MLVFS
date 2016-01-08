@@ -337,24 +337,11 @@ static void fix_column_noise_rggb(int16_t * raw, int w, int h, int white)
     free(bs);
 }
 
-void fix_pattern_noise(struct raw_info * raw_info, int16_t * raw, int debug_flags)
+void fix_pattern_noise(int16_t * raw, int w, int h, int white, int debug_flags)
 {
     printf("Fixing pattern noise...\n");
     
-    /* assume Bayer order [RGGB] */
-    if (raw_info->cfa_pattern != 0x02010100)
-    {
-        printf("Bayer order error\n");
-        return;
-    }
-    
     g_debug_flags = debug_flags;
-    
-    int w = raw_info->width;
-    int h = raw_info->height;
-    
-    /* we need the white level to ignore overexposed areas when looking for pattern noise */
-    int white = raw_info->white_level;
     
     /* fix vertical noise, then transpose and repeat for the horizontal one */
     /* not very efficient, but at least avoids duplicate code */

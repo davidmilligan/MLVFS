@@ -663,7 +663,7 @@ static int process_frame(struct image_buffer * image_buffer)
             
             if(mlvfs.fix_pattern_noise)
             {
-                fix_pattern_noise(&(frame_headers.rawi_hdr.raw_info), (int16_t*)image_buffer->data, 0);
+                fix_pattern_noise((int16_t*)image_buffer->data, frame_headers.rawi_hdr.xRes, frame_headers.rawi_hdr.yRes, frame_headers.rawi_hdr.raw_info.white_level, 0);
             }
             
             int is_dual_iso = 0;
