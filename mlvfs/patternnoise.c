@@ -87,10 +87,10 @@ static void horizontal_edge_aware_blur_rggb(
                                             int w, int h, int strength, int thr)
 {
     const int NMAX = 128;
-    int g1[NMAX];
-    int g2[NMAX];
-    int rg[NMAX];
-    int bg[NMAX];
+    int16_t g1[NMAX];
+    int16_t g2[NMAX];
+    int16_t rg[NMAX];
+    int16_t bg[NMAX];
     if (strength > NMAX)
     {
         printf("FIXME: blur too strong\n");
@@ -109,6 +109,8 @@ static void horizontal_edge_aware_blur_rggb(
     
     for (int y = 0; y < h; y++)
     {
+        int prev_xl = -1;
+        int prev_xr = -1;
         for (int x = 0; x < w; x++)
         {
             int p0 = avg_g[x + y*w];
@@ -137,23 +139,34 @@ static void horizontal_edge_aware_blur_rggb(
                 xl--;
             }
             
-            /* now take the medians from this interval */
-            for (int xx = xl+1; xx < xr; xx++)
+            if(xl == prev_xl && xr == prev_xr)
             {
-                g1[num] = in_g1[xx + y*w];
-                g2[num] = in_g2[xx + y*w];
-                rg[num] = dif_rg[xx + y*w];
-                bg[num] = dif_bg[xx + y*w];
-                num++;
+                //don't recompute the median if we selected the same pixels
+                out_g1[x + y*w] = out_g1[x - 1 + y*w];
+                out_g2[x + y*w] = out_g2[x - 1 + y*w];
+                out_r [x + y*w] = out_r [x - 1 + y*w];
+                out_b [x + y*w] = out_b [x - 1 + y*w];
+            }
+            else
+            {
+                num = xr - xl - 1;
+                int size = num * sizeof(int16_t);
+                memcpy(g1, &(in_g1[xl + 1 + y*w]), size);
+                memcpy(g2, &(in_g2[xl + 1 + y*w]), size);
+                memcpy(rg, &(dif_rg[xl + 1 + y*w]), size);
+                memcpy(bg, &(dif_bg[xl + 1 + y*w]), size);
+                
+                int mg1 = median_short_wirth(g1, num);
+                int mg2 = median_short_wirth(g2, num);
+                int mg = (mg1 + mg2) / 2;
+                out_g1[x + y*w] = mg1;
+                out_g2[x + y*w] = mg2;
+                out_r [x + y*w] = median_short_wirth(rg, num) + mg;
+                out_b [x + y*w] = median_short_wirth(bg, num) + mg;
             }
             
-            int mg1 = median_int_wirth(g1, num);
-            int mg2 = median_int_wirth(g2, num);
-            int mg = (mg1 + mg2) / 2;
-            out_g1[x + y*w] = mg1;
-            out_g2[x + y*w] = mg2;
-            out_r [x + y*w] = median_int_wirth(rg, num) + mg;
-            out_b [x + y*w] = median_int_wirth(bg, num) + mg;
+            prev_xl = xl;
+            prev_xr = xr;
         }
     }
     
