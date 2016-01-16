@@ -43,6 +43,7 @@ struct mlvfs
     double fps;
     int deflicker;
     int fix_pattern_noise;
+    int version;
 };
 
 //all the mlv block headers corresponding to a particular frame, needed to generate a DNG for that frame
@@ -61,6 +62,13 @@ struct frame_headers
 };
 
 #define MLVFS_SOFTWARE_NAME "MLVFS"
+
+#ifndef VERSION
+#define VERSION "UNKNOWN"
+#endif
+#ifndef BUILD_DATE
+#define BUILD_DATE "UNKNOWN"
+#endif
 
 //Let the DNGs be "writeable" for AE, even though they're not actually writable
 //You'll get an error if you actually try to write to them

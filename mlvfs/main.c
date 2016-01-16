@@ -1304,6 +1304,7 @@ static const struct fuse_opt mlvfs_opts[] =
     { "--fps=%f",           offsetof(struct mlvfs, fps),                        0 },
     { "--deflicker=%d",     offsetof(struct mlvfs, deflicker),                  0 },
     { "--fix-pattern-noise",offsetof(struct mlvfs, fix_pattern_noise),          1 },
+    { "--version",          offsetof(struct mlvfs, version),                    1 },
     FUSE_OPT_END
 };
 
@@ -1339,7 +1340,12 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (mlvfs.mlv_path != NULL)
+    if (mlvfs.version)
+    {
+        printf("Version: %s\n", VERSION);
+        printf("Date:    %s\n", BUILD_DATE);
+    }
+    else if (mlvfs.mlv_path != NULL)
     {
         // shell and wildcard expansion, taking just the first result
         wordexp_t p;

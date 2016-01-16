@@ -3,7 +3,7 @@
 # A lot of this script came from here:
 # http://stackoverflow.com/questions/96882/how-do-i-create-a-nice-looking-dmg-for-mac-os-x-using-command-line-tools
 
-make -C mlvfs
+make clean -C mlvfs && make -C mlvfs
 
 source="install_temp"
 title="MLVFS"
