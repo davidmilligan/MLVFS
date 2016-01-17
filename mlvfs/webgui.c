@@ -53,6 +53,7 @@ static const char * HTML =
 "    th { text-align: left; padding-top: 5px; padding-bottom: 4px; background-color: #48D; color: #FFF; }"
 "    tr.odd td { color: #000; background-color: #EEF; }"
 "    tr.delayedodd td { color: #000; background-color: #EEF; }"
+"    .version { text-align: center; foreground-color: #444; font-size: 0.4em }"
 "  </style>"
 "  <script src=\"/jquery-1.11.0.min.js\"></script>"
 "  <script> jQuery(function() {"
@@ -176,6 +177,8 @@ static const char * HTML =
 "  <hr/>"
 "  <h3>%s%s</h3>"
 "  %s"
+"  <hr/>"
+"  <p class=version>Version: " VERSION " " BUILD_DATE "<p/>"
 "</body>"
 "</html>";
 
