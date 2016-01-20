@@ -20,8 +20,11 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <dirent.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
 
 #include "raw.h"
 #include "mlv.h"
@@ -225,7 +228,181 @@ void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data,
                     image_data[x + y * w] = -max3;
                 }
             }
-            
+        }
+    }
+}
+
+struct focus_pixel
+{
+    int x;
+    int y;
+};
+
+struct focus_pixel_map
+{
+    uint32_t camera;
+    int rawi_width;
+    int rawi_height;
+    size_t count;
+    size_t capacity;
+    struct focus_pixel * pixels;
+};
+
+static int focus_pixel_map_count = 0;
+static struct focus_pixel_map * focus_pixel_maps = NULL;
+
+static int add_focus_pixel(struct focus_pixel_map * map, int x, int y)
+{
+    if(map->count >= map->capacity)
+    {
+        map->capacity *= 2;
+        map->pixels = realloc(map->pixels, sizeof(struct focus_pixel) * map->capacity);
+        if(!map->pixels)
+        {
+            fprintf(stderr, "malloc error\n");
+            map->count = 0;
+            return 0;
+        }
+    }
+    map->pixels[map->count].x = x;
+    map->pixels[map->count].y = y;
+    map->count++;
+    return 1;
+}
+
+void load_focus_pixel_maps()
+{
+    DIR * dir = opendir(".");
+    if (dir != NULL)
+    {
+        struct dirent * child;
+        
+        while ((child = readdir(dir)) != NULL)
+        {
+            if(string_ends_with(child->d_name, ".fpm"))
+            {
+                uint32_t camera_id = 0;
+                int width = 0;
+                int height = 0;
+                if(sscanf(child->d_name, "%x_%ix%i.fpm", &camera_id, &width, &height) == 3)
+                {
+                    focus_pixel_map_count++;
+                    focus_pixel_maps = realloc(focus_pixel_maps, sizeof(struct focus_pixel_map) * focus_pixel_map_count);
+                    if(focus_pixel_maps)
+                    {
+                        struct focus_pixel_map * map = &(focus_pixel_maps[focus_pixel_map_count - 1]);
+                        map->camera = camera_id;
+                        map->rawi_width = width;
+                        map->rawi_height = height;
+                        map->count = 0;
+                        map->capacity = 32;
+                        map->pixels = malloc(sizeof(struct focus_pixel) * map->capacity);
+                        FILE* f = fopen(child->d_name, "r+");
+                        if(f)
+                        {
+                            int x = 0;
+                            int y = 0;
+                            int ret = 2;
+                            while(ret != EOF)
+                            {
+                                ret = fscanf(f, "%i %i", &x, &y);
+                                if(ret == 2)
+                                {
+                                    if(!add_focus_pixel(map, x, y))
+                                    {
+                                        fprintf(stderr, "load_focus_pixel_maps: add_focus_pixel error\n");
+                                        break;
+                                    }
+                                }
+                                else if(ferror(f))
+                                {
+                                    int err = errno;
+                                    fprintf(stderr, "load_focus_pixel_maps: file error: %s\n", strerror(err));
+                                    break;
+                                }
+                            }
+                        }
+                        else if(ferror(f))
+                        {
+                            int err = errno;
+                            fprintf(stderr, "load_focus_pixel_maps: file error: %s\n", strerror(err));
+                        }
+                        else
+                        {
+                            fprintf(stderr, "load_focus_pixel_maps: unknown error\n");
+                        }
+                    }
+                    else
+                    {
+                        fprintf(stderr, "malloc error\n");
+                        focus_pixel_map_count = 0;
+                    }
+                }
+            }
+        }
+        closedir(dir);
+    }
+}
+
+void free_focus_pixel_maps()
+{
+    if(focus_pixel_maps)
+    {
+        for(size_t i = 0; i < focus_pixel_map_count; i++)
+        {
+            free(focus_pixel_maps[i].pixels);
+        }
+        free(focus_pixel_maps);
+    }
+}
+
+static inline void interpolate_pixel(uint16_t * image_data, int x, int y, int w)
+{
+    //simply average the two horizontally neighboring pixels of the same color
+    //simple and fast, do we need something better?
+    //horizontal direction only b/c could be dual ISO
+    image_data[x + y*w] = (image_data[x - 2 + y*w] >> 1) + (image_data[x + 2 + y*w] >> 1);
+}
+
+static struct focus_pixel_map * get_focus_pixel_map(struct frame_headers * frame_headers)
+{
+    if(focus_pixel_maps)
+    {
+        uint32_t camera_id = frame_headers->idnt_hdr.cameraModel;
+        int rawi_width = frame_headers->rawi_hdr.raw_info.width;
+        int rawi_height = frame_headers->rawi_hdr.raw_info.height;
+        for(size_t i = 0; i < focus_pixel_map_count; i++)
+        {
+            struct focus_pixel_map * current = &(focus_pixel_maps[i]);
+            if(current->camera == camera_id && current->rawi_width == rawi_width && current->rawi_height == rawi_height)
+            {
+                return current;
+            }
+        }
+    }
+    return NULL;
+}
+
+void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
+{
+    struct focus_pixel_map * map = get_focus_pixel_map(frame_headers);
+    
+    if (map)
+    {
+        int w = frame_headers->rawi_hdr.xRes;
+        int h = frame_headers->rawi_hdr.yRes;
+        //there was a bug with cropPosX, so we'll round panPosX ouselves
+        int cropX = (frame_headers->vidf_hdr.panPosX + 7) & ~7;
+        int cropY = frame_headers->vidf_hdr.panPosY & ~1;
+        
+        for (int i = 0; i < map->count; i++)
+        {
+            int x = map->pixels[i].x - cropX;
+            int y = map->pixels[i].y - cropY;
+            if (x > 1 && y > 1 && x < w - 1 && y < h - 1)
+            {
+                interpolate_pixel(image_data, x, y, w);
+            }
         }
     }
 }

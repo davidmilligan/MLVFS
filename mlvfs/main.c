@@ -656,6 +656,7 @@ static int process_frame(struct image_buffer * image_buffer)
             if(mlvfs.deflicker) deflicker(&frame_headers, mlvfs.deflicker, image_buffer->data, image_buffer->size);
             dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps, mlv_basename);
             
+            fix_focus_pixels(&frame_headers, image_buffer->data);
             if(mlvfs.fix_bad_pixels)
             {
                 fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2);
@@ -1373,6 +1374,7 @@ int main(int argc, char **argv)
         {
             webgui_start(&mlvfs);
             umask(0);
+            load_focus_pixel_maps();
             res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
 
@@ -1392,5 +1394,6 @@ int main(int argc, char **argv)
     close_all_chunks();
     free_mlv_name_mappings();
     free_dng_attr_mappings();
+    free_focus_pixel_maps();
     return res;
 }
