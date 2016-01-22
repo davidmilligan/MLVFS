@@ -1374,7 +1374,6 @@ int main(int argc, char **argv)
         {
             webgui_start(&mlvfs);
             umask(0);
-            load_focus_pixel_maps();
             res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
 

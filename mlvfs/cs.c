@@ -21,7 +21,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <dirent.h>
 #include <string.h>
 #include <math.h>
 #include <errno.h>
@@ -270,78 +269,53 @@ static int add_focus_pixel(struct focus_pixel_map * map, int x, int y)
     return 1;
 }
 
-void load_focus_pixel_maps()
+static struct focus_pixel_map * load_focus_pixel_map(uint32_t camera_id, int width, int height)
 {
-    DIR * dir = opendir(".");
-    if (dir != NULL)
+    focus_pixel_map_count++;
+    focus_pixel_maps = realloc(focus_pixel_maps, sizeof(struct focus_pixel_map) * focus_pixel_map_count);
+    if(focus_pixel_maps)
     {
-        struct dirent * child;
-        
-        while ((child = readdir(dir)) != NULL)
+        struct focus_pixel_map * map = &(focus_pixel_maps[focus_pixel_map_count - 1]);
+        map->camera = camera_id;
+        map->rawi_width = width;
+        map->rawi_height = height;
+        map->count = 0;
+        map->capacity = 0;
+        map->pixels = NULL;
+        char filename[1024];
+        sprintf(filename, "%x_%ix%i.fpm", camera_id, width, height);
+        FILE* f = fopen(filename, "r+");
+        if(f)
         {
-            if(string_ends_with(child->d_name, ".fpm"))
+            printf("Loading focus pixel map '%s'...\n", filename);
+            map->capacity = 32;
+            map->pixels = malloc(sizeof(struct focus_pixel) * map->capacity);
+            int x = 0;
+            int y = 0;
+            int ret = 2;
+            while(ret != EOF)
             {
-                uint32_t camera_id = 0;
-                int width = 0;
-                int height = 0;
-                if(sscanf(child->d_name, "%x_%ix%i.fpm", &camera_id, &width, &height) == 3)
+                ret = fscanf(f, "%i %i", &x, &y);
+                if(ret == 2)
                 {
-                    focus_pixel_map_count++;
-                    focus_pixel_maps = realloc(focus_pixel_maps, sizeof(struct focus_pixel_map) * focus_pixel_map_count);
-                    if(focus_pixel_maps)
-                    {
-                        struct focus_pixel_map * map = &(focus_pixel_maps[focus_pixel_map_count - 1]);
-                        map->camera = camera_id;
-                        map->rawi_width = width;
-                        map->rawi_height = height;
-                        map->count = 0;
-                        map->capacity = 32;
-                        map->pixels = malloc(sizeof(struct focus_pixel) * map->capacity);
-                        FILE* f = fopen(child->d_name, "r+");
-                        if(f)
-                        {
-                            int x = 0;
-                            int y = 0;
-                            int ret = 2;
-                            while(ret != EOF)
-                            {
-                                ret = fscanf(f, "%i %i", &x, &y);
-                                if(ret == 2)
-                                {
-                                    if(!add_focus_pixel(map, x, y))
-                                    {
-                                        fprintf(stderr, "load_focus_pixel_maps: add_focus_pixel error\n");
-                                        break;
-                                    }
-                                }
-                                else if(ferror(f))
-                                {
-                                    int err = errno;
-                                    fprintf(stderr, "load_focus_pixel_maps: file error: %s\n", strerror(err));
-                                    break;
-                                }
-                            }
-                        }
-                        else if(ferror(f))
-                        {
-                            int err = errno;
-                            fprintf(stderr, "load_focus_pixel_maps: file error: %s\n", strerror(err));
-                        }
-                        else
-                        {
-                            fprintf(stderr, "load_focus_pixel_maps: unknown error\n");
-                        }
-                    }
-                    else
-                    {
-                        fprintf(stderr, "malloc error\n");
-                        focus_pixel_map_count = 0;
-                    }
+                    if(!add_focus_pixel(map, x, y)) break;
+                }
+                else if(ferror(f))
+                {
+                    int err = errno;
+                    fprintf(stderr, "load_focus_pixel_maps: file error: %s\n", strerror(err));
+                    break;
                 }
             }
+            return map;
         }
-        closedir(dir);
     }
+    else
+    {
+        fprintf(stderr, "malloc error\n");
+        focus_pixel_map_count = 0;
+    }
+    return NULL;
 }
 
 void free_focus_pixel_maps()
@@ -353,6 +327,7 @@ void free_focus_pixel_maps()
             free(focus_pixel_maps[i].pixels);
         }
         free(focus_pixel_maps);
+        focus_pixel_maps = NULL;
     }
 }
 
@@ -366,21 +341,21 @@ static inline void interpolate_pixel(uint16_t * image_data, int x, int y, int w)
 
 static struct focus_pixel_map * get_focus_pixel_map(struct frame_headers * frame_headers)
 {
+    uint32_t camera_id = frame_headers->idnt_hdr.cameraModel;
+    int rawi_width = frame_headers->rawi_hdr.raw_info.width;
+    int rawi_height = frame_headers->rawi_hdr.raw_info.height;
     if(focus_pixel_maps)
     {
-        uint32_t camera_id = frame_headers->idnt_hdr.cameraModel;
-        int rawi_width = frame_headers->rawi_hdr.raw_info.width;
-        int rawi_height = frame_headers->rawi_hdr.raw_info.height;
         for(size_t i = 0; i < focus_pixel_map_count; i++)
         {
             struct focus_pixel_map * current = &(focus_pixel_maps[i]);
             if(current->camera == camera_id && current->rawi_width == rawi_width && current->rawi_height == rawi_height)
             {
-                return current;
+                return current->count > 0 ? current : NULL;
             }
         }
     }
-    return NULL;
+    return load_focus_pixel_map(camera_id, rawi_width, rawi_height);
 }
 
 void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
