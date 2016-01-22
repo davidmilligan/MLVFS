@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>AMApplicationBuild</key>
-	<string>409</string>
+	<string>417</string>
 	<key>AMApplicationVersion</key>
-	<string>2.5</string>
+	<string>2.6</string>
 	<key>AMDocumentVersion</key>
 	<string>2</string>
 	<key>actions</key>
@@ -223,7 +223,8 @@
 				<key>ActionParameters</key>
 				<dict>
 					<key>COMMAND_STRING</key>
-					<string>nohup ~/Library/Services/MLVFS.workflow/Contents/mlvfs "$2" --mlv_dir="$1" -f -o volname="$(basename $2) (MLVFS Mount)" -o local -o allow_other &gt; /dev/null 2&gt;&amp;1 &amp;</string>
+					<string>cd ~/Library/Services/MLVFS.workflow/Contents/
+nohup ./mlvfs "$2" --mlv_dir="$1" -f -o volname="$(basename $2) (MLVFS Mount)" -o local -o allow_other &gt;&gt; ~/.mlvfs.log 2&gt;&amp;1 &amp;</string>
 					<key>CheckedForUserDefaultShell</key>
 					<true/>
 					<key>inputMethod</key>
@@ -528,26 +529,26 @@
 	</array>
 	<key>connectors</key>
 	<dict>
-		<key>61A5F3F1-C171-4609-A41E-240A8FEE38E8</key>
+		<key>13932475-4840-489B-940C-A0AE01797086</key>
 		<dict>
 			<key>from</key>
 			<string>D02801B5-3510-4471-A149-196C924EDA96 - D02801B5-3510-4471-A149-196C924EDA96</string>
 			<key>to</key>
 			<string>501156CF-9287-43ED-996B-10E09954FF5B - 501156CF-9287-43ED-996B-10E09954FF5B</string>
 		</dict>
-		<key>ABAB3E62-699D-4911-AE79-DFAA3C8C0A50</key>
-		<dict>
-			<key>from</key>
-			<string>D52DEC62-D1E1-46B9-A2E2-0909B62DCCC9 - D52DEC62-D1E1-46B9-A2E2-0909B62DCCC9</string>
-			<key>to</key>
-			<string>8C99B48B-8951-426B-9D12-A81A813ADC2F - 8C99B48B-8951-426B-9D12-A81A813ADC2F</string>
-		</dict>
-		<key>D8019DF2-4FC9-4CCF-9E1A-6B81AC1D0BAF</key>
+		<key>729F014F-AA99-453C-AFC3-D064F0A5444A</key>
 		<dict>
 			<key>from</key>
 			<string>8C99B48B-8951-426B-9D12-A81A813ADC2F - 8C99B48B-8951-426B-9D12-A81A813ADC2F</string>
 			<key>to</key>
 			<string>D02801B5-3510-4471-A149-196C924EDA96 - D02801B5-3510-4471-A149-196C924EDA96</string>
+		</dict>
+		<key>DEF4491D-AFB6-4537-9BF7-0F57C6B83D29</key>
+		<dict>
+			<key>from</key>
+			<string>D52DEC62-D1E1-46B9-A2E2-0909B62DCCC9 - D52DEC62-D1E1-46B9-A2E2-0909B62DCCC9</string>
+			<key>to</key>
+			<string>8C99B48B-8951-426B-9D12-A81A813ADC2F - 8C99B48B-8951-426B-9D12-A81A813ADC2F</string>
 		</dict>
 	</dict>
 	<key>variables</key>
