@@ -374,9 +374,21 @@ void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_dat
         {
             int x = map->pixels[i].x - cropX;
             int y = map->pixels[i].y - cropY;
-            if (x > 1 && y > 1 && x < w - 1 && y < h - 1)
+            if (y >= 0 && y < h)
             {
-                interpolate_pixel(image_data, x, y, w);
+                if (x > 1 && x < w - 2)
+                {
+                    interpolate_pixel(image_data, x, y, w);
+                }
+                //handle edge pixels
+                else if (x == w - 2 || x == w - 1)
+                {
+                    image_data[x + y*w] = image_data[x - 2 + y*w];
+                }
+                else if (x == 0 || x == 1)
+                {
+                    image_data[x + y*w] = image_data[x + 2 + y*w];
+                }
             }
         }
     }
