@@ -656,7 +656,7 @@ static int process_frame(struct image_buffer * image_buffer)
             if(mlvfs.deflicker) deflicker(&frame_headers, mlvfs.deflicker, image_buffer->data, image_buffer->size);
             dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps, mlv_basename);
             
-            fix_focus_pixels(&frame_headers, image_buffer->data);
+            fix_focus_pixels(&frame_headers, image_buffer->data, mlvfs.dual_iso);
             if(mlvfs.fix_bad_pixels)
             {
                 fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2);

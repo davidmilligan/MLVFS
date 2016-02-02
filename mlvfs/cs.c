@@ -331,12 +331,30 @@ void free_focus_pixel_maps()
     }
 }
 
-static inline void interpolate_pixel(uint16_t * image_data, int x, int y, int w)
+static inline void interpolate_horizontal(uint16_t * image_data, int i)
 {
-    //simply average the two horizontally neighboring pixels of the same color
-    //simple and fast, do we need something better?
-    //horizontal direction only b/c could be dual ISO
-    image_data[x + y*w] = (image_data[x - 2 + y*w] >> 1) + (image_data[x + 2 + y*w] >> 1);
+    image_data[i] = (image_data[i - 2] + image_data[i + 2]) >> 1;
+}
+
+static inline void interpolate_vertical(uint16_t * image_data, int i, int w)
+{
+    image_data[i] = (image_data[i - w * 2] + image_data[i + w * 2]) >> 1;
+}
+
+static inline void interpolate_pixel(uint16_t * image_data, int i, int w)
+{
+    //credits: AWPStar http://www.magiclantern.fm/forum/index.php?topic=16054.msg160895#msg160895
+    int rz1 = ABS(image_data[i - 1] - image_data[i + 1]) + ABS(image_data[i - 2] - image_data[i + 2]) + ABS(image_data[i - 1 - w ] - image_data[i + 1 - w]) + ABS(image_data[i - 1 + w ] - image_data[i + 1 + w]);
+    int rz2 = ABS(image_data[i - w] - image_data[i + w]) + ABS(image_data[i - w * 2] - image_data[i + w * 2]) + ABS(image_data[i - w - 1 ] - image_data[i + w - 1]) + ABS(image_data[i - w + 1 ] - image_data[i + w + 1]);
+    
+    if(rz1 < rz2)
+    {
+        interpolate_horizontal(image_data, i);
+    }
+    else
+    {
+        interpolate_vertical(image_data, i, w);
+    }
 }
 
 static struct focus_pixel_map * get_focus_pixel_map(struct frame_headers * frame_headers)
@@ -358,7 +376,7 @@ static struct focus_pixel_map * get_focus_pixel_map(struct frame_headers * frame
     return load_focus_pixel_map(camera_id, rawi_width, rawi_height);
 }
 
-void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
+void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_data, int dual_iso)
 {
     struct focus_pixel_map * map = get_focus_pixel_map(frame_headers);
     
@@ -370,24 +388,43 @@ void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_dat
         int cropX = (frame_headers->vidf_hdr.panPosX + 7) & ~7;
         int cropY = frame_headers->vidf_hdr.panPosY & ~1;
         
-        for (int i = 0; i < map->count; i++)
+        for (int m = 0; m < map->count; m++)
         {
-            int x = map->pixels[i].x - cropX;
-            int y = map->pixels[i].y - cropY;
-            if (y >= 0 && y < h)
+            int x = map->pixels[m].x - cropX;
+            int y = map->pixels[m].y - cropY;
+            
+            int i = x + y*w;
+            if (x > 1 && x < w - 2 && y > 1 && y < h - 2)
             {
-                if (x > 1 && x < w - 2)
+                if(dual_iso)
                 {
-                    interpolate_pixel(image_data, x, y, w);
+                    interpolate_pixel(image_data, i, w);
                 }
+                else
+                {
+                    interpolate_horizontal(image_data, i);
+                }
+            }
+            else if(i > 0 && i < w * h)
+            {
+                int horizontal_edge = x == w - 2 || x == w - 1 || x == 0 || x == 1;
+                int vertical_edge = y == 0 || y == 1 || y == h - 1 || y == h - 2;
                 //handle edge pixels
-                else if (x == w - 2 || x == w - 1)
+                if (horizontal_edge && !vertical_edge && !dual_iso)
                 {
-                    image_data[x + y*w] = image_data[x - 2 + y*w];
+                    interpolate_vertical(image_data, i, w);
                 }
-                else if (x == 0 || x == 1)
+                else if (vertical_edge && !horizontal_edge)
                 {
-                    image_data[x + y*w] = image_data[x + 2 + y*w];
+                    interpolate_horizontal(image_data, i);
+                }
+                else if(x == 0 || x == 1)
+                {
+                    image_data[i] = image_data[i + 2];
+                }
+                else if(x == w - 2 || x == w - 1)
+                {
+                    image_data[i] = image_data[i - 2];
                 }
             }
         }
