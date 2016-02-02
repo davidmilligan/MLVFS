@@ -1209,7 +1209,7 @@ static int mlvfs_release(const char *path, struct fuse_file_info *fi)
     }
     else if (string_ends_with(path, ".dng"))
     {
-        free_image_buffer_by_path(path);
+        release_image_buffer_by_path(path);
     }
     return 0;
 }

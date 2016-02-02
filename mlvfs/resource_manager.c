@@ -151,6 +151,19 @@ void free_image_buffer_by_path(const char * path)
     UNLOCK(image_buffer_mutex)
 }
 
+void release_image_buffer_by_path(const char * path)
+{
+    RELOCK(image_buffer_mutex)
+    {
+        struct image_buffer * image_buffer = get_image_buffer(path);
+        if(image_buffer)
+        {
+            image_buffer->in_use = 0;
+        }
+    }
+    UNLOCK(image_buffer_mutex)
+}
+
 void free_all_image_buffers()
 {
     struct image_buffer * next = NULL;
@@ -217,7 +230,7 @@ void image_buffer_cleanup(const char * current_path)
                 in_use = current->in_use;
             }
             UNLOCK(current->mutex)
-            if(!in_use && strcmp(current_path_base, buffer_path_base))
+            if(!in_use)
             {
                 free_image_buffer(current);
                 free(buffer_path_base);
