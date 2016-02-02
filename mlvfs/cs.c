@@ -376,7 +376,7 @@ static struct focus_pixel_map * get_focus_pixel_map(struct frame_headers * frame
     return load_focus_pixel_map(camera_id, rawi_width, rawi_height);
 }
 
-void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_data, int dual_iso)
+void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_data)
 {
     struct focus_pixel_map * map = get_focus_pixel_map(frame_headers);
     
@@ -396,21 +396,14 @@ void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_dat
             int i = x + y*w;
             if (x > 1 && x < w - 2 && y > 1 && y < h - 2)
             {
-                if(dual_iso)
-                {
-                    interpolate_pixel(image_data, i, w);
-                }
-                else
-                {
-                    interpolate_horizontal(image_data, i);
-                }
+                interpolate_pixel(image_data, i, w);
             }
             else if(i > 0 && i < w * h)
             {
                 int horizontal_edge = x == w - 2 || x == w - 1 || x == 0 || x == 1;
                 int vertical_edge = y == 0 || y == 1 || y == h - 1 || y == h - 2;
                 //handle edge pixels
-                if (horizontal_edge && !vertical_edge && !dual_iso)
+                if (horizontal_edge && !vertical_edge)
                 {
                     interpolate_vertical(image_data, i, w);
                 }
