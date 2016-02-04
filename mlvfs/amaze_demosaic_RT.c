@@ -50,6 +50,7 @@ static inline int FC(int row, int col)
 
 #define COERCE(x,lo,hi) MAX(MIN((x),(hi)),(lo))
 
+#ifndef WIN32
 #define MIN(a,b) \
 ({ typeof ((a)+(b)) _a = (a); \
 typeof ((a)+(b)) _b = (b); \
@@ -65,6 +66,14 @@ _a > _b ? _a : _b; })
 _a * _a; })
 
 #define min MIN
+#else
+
+#define MIN min
+#define MAX max
+#define SQR(a) (a*a)
+
+
+#endif
 
 #ifndef __SSE2__
 /* from RT sleef.c */

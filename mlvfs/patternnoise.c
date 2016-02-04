@@ -27,7 +27,7 @@
 #include "patternnoise.h"
 
 static int g_debug_flags;
-
+#ifndef WIN32
 #define MIN(a,b) \
 ({ typeof ((a)+(b)) _a = (a); \
 typeof ((a)+(b)) _b = (b); \
@@ -37,6 +37,10 @@ _a < _b ? _a : _b; })
 ({ typeof ((a)+(b)) _a = (a); \
 typeof ((a)+(b)) _b = (b); \
 _a > _b ? _a : _b; })
+#else
+#define MIN min
+#define MAX max
+#endif
 
 #define COERCE(x,lo,hi) MAX(MIN((x),(hi)),(lo))
 #define COUNT(x)        ((int)(sizeof(x)/sizeof((x)[0])))
@@ -86,7 +90,7 @@ static void horizontal_edge_aware_blur_rggb(
                                             int16_t * out_r, int16_t * out_g1, int16_t * out_g2, int16_t * out_b,
                                             int w, int h, int strength, int thr)
 {
-    const int NMAX = 128;
+	#define NMAX 128
     int16_t g1[NMAX];
     int16_t g2[NMAX];
     int16_t rg[NMAX];
