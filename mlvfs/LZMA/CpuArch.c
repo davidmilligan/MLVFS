@@ -157,11 +157,33 @@ Bool CPU_Is_InOrder()
 #if !defined(MY_CPU_AMD64) && defined(_WIN32)
 static Bool CPU_Sys_Is_SSE_Supported()
 {
-    OSVERSIONINFO vi;
-    vi.dwOSVersionInfoSize = sizeof(vi);
-    if (!GetVersionEx(&vi))
-    return False;
-    return (vi.dwMajorVersion >= 5);
+	OSVERSIONINFOEX osvi;
+	DWORDLONG dwlConditionMask = 0;
+	int op = VER_GREATER_EQUAL;
+
+	// Initialize the OSVERSIONINFOEX structure.
+
+	ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+	osvi.dwMajorVersion = 5;
+	osvi.dwMinorVersion = 1;
+	osvi.wServicePackMajor = 2;
+	osvi.wServicePackMinor = 0;
+
+	// Initialize the condition mask.
+
+	VER_SET_CONDITION(dwlConditionMask, VER_MAJORVERSION, op);
+	VER_SET_CONDITION(dwlConditionMask, VER_MINORVERSION, op);
+	VER_SET_CONDITION(dwlConditionMask, VER_SERVICEPACKMAJOR, op);
+	VER_SET_CONDITION(dwlConditionMask, VER_SERVICEPACKMINOR, op);
+
+	// Perform the test.
+
+	return VerifyVersionInfo(
+		&osvi,
+		VER_MAJORVERSION | VER_MINORVERSION |
+		VER_SERVICEPACKMAJOR | VER_SERVICEPACKMINOR,
+		dwlConditionMask);
 }
 #define CHECK_SYS_SSE_SUPPORT if (!CPU_Sys_Is_SSE_Supported()) return False;
 #else
