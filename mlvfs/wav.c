@@ -218,7 +218,7 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
     strncpy(header.RIFF, "RIFF", 4);
     header.file_size = (uint32_t)file_size;
     strncpy(header.WAVE, "WAVE", 4);
-    strncpy(header.bext, "bext", 4);
+    strncpy(header.bext.description, "bext", 4);
     strncpy(header.fmt, "fmt\x20", 4);
     header.bext_size = sizeof(struct wav_bext) + 4;
     header.subchunk1_size = 16;
