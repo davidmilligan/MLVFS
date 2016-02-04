@@ -102,6 +102,8 @@ int hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data
         return 0;
     }
     
+    fix_focus_pixels(frame_headers, image_data, 1);
+    
     /* compare the two histograms and plot the curve between the two exposures (dark as a function of bright) */
     const int min_pix = 100;                                /* extract a data point every N image pixels */
     int data_size = (width * height / min_pix + 1);                  /* max number of data points */
@@ -1936,6 +1938,7 @@ int cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image
     raw_info.active_area.y2 = raw_info.height;
     if (hdr_check(raw_info, image_data))
     {
+        fix_focus_pixels(frame_headers, image_data, 1);
         if(hdr_interpolate(raw_info, image_data, interp_method, fullres, use_alias_map, chroma_smooth_method))
         {
             frame_headers->rawi_hdr.raw_info.black_level *= 4;
