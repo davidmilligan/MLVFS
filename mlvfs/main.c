@@ -196,6 +196,11 @@ static char * mlv_read_debug_log(const char *mlv_filename)
     mlv_debg_hdr_t debg_hdr;
     uint32_t hdr_size;
     char * result = NULL;
+
+	if (!block_xref)
+	{
+		return "";
+	}
     
     for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
     {
@@ -1164,13 +1169,19 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
     else if(string_ends_with(path, ".log") && get_mlv_filename(path, &mlv_filename))
     {
         char * log = mlv_read_debug_log(mlv_filename);
+		int read_bytes = 0;
+
         if(log)
         {
-            memcpy(buf, log + offset, MIN(size, strlen(log) - offset + 1));
+			if (offset < strlen(log))
+			{
+				read_bytes = MIN(size, strlen(log) - offset);
+				memcpy(buf, log + offset, read_bytes);
+			}
             free(log);
         }
         free(mlv_filename);
-        return (int)size;
+        return read_bytes;
     }
     else
     {
