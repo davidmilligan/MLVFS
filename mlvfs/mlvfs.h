@@ -100,6 +100,9 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
 
 #ifdef _WIN32
 #define log2(x) log((float)(x))/log(2.)
+#else
+#define FUSE_OFF_T off_t
+#define FUSE_STAT stat
 #endif
 
 
