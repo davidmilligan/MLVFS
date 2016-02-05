@@ -22,6 +22,7 @@
 #define mlvfs_mlvfs_h
 
 #include <stdio.h>
+#include <sys/types.h>
 #include <math.h>
 #include <stdint.h>
 #include "raw.h"
@@ -79,28 +80,7 @@ FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count);
 int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers);
 int mlv_get_frame_count(const char *real_path);
 size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size);
-
-#ifndef _WIN32
 #include <pthread.h>
-#else
-// see http://locklessinc.com/articles/pthreads_on_windows/
-#include <windows.h>
-typedef CRITICAL_SECTION pthread_mutex_t;
-
-static int pthread_mutex_lock(pthread_mutex_t *m)
-{
-    EnterCriticalSection(m);
-    return 0;
-}
-
-static int pthread_mutex_unlock(pthread_mutex_t *m)
-{
-    LeaveCriticalSection(m);
-    return 0;
-}
-
-#define PTHREAD_MUTEX_INITIALIZER {(PRTL_CRITICAL_SECTION_DEBUG)(-1), -1, 0, 0, 0, 0}
-#endif
 
 //some macros for simple thread synchronization
 #define CREATE_MUTEX(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER;

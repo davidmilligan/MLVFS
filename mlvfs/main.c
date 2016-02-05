@@ -27,12 +27,13 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <stddef.h>
-#include <wordexp.h>
-#include <fuse.h>
+#ifndef WIN32
 #include <sys/param.h>
-#include <pthread.h>
+#include <unistd.h>
+#include <wordexp.h>
+#endif
+#include <stddef.h>
+#include <fuse.h>
 #include "raw.h"
 #include "mlv.h"
 #include "dng.h"
@@ -787,11 +788,11 @@ static void check_prefetch(const char *path)
     }
 }
 
-static int mlvfs_getattr(const char *path, struct stat *stbuf)
+static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
 {
     int result = -ENOENT;
     char * mlv_filename = NULL;
-    memset(stbuf, 0, sizeof(struct stat));
+    memset(stbuf, 0, sizeof(struct FUSE_STAT));
 
     if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".log"))
     {
@@ -800,7 +801,11 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             struct stat * dng_st = NULL;
             if (string_ends_with(path, ".dng") && (dng_st = lookup_dng_attr(mlv_filename)) != NULL)
             {
-                memcpy(stbuf, dng_st, sizeof(struct stat));
+				stbuf->st_uid = dng_st->st_uid;
+				stbuf->st_gid = dng_st->st_gid;
+				stbuf->st_mode = dng_st->st_mode;
+				stbuf->st_size = dng_st->st_size;
+				stbuf->st_nlink = dng_st->st_nlink;
                 result = 0;
             }
             else
@@ -890,9 +895,17 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
             if (is_mlv_dir && mlv_status == 0)
             {
                 if(mld && mld_status == 0) //there's an MLD directory, use it's stats
-                {
+				{
+#ifndef WIN32
                     memcpy(stbuf, &mld_stat, sizeof(struct stat));
                     //stbuf->st_size = mld_stat.st_size + mlv_get_frame_count(mlv_filename);
+#else
+					stbuf->st_uid = mld_stat.st_uid;
+					stbuf->st_gid = mld_stat.st_gid;
+					stbuf->st_mode = mld_stat.st_mode;
+					stbuf->st_size = mld_stat.st_size;
+					stbuf->st_nlink = mld_stat.st_nlink;
+#endif
                 }
                 else
                 {
@@ -902,7 +915,11 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                     //stbuf->st_size = mlv_get_frame_count(mlv_filename);
                 
                     // OS-specific timestamps
-                    #if __DARWIN_UNIX03
+					#ifdef WIN32
+					memcpy(&stbuf->st_atim, &mlv_stat.st_atime, sizeof(struct timespec));
+					memcpy(&stbuf->st_ctim, &mlv_stat.st_ctime, sizeof(struct timespec));
+					memcpy(&stbuf->st_mtim, &mlv_stat.st_mtime, sizeof(struct timespec));
+					#elif __DARWIN_UNIX03
                     memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
                     memcpy(&stbuf->st_birthtimespec, &mlv_stat.st_birthtimespec, sizeof(struct timespec));
                     memcpy(&stbuf->st_ctimespec, &mlv_stat.st_ctimespec, sizeof(struct timespec));
@@ -924,7 +941,15 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
                 }
                 else if(mld && mld_status == 0)
                 {
-                    memcpy(stbuf, &mld_stat, sizeof(struct stat));
+#ifndef WIN32
+					memcpy(stbuf, &mld_stat, sizeof(struct stat));
+#else
+					stbuf->st_uid = mld_stat.st_uid;
+					stbuf->st_gid = mld_stat.st_gid;
+					stbuf->st_mode = mld_stat.st_mode;
+					stbuf->st_size = mld_stat.st_size;
+					stbuf->st_nlink = mld_stat.st_nlink;
+#endif
                 }
                 else
                 {
@@ -943,6 +968,9 @@ static int mlvfs_getattr(const char *path, struct stat *stbuf)
 static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
     int result = 0;
+
+	fi->fh = UINT64_MAX;
+
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".log") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
     {
         char * real_path = NULL;
@@ -975,7 +1003,7 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
     return result;
 }
 
-static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
+static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
     int result = -ENOENT;
     int mld = 0;
@@ -1076,7 +1104,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
     return result;
 }
 
-static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
     char * mlv_filename = NULL;
     if(string_ends_with(path, ".dng") && get_mlv_filename(path, &mlv_filename))
@@ -1146,7 +1174,13 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
     }
     else
     {
+#ifdef WIN32
+		off_t pos = lseek((int)fi->fh, 0, SEEK_CUR);
+		int res = (int)read((int)fi->fh, buf, size, offset);
+		lseek((int)fi->fh, pos, SEEK_SET);
+#else
         int res = (int)pread((int)fi->fh, buf, size, offset);
+#endif
         if (res == -1) res = -errno;
         return res;
     }
@@ -1157,6 +1191,9 @@ static int mlvfs_read(const char *path, char *buf, size_t size, off_t offset, st
 static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     int result = -ENOENT;
+
+	fi->fh = UINT64_MAX;
+
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
     {
         char * real_path = NULL;
@@ -1182,9 +1219,11 @@ static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
 static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
-    {
+	{
+#ifndef WIN32
         int res = fsync((int)fi->fh);
         if (res == -1) return -errno;
+#endif
         return 0;
     }
     return -ENOENT;
@@ -1206,11 +1245,13 @@ static int mlvfs_mkdir(const char *path, mode_t mode)
 
 static int mlvfs_release(const char *path, struct fuse_file_info *fi)
 {
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
-    {
-        close((int)fi->fh);
-    }
-    else if (string_ends_with(path, ".dng"))
+	if (fi->fh != UINT64_MAX)
+	{
+		close((int)fi->fh);
+		fi->fh = UINT64_MAX;
+	}
+
+    if (string_ends_with(path, ".dng"))
     {
         release_image_buffer_by_path(path);
     }
@@ -1245,24 +1286,32 @@ static int mlvfs_rmdir(const char *path)
     return result;
 }
 
-static int mlvfs_truncate(const char *path, off_t offset)
+static int mlvfs_truncate(const char *path, FUSE_OFF_T offset)
 {
     int result = -ENOENT;
     char * real_path = NULL;
     if(get_real_path(&real_path, path))
     {
+#ifndef WIN32
         truncate(real_path, offset);
+#endif
         result = 0;
     }
     free(real_path);
     return result;
 }
 
-static int mlvfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+static int mlvfs_write(const char *path, const char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
     {
-        int res = (int)pwrite((int)fi->fh, buf, size, offset);
+#ifdef WIN32
+		off_t pos = lseek((int)fi->fh, 0, SEEK_CUR);
+		int res = (int)write((int)fi->fh, buf, size, offset);
+		lseek((int)fi->fh, pos, SEEK_SET);
+#else
+		int res = (int)pwrite((int)fi->fh, buf, size, offset);
+#endif
         if (res == -1) res = -errno;
         return res;
     }
@@ -1318,7 +1367,9 @@ static void display_help()
 
     /* display FUSE options */
     char * help_opts[] = {"mlvfs", "-h"};
+#ifndef WIN32
     fuse_main(2, help_opts, NULL, NULL);
+#endif
 
     /* display MLVFS options */
     /* todo: print a description for each option */
@@ -1352,8 +1403,18 @@ int main(int argc, char **argv)
     else if (mlvfs.mlv_path != NULL)
     {
         // shell and wildcard expansion, taking just the first result
+		char *expanded_path = NULL;
+
+#ifdef WIN32
+		char expanded[MAX_PATH];
+		ExpandEnvironmentStrings(mlvfs.mlv_path, expanded, sizeof(expanded));
+		expanded_path = _strdup(expanded);
+#else
         wordexp_t p;
         wordexp(mlvfs.mlv_path, &p, 0);
+		expanded_path = strdup(p.we_wordv[0]);
+        wordfree(&p);
+#endif
 
         // check if the directory actually exists
         struct stat file_stat;
@@ -1361,11 +1422,11 @@ int main(int argc, char **argv)
         {
             res = 0;
         }
-        else if ((stat(p.we_wordv[0], &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+        else if ((stat(expanded_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
         {
             // assume that p.we_wordc > 0
             free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
-            mlvfs.mlv_path = p.we_wordv[0];
+            mlvfs.mlv_path = expanded_path;
             res = 0;
         }
         else
@@ -1380,8 +1441,7 @@ int main(int argc, char **argv)
             res = fuse_main(args.argc, args.argv, &mlvfs_filesystem_operations, NULL);
         }
 
-        if(mlvfs.mlv_path != p.we_wordv[0]) free(mlvfs.mlv_path);
-        wordfree(&p);
+        free(expanded_path);
     }
     else
     {
