@@ -1,0 +1,234 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0CFFB147-F377-4AC6-B9C9-2BCA4470BDB5}</ProjectGuid>
+    <RootNamespace>mlvfs</RootNamespace>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\amaze_demosaic_RT.c" />
+    <ClCompile Include="..\cs.c" />
+    <ClCompile Include="..\dng.c" />
+    <ClCompile Include="..\gif.c" />
+    <ClCompile Include="..\hdr.c" />
+    <ClCompile Include="..\histogram.c" />
+    <ClCompile Include="..\index.c" />
+    <ClCompile Include="..\lj92.c" />
+    <ClCompile Include="..\LZMA\7zAlloc.c" />
+    <ClCompile Include="..\LZMA\7zBuf.c" />
+    <ClCompile Include="..\LZMA\7zBuf2.c" />
+    <ClCompile Include="..\LZMA\7zCrc.c" />
+    <ClCompile Include="..\LZMA\7zCrcOpt.c" />
+    <ClCompile Include="..\LZMA\7zDec.c" />
+    <ClCompile Include="..\LZMA\7zFile.c" />
+    <ClCompile Include="..\LZMA\7zIn.c" />
+    <ClCompile Include="..\LZMA\7zStream.c" />
+    <ClCompile Include="..\LZMA\Alloc.c" />
+    <ClCompile Include="..\LZMA\Bcj2.c" />
+    <ClCompile Include="..\LZMA\Bra.c" />
+    <ClCompile Include="..\LZMA\Bra86.c" />
+    <ClCompile Include="..\LZMA\BraIA64.c" />
+    <ClCompile Include="..\LZMA\CpuArch.c" />
+    <ClCompile Include="..\LZMA\Delta.c" />
+    <ClCompile Include="..\LZMA\LzFind.c" />
+    <ClCompile Include="..\LZMA\Lzma2Dec.c" />
+    <ClCompile Include="..\LZMA\Lzma2Enc.c" />
+    <ClCompile Include="..\LZMA\Lzma86Dec.c" />
+    <ClCompile Include="..\LZMA\Lzma86Enc.c" />
+    <ClCompile Include="..\LZMA\LzmaDec.c" />
+    <ClCompile Include="..\LZMA\LzmaEnc.c" />
+    <ClCompile Include="..\LZMA\LzmaLib.c" />
+    <ClCompile Include="..\LZMA\Ppmd7.c" />
+    <ClCompile Include="..\LZMA\Ppmd7Dec.c" />
+    <ClCompile Include="..\LZMA\Ppmd7Enc.c" />
+    <ClCompile Include="..\LZMA\Sha256.c" />
+    <ClCompile Include="..\LZMA\Xz.c" />
+    <ClCompile Include="..\LZMA\XzCrc64.c" />
+    <ClCompile Include="..\main.c" />
+    <ClCompile Include="..\mongoose\mongoose.c" />
+    <ClCompile Include="..\patternnoise.c" />
+    <ClCompile Include="..\resource_manager.c" />
+    <ClCompile Include="..\sleefsseavx.c" />
+    <ClCompile Include="..\stripes.c" />
+    <ClCompile Include="..\wav.c" />
+    <ClCompile Include="..\webgui.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\cs.h" />
+    <ClInclude Include="..\dng.h" />
+    <ClInclude Include="..\dng_tag_codes.h" />
+    <ClInclude Include="..\dng_tag_types.h" />
+    <ClInclude Include="..\dng_tag_values.h" />
+    <ClInclude Include="..\gif.h" />
+    <ClInclude Include="..\hdr.h" />
+    <ClInclude Include="..\helpersse2.h" />
+    <ClInclude Include="..\histogram.h" />
+    <ClInclude Include="..\index.h" />
+    <ClInclude Include="..\lj92.h" />
+    <ClInclude Include="..\LZMA\7z.h" />
+    <ClInclude Include="..\LZMA\7zAlloc.h" />
+    <ClInclude Include="..\LZMA\7zBuf.h" />
+    <ClInclude Include="..\LZMA\7zCrc.h" />
+    <ClInclude Include="..\LZMA\7zFile.h" />
+    <ClInclude Include="..\LZMA\Alloc.h" />
+    <ClInclude Include="..\LZMA\Bcj2.h" />
+    <ClInclude Include="..\LZMA\Bra.h" />
+    <ClInclude Include="..\LZMA\CpuArch.h" />
+    <ClInclude Include="..\LZMA\Delta.h" />
+    <ClInclude Include="..\LZMA\LzFind.h" />
+    <ClInclude Include="..\LZMA\LzHash.h" />
+    <ClInclude Include="..\LZMA\Lzma2Dec.h" />
+    <ClInclude Include="..\LZMA\Lzma2Enc.h" />
+    <ClInclude Include="..\LZMA\Lzma86.h" />
+    <ClInclude Include="..\LZMA\LzmaDec.h" />
+    <ClInclude Include="..\LZMA\LzmaEnc.h" />
+    <ClInclude Include="..\LZMA\LzmaLib.h" />
+    <ClInclude Include="..\LZMA\Ppmd.h" />
+    <ClInclude Include="..\LZMA\Ppmd7.h" />
+    <ClInclude Include="..\LZMA\RotateDefs.h" />
+    <ClInclude Include="..\LZMA\Sha256.h" />
+    <ClInclude Include="..\LZMA\Types.h" />
+    <ClInclude Include="..\LZMA\Xz.h" />
+    <ClInclude Include="..\LZMA\XzCrc64.h" />
+    <ClInclude Include="..\mlv.h" />
+    <ClInclude Include="..\mlvfs.h" />
+    <ClInclude Include="..\mongoose\mongoose.h" />
+    <ClInclude Include="..\opt_med.h" />
+    <ClInclude Include="..\patternnoise.h" />
+    <ClInclude Include="..\raw.h" />
+    <ClInclude Include="..\resource_manager.h" />
+    <ClInclude Include="..\stripes.h" />
+    <ClInclude Include="..\wav.h" />
+    <ClInclude Include="..\webgui.h" />
+    <ClInclude Include="..\wirth.h" />
+    <ClInclude Include="dirent.h" />
+    <ClInclude Include="pthread.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

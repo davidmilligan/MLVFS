@@ -1,0 +1,306 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\LZMA\7zBuf.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zBuf2.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zCrc.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zCrcOpt.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zDec.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zFile.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zIn.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zStream.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Alloc.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Bcj2.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Bra.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Bra86.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\BraIA64.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\CpuArch.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Delta.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\LzFind.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Lzma2Dec.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Lzma2Enc.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Lzma86Dec.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Lzma86Enc.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\LzmaDec.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\LzmaEnc.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\LzmaLib.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Ppmd7.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Ppmd7Dec.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Ppmd7Enc.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Sha256.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\Xz.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\XzCrc64.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LZMA\7zAlloc.c">
+      <Filter>Sources\LZMA</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cs.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\amaze_demosaic_RT.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\dng.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gif.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hdr.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\histogram.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\index.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\lj92.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\main.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\mongoose\mongoose.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\patternnoise.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\resource_manager.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sleefsseavx.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\stripes.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\wav.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\webgui.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\LZMA\7zCrc.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\7zFile.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Alloc.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Bcj2.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Bra.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\CpuArch.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Delta.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\LzFind.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\LzHash.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Lzma2Dec.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Lzma2Enc.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Lzma86.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\LzmaDec.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\LzmaEnc.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\LzmaLib.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Ppmd.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Ppmd7.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\RotateDefs.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Sha256.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Types.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\Xz.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\XzCrc64.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\7zBuf.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\7z.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LZMA\7zAlloc.h">
+      <Filter>Includes\LZMA</Filter>
+    </ClInclude>
+    <ClInclude Include="..\cs.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="dirent.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\dng.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\dng_tag_codes.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\dng_tag_types.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\dng_tag_values.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gif.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hdr.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\helpersse2.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\histogram.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\index.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\lj92.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\mlv.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\mlvfs.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\mongoose\mongoose.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\opt_med.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\patternnoise.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="pthread.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\raw.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wirth.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\webgui.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wav.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\stripes.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\resource_manager.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Includes">
+      <UniqueIdentifier>{8429ff33-4b46-44f5-94d7-3ffea4840227}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\LZMA">
+      <UniqueIdentifier>{c4d8285a-6a43-4108-af6c-b9368d8ad0d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources">
+      <UniqueIdentifier>{875d0ef5-16b2-4224-8536-e313d9f3355a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources\LZMA">
+      <UniqueIdentifier>{8f366ba1-123f-454e-a93c-dfc680de9fb7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
