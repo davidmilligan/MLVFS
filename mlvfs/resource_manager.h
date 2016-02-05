@@ -81,8 +81,8 @@ struct dng_attr_mapping
     struct stat *attr;
 };
 
-struct stat * lookup_dng_attr(const char * path);
-void register_dng_attr(const char * path, struct stat *attr);
+struct FUSE_STAT * lookup_dng_attr(const char * path);
+void register_dng_attr(const char * path, struct FUSE_STAT *attr);
 void free_dng_attr_mappings();
 
 #endif

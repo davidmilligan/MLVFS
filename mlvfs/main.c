@@ -801,11 +801,7 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
             struct stat * dng_st = NULL;
             if (string_ends_with(path, ".dng") && (dng_st = lookup_dng_attr(mlv_filename)) != NULL)
             {
-				stbuf->st_uid = dng_st->st_uid;
-				stbuf->st_gid = dng_st->st_gid;
-				stbuf->st_mode = dng_st->st_mode;
-				stbuf->st_size = dng_st->st_size;
-				stbuf->st_nlink = dng_st->st_nlink;
+				memcpy(stbuf, dng_st, sizeof(struct FUSE_STAT));
                 result = 0;
             }
             else
@@ -835,7 +831,11 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     timespec_str.tv_nsec = ((frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) % 1000000) * 1000;
                     
                     // OS-specific timestamps
-                    #if __DARWIN_UNIX03
+					#ifdef WIN32
+					memcpy(&stbuf->st_atim, &timespec_str, sizeof(struct timespec));
+					memcpy(&stbuf->st_ctim, &timespec_str, sizeof(struct timespec));
+					memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
+					#elif __DARWIN_UNIX03
                     memcpy(&stbuf->st_atimespec, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_birthtimespec, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_ctimespec, &timespec_str, sizeof(struct timespec));

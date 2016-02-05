@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fuse.h>
 #include "index.h"
 #include "mlvfs.h"
 #include "resource_manager.h"
@@ -402,7 +403,7 @@ CREATE_MUTEX(dng_attr_mapping_mutex)
 
 static struct dng_attr_mapping * dng_attr_mappings = NULL;
 
-static struct stat * lookup_dng_attr_internal(const char * path)
+static struct FUSE_STAT * lookup_dng_attr_internal(const char * path)
 {
     for(struct dng_attr_mapping * current = dng_attr_mappings; current != NULL; current = current->next)
     {
@@ -411,9 +412,9 @@ static struct stat * lookup_dng_attr_internal(const char * path)
     return NULL;
 }
 
-struct stat * lookup_dng_attr(const char * path)
+struct FUSE_STAT * lookup_dng_attr(const char * path)
 {
-    struct stat * result = NULL;
+    struct FUSE_STAT * result = NULL;
     RELOCK(dng_attr_mapping_mutex)
     {
         result = lookup_dng_attr_internal(path);
@@ -422,7 +423,7 @@ struct stat * lookup_dng_attr(const char * path)
     return result;
 }
 
-void register_dng_attr(const char * path, struct stat *attr)
+void register_dng_attr(const char * path, struct FUSE_STAT *attr)
 {
     RELOCK(dng_attr_mapping_mutex)
     {
@@ -433,8 +434,8 @@ void register_dng_attr(const char * path, struct stat *attr)
             {
                 new_buffer->path = (char*)malloc((sizeof(char) * (strlen(path) + 2)));
                 strcpy(new_buffer->path, path);
-                new_buffer->attr = (struct stat*)malloc(sizeof(struct stat));
-                memcpy(new_buffer->attr, attr, sizeof(struct stat));
+                new_buffer->attr = (struct FUSE_STAT*)malloc(sizeof(struct FUSE_STAT));
+                memcpy(new_buffer->attr, attr, sizeof(struct FUSE_STAT));
                 new_buffer->next = dng_attr_mappings;
                 dng_attr_mappings = new_buffer;
             }
