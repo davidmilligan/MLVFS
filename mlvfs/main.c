@@ -1169,7 +1169,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
     else if(string_ends_with(path, ".log") && get_mlv_filename(path, &mlv_filename))
     {
         char * log = mlv_read_debug_log(mlv_filename);
-		int read_bytes = 0;
+		size_t read_bytes = 0;
 
         if(log)
         {
@@ -1181,7 +1181,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
             free(log);
         }
         free(mlv_filename);
-        return read_bytes;
+        return (int)read_bytes;
     }
     else
     {
