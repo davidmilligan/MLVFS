@@ -8,11 +8,12 @@ make clean -C mlvfs && make -C mlvfs
 source="install_temp"
 title="MLVFS"
 finalDMGName="MLVFS.dmg"
-size=2048
+size=8192
 
 mkdir "${source}"
 cp -R MLVFS.workflow "${source}"
 cp -f mlvfs/mlvfs "${source}/MLVFS.workflow/Contents/"
+cp -f mlvfs/data/* "${source}/MLVFS.workflow/Contents/"
 cp LICENSE "${source}"
 cp README.md "${source}"
 

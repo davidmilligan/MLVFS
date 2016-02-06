@@ -25,6 +25,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include "mlvfs.h"
 #include "raw.h"
 #include "mlv.h"
@@ -39,148 +40,9 @@ static int halt_webgui = 0;
 static struct mlvfs * mlvfs_config = NULL;
 #define HTML_SIZE 65535
 
-static const char * JQUERY = "";
+static char * JQUERY = NULL;
 
-static const char * HTML =
-"<html>"
-"<head>"
-"  <title>MLVFS: %s</title>"
-"  <style>"
-"    body { font-family: \"Trebuchet MS\", Arial, Helvetica, sans-serif; }"
-"    h1, h2, h3 { margin: 8px 6px 4px 6px;}"
-"    table { border-collapse: collapse; font-size: 0.8em; }"
-"    td, th { border: 1px solid #369; padding: 3px 7px 2px 7px; }"
-"    th { text-align: left; padding-top: 5px; padding-bottom: 4px; background-color: #48D; color: #FFF; }"
-"    tr.odd td { color: #000; background-color: #EEF; }"
-"    tr.delayedodd td { color: #000; background-color: #EEF; }"
-"    .version { text-align: center; foreground-color: #444; font-size: 0.4em }"
-"  </style>"
-"  <script src=\"http://code.jquery.com/jquery-1.12.0.min.js\"></script>"
-"  <script> jQuery(function() {"
-"    $.ajax({ url: '/get_value', dataType: 'json', success: function(d) {"
-"      $('#dir').val(d.dir);"
-"      $('#prefetch').val(d.prefetch);"
-"      $('#fps').val(d.fps);"
-"      $('#deflicker').val(d.deflicker);"
-"      $('input:radio[name=\"name_scheme\"][value=' + d.name_scheme + ']').prop('checked', true);"
-"      $('input:radio[name=\"badpix\"][value=' + d.badpix + ']').prop('checked', true);"
-"      $('input:radio[name=\"chroma_smooth\"][value=' + d.chroma_smooth + ']').prop('checked', true);"
-"      $('input:radio[name=\"stripes\"][value=' + d.stripes + ']').prop('checked', true);"
-"      $('input:radio[name=\"dual_iso\"][value=' + d.dual_iso + ']').prop('checked', true);"
-"      $('input:radio[name=\"hdr_interpolation_method\"][value=' + d.hdr_interpolation_method + ']').prop('checked', true);"
-"      $('input:radio[name=\"hdr_no_alias_map\"][value=' + d.hdr_no_alias_map + ']').prop('checked', true);"
-"      $('input:radio[name=\"hdr_no_fullres\"][value=' + d.hdr_no_fullres + ']').prop('checked', true);"
-"      $('input:radio[name=\"fix_pattern_noise\"][value=' + d.fix_pattern_noise + ']').prop('checked', true);"
-"      if(d.dual_iso == 2){ $('#hdr_interpolation_method').show(); $('#hdr_no_alias_map').show(); $('#hdr_no_fullres').show(); }"
-"      else { $('#hdr_interpolation_method').hide(); $('#hdr_no_alias_map').hide(); $('#hdr_no_fullres').hide(); }"
-"    }});"
-"    $(document).on('click', 'input:radio', function() {"
-"      $.ajax({ url: '/set_value', dataType: 'json', "
-"      data: { "
-"        \"name_scheme\": $('input:radio[name=name_scheme]:checked').val(), "
-"        \"badpix\": $('input:radio[name=badpix]:checked').val(), "
-"        \"chroma_smooth\": $('input:radio[name=chroma_smooth]:checked').val(), "
-"        \"stripes\": $('input:radio[name=stripes]:checked').val(), "
-"        \"dual_iso\": $('input:radio[name=dual_iso]:checked').val(), "
-"        \"hdr_interpolation_method\": $('input:radio[name=hdr_interpolation_method]:checked').val(), "
-"        \"hdr_no_alias_map\": $('input:radio[name=hdr_no_alias_map]:checked').val(), "
-"        \"hdr_no_fullres\": $('input:radio[name=hdr_no_fullres]:checked').val(), "
-"        \"fix_pattern_noise\": $('input:radio[name=fix_pattern_noise]:checked').val() "
-"      } });"
-"      if($('input:radio[name=dual_iso]:checked').val() == 2){ $('#hdr_interpolation_method').show(); $('#hdr_no_alias_map').show(); $('#hdr_no_fullres').show(); }"
-"      else { $('#hdr_interpolation_method').hide(); $('#hdr_no_alias_map').hide(); $('#hdr_no_fullres').hide(); }"
-"      return true; });"
-"    $('#prefetch').on('change', function() {"
-"      $.ajax({ url: '/set_value', dataType: 'json', "
-"      data: { "
-"        \"prefetch\": $('#prefetch').val(), "
-"      } });"
-"      return true; });"
-"    $('#deflicker').on('change', function() {"
-"      $.ajax({ url: '/set_value', dataType: 'json', "
-"      data: { "
-"        \"deflicker\": $('#deflicker').val(), "
-"      } });"
-"      return true; });"
-"    $('#fps').on('change', function() {"
-"      $.ajax({ url: '/set_value', dataType: 'json', "
-"      data: { "
-"        \"fps\": $('#fps').val(), "
-"      } });"
-"      return true; });"
-"    });"
-"    $(document).ready(function(){"
-"      $('.delayedodd, .delayedeven').each(function(){$(this).load($(this).attr('delayedsrc'));});"
-"    });"
-"  </script>"
-"</head>"
-"<body>"
-"  <h1>MLVFS - Magic Lantern Video File System</h1>"
-"  <hr/>"
-"  <form>"
-"    <table>"
-"      <tr><th colspan=2>Configuration Options</th></tr>"
-"      <tr>"
-"        <td>Source Directory</td>"
-"        <td><input type=text id=dir size=64 readonly/></td>"
-"      </tr>"
-"      <tr class=odd>"
-"        <td>Prefetch</td>"
-"        <td><input type=text id=prefetch size=8/> frames</td>"
-"      </tr>"
-"      <tr>"
-"        <td>Override Framerate</td>"
-"        <td><input type=text id=fps size=8/> FPS (0 = disabled)</td>"
-"      </tr>"
-"      <tr class=odd>"
-"        <td>Naming Scheme</td>"
-"        <td><input type=radio name=name_scheme value=0 >Default</input><input type=radio name=name_scheme value=1 >DaVinci Resolve</input></td>"
-"      </tr>"
-"      <tr>"
-"        <td>Deflicker</td>"
-"        <td><input type=text id=deflicker size=8/> Deflicker (0 = disabled, value is target median in raw units ex: 3072)</td>"
-"      </tr>"
-"      <tr class=odd>"
-"        <td>Bad Pixel Fix</td>"
-"        <td><input type=radio name=badpix value=0 >Off</input><input type=radio name=badpix value=1 >On</input><input type=radio name=badpix value=2 >Aggressive</input></td>"
-"      </tr>"
-"      <tr>"
-"        <td>Vertical Stripes Fix</td>"
-"        <td><input type=radio name=stripes value=0 >Off</input><input type=radio name=stripes value=1 >On</input></td>"
-"      </tr>"
-"      <tr class=odd>"
-"        <td>Chroma Smoothing</td>"
-"        <td><input type=radio name=chroma_smooth value=0 >None</input><input type=radio name=chroma_smooth value=2 >2x2</input><input type=radio name=chroma_smooth value=3 >3x3</input><input type=radio name=chroma_smooth value=5 >5x5</input></td>"
-"      </tr>"
-"      <tr>"
-"        <td>Fix Pattern Noise</td>"
-"        <td><input type=radio name=fix_pattern_noise value=0 >Off</input><input type=radio name=fix_pattern_noise value=1 >On</input></td>"
-"      </tr>"
-"      <tr class=odd>"
-"        <td>Dual ISO</td>"
-"        <td><input type=radio name=dual_iso value=0 >Off</input><input type=radio name=dual_iso value=1 >Preview</input><input type=radio name=dual_iso value=2 >Full (20bit)</input></td>"
-"      </tr>"
-"      <tr id=hdr_interpolation_method >"
-"        <td> Interpolation</td>"
-"        <td><input type=radio name=hdr_interpolation_method value=0 >AMaZE</input><input type=radio name=hdr_interpolation_method value=1 >mean32</input></td>"
-"      </tr>"
-"      <tr class=odd id=hdr_no_alias_map >"
-"        <td> Alias Map</td>"
-"        <td><input type=radio name=hdr_no_alias_map value=1 >Off</input><input type=radio name=hdr_no_alias_map value=0 >On</input></td>"
-"      </tr>"
-"      <tr id=hdr_no_fullres >"
-"        <td> Fullres Blending</td>"
-"        <td><input type=radio name=hdr_no_fullres value=1 >Off</input><input type=radio name=hdr_no_fullres value=0 >On</input></td>"
-"      </tr>"
-"    </table>"
-"  </form>"
-"  <hr/>"
-"  <h3>%s%s</h3>"
-"  %s"
-"  <hr/>"
-"  <p class=version>Version: " VERSION " " BUILD_DATE "<p/>"
-"</body>"
-"</html>";
+static char * HTML = NULL;
 
 static const char * TABLE_HEADER_NO_PREVIEW =
 "<table><tr>"
@@ -216,6 +78,50 @@ static const char * TABLE_HEADER =
 "<th>ISO</th>"
 "<th>Aperture</th>"
 "</tr>";
+
+static int load_resource(char** resource, const char * filename)
+{
+    if(*resource == NULL)
+    {
+        FILE * f = fopen(filename, "rb");
+        if (f)
+        {
+            fseek(f, 0, SEEK_END);
+            if(ferror(f))
+            {
+                int err = errno;
+                fprintf(stderr, "load_resource: file error: %s\n", strerror(err));
+                return 0;
+            }
+            size_t length = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            *resource = calloc(length + 1, 1);
+            if (*resource)
+            {
+                fread(*resource, 1, length, f);
+                if(ferror(f))
+                {
+                    int err = errno;
+                    fprintf(stderr, "load_resource: file error: %s\n", strerror(err));
+                    free(*resource);
+                    *resource = NULL;
+                    return 0;
+                }
+            }
+            else
+            {
+                fprintf(stderr, "load_resource: malloc error\n");
+            }
+            fclose(f);
+        }
+        else
+        {
+            fprintf(stderr, "load_resource: fopen error\n");
+            return 0;
+        }
+    }
+    return  1;
+}
 
 static void webgui_generate_mlv_html(char * html, const char * path)
 {
@@ -400,9 +306,12 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
             
             mg_printf_data(conn, "%s", "{\"success\": true}");
         }
-        else if (strcmp(conn->uri, "/jquery-1.11.0.min.js") == 0)
+        else if (strcmp(conn->uri, "/jquery-1.12.0.min.js") == 0)
         {
-            mg_printf_data(conn, "%s", JQUERY);
+            if (load_resource(&JQUERY, "jquery-1.12.0.min.js"))
+            {
+                mg_printf_data(conn, "%s", JQUERY);
+            }
         }
         else if(string_ends_with(conn->uri, "_ROWDATA.html"))
         {
@@ -433,7 +342,10 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
                 mg_send_header(conn, "Content-Type", "text/html");
                 mg_send_header(conn, "Cache-Control", "max-age=0, post-check=0, pre-check=0, no-store, no-cache, must-revalidate");
                 
-                mg_printf_data(conn, HTML, conn->uri, mlvfs_config->mlv_path, conn->uri, html);
+                if(load_resource(&HTML, "html_template.html"))
+                {
+                    mg_printf_data(conn, HTML, conn->uri, mlvfs_config->mlv_path, conn->uri, html, VERSION, BUILD_DATE);
+                }
                 free(html);
             }
         }
@@ -473,4 +385,6 @@ void webgui_start(struct mlvfs * mlvfs)
 void webgui_stop(void)
 {
     halt_webgui = 1;
+    if(JQUERY) free(JQUERY);
+    if(HTML) free(HTML);
 }

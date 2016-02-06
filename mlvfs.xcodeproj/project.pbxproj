@@ -131,6 +131,7 @@
 		6319AB3819AD0F1000032A1A /* OSXFUSE.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OSXFUSE.framework; path = ../../../../../Library/Frameworks/OSXFUSE.framework; sourceTree = "<group>"; };
 		6319AB3A19AD3B1100032A1A /* mlv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mlv.h; sourceTree = "<group>"; };
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
+		632F7D7A1C658A8A00311E91 /* data */ = {isa = PBXFileReference; lastKnownFileType = folder; name = data; path = mlvfs/data; sourceTree = "<group>"; };
 		634B603219BBFED2008CF973 /* wav.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = wav.c; sourceTree = "<group>"; };
 		634B603419BBFEE4008CF973 /* wav.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wav.h; sourceTree = "<group>"; };
 		634BD5A11AACE4550022FD14 /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose.c; path = mongoose/mongoose.c; sourceTree = "<group>"; };
@@ -248,6 +249,7 @@
 				63B4287F19EB1F9600B83CD3 /* build_installer.sh */,
 				6319AB3819AD0F1000032A1A /* OSXFUSE.framework */,
 				63B6174019ACED9300F21CD0 /* mlvfs */,
+				632F7D7A1C658A8A00311E91 /* data */,
 				63B6173F19ACED9300F21CD0 /* Products */,
 			);
 			sourceTree = "<group>";
