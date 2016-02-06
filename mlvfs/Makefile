@@ -11,10 +11,10 @@ DEBUG = -g
 # CFLAGs and LIBS from `pkg-config fuse --cflags --libs`
 ifeq "$(PLATFORM)" "Darwin"
 INCLUDE = -I/usr/local/include/osxfuse
-CFLAGS = -Wall -D__DARWIN_64_BIT_INO_T=1 -D__FreeBSD__=10 -D_FILE_OFFSET_BITS=64 $(INCLUDE) -std=gnu99 -DVERSION="\"$(GIT_VERSION)\"" -DBUILD_DATE="\"$(BUILD_DATE)\""
+CFLAGS = -Wall -D__DARWIN_64_BIT_INO_T=1 -D__FreeBSD__=10 -D_FILE_OFFSET_BITS=64 $(INCLUDE) -std=gnu99 -DVERSION="\"$(GIT_VERSION)\"" -DBUILD_DATE="\"$(BUILD_DATE)\"" -DFUSE_USE_VERSION=26
 LIBS = -L/usr/local/lib/ -losxfuse -pthread
 else
-CFLAGS = -Wall -std=gnu99 -D_FILE_OFFSET_BITS=64 -DVERSION="\"$(GIT_VERSION)\"" -DBUILD_DATE="\"$(BUILD_DATE)\""
+CFLAGS = -Wall -std=gnu99 -D_FILE_OFFSET_BITS=64 -DVERSION="\"$(GIT_VERSION)\"" -DBUILD_DATE="\"$(BUILD_DATE)\"" -DFUSE_USE_VERSION=26
 LIBS = -pthread -lfuse -lm
 endif
 

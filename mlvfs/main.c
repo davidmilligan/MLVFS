@@ -18,8 +18,6 @@
  * Boston, MA  02110-1301, USA.
  */
 
-#define FUSE_USE_VERSION 26
-
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
