@@ -51,6 +51,42 @@
 
 static struct mlvfs mlvfs;
 
+#ifdef WIN32
+
+int pread(int fh, void *buf, size_t size, long offset)
+{
+    off_t pos = lseek(fh, 0, SEEK_CUR);
+    int res = (int)read(fh, buf, size, offset);
+    lseek(fh, pos, SEEK_SET);
+
+    return res;
+}
+
+int pwrite(int fh, void *buf, size_t size, long offset)
+{
+    off_t pos = lseek(fh, 0, SEEK_CUR);
+    int res = (int)write(fh, buf, size, offset);
+    lseek(fh, pos, SEEK_SET);
+
+    return res;
+}
+
+/* visual studio compilers for win32 offer a C exception handling. make use of it to reduce risk of severe crashes. */
+#define TRY_WRAP(code) __try { code } __except(ExceptionFilter(__FUNCTION__,__LINE__,GetExceptionCode())) { return -ENOENT; }
+
+int ExceptionFilter(const char *func, unsigned int line, unsigned int code)
+{
+    fprintf(stderr, "%s(%d): caught exception 0x%08X\n", func, line, code);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+#else
+
+#define TRY_WRAP(code) code
+
+#endif
+
+
 /**
  * Determines if a string ends in some string
  */
@@ -387,18 +423,18 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
         if(ferror(in_file))
         {
             int err = errno;
-            fprintf(stderr, "mlv_get_frame_headers: fread error: %s\n", strerror(err));
+            fprintf(stderr, "%s: mlv_get_frame_headers: fread error: %s\n", mlv_filename, strerror(err));
         }
     }
     
     if(found && !rawi_found)
     {
-        fprintf(stderr, "Error reading frame headers: no rawi block was found\n");
+        fprintf(stderr, "%s: Error reading frame headers: no rawi block was found\n", mlv_filename);
     }
     
     if(!found)
     {
-        fprintf(stderr, "Error reading frame headers: vidf block for frame %d was not found\n", index);
+        fprintf(stderr, "%s: Error reading frame headers: vidf block for frame %d was not found\n", mlv_filename, index);
     }
     
     free(block_xref);
@@ -434,7 +470,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
         uint8_t * frame_buffer = malloc(frame_size);
         if (!frame_buffer)
         {
-            return NULL;
+            return 0;
         }
         
         fread(frame_buffer, sizeof(uint8_t), frame_size, file);
@@ -491,7 +527,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                     {
                         free(frame_buffer);
                         fprintf(stderr, "LJ92 malloc failed!\n");
-                        return NULL;
+                        return 0;
                     }
                     
                     ret = lj92_decode(handle, decompressed, lj92_width * lj92_height, 0, NULL, 0);
@@ -1215,10 +1251,12 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
             fprintf(stderr, "mlvfs_read: GIF image_buffer->data is NULL\n");
             return 0;
         }
-        /* ensure that reads with offset beyond end will not cause negative memcpy sizes */
-        int read_size = MAX(0, MIN(size, image_buffer->size - offset));
 
-        memcpy(buf, ((uint8_t*)image_buffer->data) + offset, read_size);
+        /* ensure that reads with offset beyond end will not cause negative memcpy sizes */
+        long read_offset = MAX(0, MIN(offset, image_buffer->size));
+        long read_size = MAX(0, MIN(size, image_buffer->size - read_offset));
+
+        memcpy(buf, ((uint8_t*)image_buffer->data) + read_offset, read_size);
         image_buffer_read_end(image_buffer);
         free(mlv_filename);
         return read_size;
@@ -1242,13 +1280,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
     }
     else
     {
-#ifdef WIN32
-        off_t pos = lseek((int)fi->fh, 0, SEEK_CUR);
-        int res = (int)read((int)fi->fh, buf, size, offset);
-        lseek((int)fi->fh, pos, SEEK_SET);
-#else
         int res = (int)pread((int)fi->fh, buf, size, offset);
-#endif
         if (res == -1) res = -errno;
         return res;
     }
@@ -1373,34 +1405,76 @@ static int mlvfs_write(const char *path, const char *buf, size_t size, FUSE_OFF_
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
     {
-#ifdef WIN32
-        off_t pos = lseek((int)fi->fh, 0, SEEK_CUR);
-        int res = (int)write((int)fi->fh, buf, size, offset);
-        lseek((int)fi->fh, pos, SEEK_SET);
-#else
         int res = (int)pwrite((int)fi->fh, buf, size, offset);
-#endif
         if (res == -1) res = -errno;
         return res;
     }
     return -ENOENT;
 }
 
+static int mlvfs_wrap_getattr(const char *path, struct FUSE_STAT *stbuf)
+{
+    TRY_WRAP(return mlvfs_getattr(path, stbuf); )
+}
+static int mlvfs_wrap_open(const char *path, struct fuse_file_info *fi)
+{
+    TRY_WRAP(return mlvfs_open(path, fi); )
+}
+static int mlvfs_wrap_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FUSE_OFF_T offset, struct fuse_file_info *fi)
+{
+    TRY_WRAP(return mlvfs_readdir(path, buf, filler, offset, fi); )
+}
+static int mlvfs_wrap_read(const char *path, char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
+{
+    TRY_WRAP(return mlvfs_read(path, buf, size, offset, fi); )
+}
+static int mlvfs_wrap_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+    TRY_WRAP(return mlvfs_create(path, mode, fi); )
+}
+static int mlvfs_wrap_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
+{
+    TRY_WRAP(return mlvfs_fsync(path, isdatasync, fi); )
+}
+static int mlvfs_wrap_mkdir(const char *path, mode_t mode)
+{
+    TRY_WRAP(return mlvfs_mkdir(path, mode); )
+}
+static int mlvfs_wrap_release(const char *path, struct fuse_file_info *fi)
+{
+    TRY_WRAP(return mlvfs_release(path, fi); )
+}
+static int mlvfs_wrap_rename(const char *from, const char *to)
+{
+    TRY_WRAP(return mlvfs_rename(from, to); )
+}
+static int mlvfs_wrap_rmdir(const char *path)
+{
+    TRY_WRAP(return mlvfs_rmdir(path); )
+}
+static int mlvfs_wrap_truncate(const char *path, FUSE_OFF_T offset)
+{
+    TRY_WRAP(return mlvfs_truncate(path, offset); )
+}
+static int mlvfs_wrap_write(const char *path, const char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
+{
+    TRY_WRAP(return mlvfs_write(path, buf, size, offset, fi); )
+}
+
 static struct fuse_operations mlvfs_filesystem_operations =
 {
-    .getattr = mlvfs_getattr,
-    .open    = mlvfs_open,
-    .read    = mlvfs_read,
-    .readdir = mlvfs_readdir,
-    
-    .create      = mlvfs_create,
-    .fsync       = mlvfs_fsync,
-    .mkdir       = mlvfs_mkdir,
-    .release     = mlvfs_release,
-    .rename      = mlvfs_rename,
-    .rmdir       = mlvfs_rmdir,
-    .truncate    = mlvfs_truncate,
-    .write       = mlvfs_write,
+    .getattr     = mlvfs_wrap_getattr,
+    .open        = mlvfs_wrap_open,
+    .read        = mlvfs_wrap_read,
+    .readdir     = mlvfs_wrap_readdir,
+    .create      = mlvfs_wrap_create,
+    .fsync       = mlvfs_wrap_fsync,
+    .mkdir       = mlvfs_wrap_mkdir,
+    .release     = mlvfs_wrap_release,
+    .rename      = mlvfs_wrap_rename,
+    .rmdir       = mlvfs_wrap_rmdir,
+    .truncate    = mlvfs_wrap_truncate,
+    .write       = mlvfs_wrap_write,
 };
 
 static const struct fuse_opt mlvfs_opts[] =
