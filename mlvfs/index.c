@@ -141,6 +141,11 @@ mlv_xref_hdr_t *load_index(const char *base_filename)
         if(!memcmp(buf.blockType, "XREF", 4))
         {
             block_hdr = (mlv_xref_hdr_t *)malloc(buf.blockSize);
+			if (!block_hdr)
+			{
+				fclose(in_file);
+				return NULL;
+			}
 
             if(fread(block_hdr, buf.blockSize, 1, in_file) != 1)
             {
@@ -310,6 +315,11 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
 
     size_t size = sizeof(mlv_xref_hdr_t) + frame_xref_entries * sizeof(mlv_xref_t);
     index = (mlv_xref_hdr_t *)malloc(size);
+	if (!index)
+	{
+		free(frame_xref_table);
+		return NULL;
+	}
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)index)[sizeof(mlv_xref_hdr_t)]);
 
     memset(index, 0, size);
@@ -374,7 +384,7 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
     if (!files[0])
     {
         int err = errno;
-        fprintf(stderr, "build_index: fopen error: %s\n", strerror(err));
+        fprintf(stderr, "load_chunks: fopen error: %s\n", strerror(err));
         return NULL;
     }
 

@@ -166,7 +166,16 @@ static void webgui_generate_mlv_html(char * html, const char * path)
 static char * webgui_generate_row_html(const char * path)
 {
     char * temp = malloc(sizeof(char) * (HTML_SIZE + 1));
+	if (!temp)
+	{
+		return NULL;
+	}
     char * html = malloc(sizeof(char) * (HTML_SIZE + 1));
+	if (!html)
+	{
+		free(temp);
+		return NULL;
+	}
     const char *short_path = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
     snprintf(temp, HTML_SIZE, "<td><a href=\"%s\">%s</a></td>", path, short_path);
     strncpy(html, temp, HTML_SIZE);
@@ -316,6 +325,10 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         else if(string_ends_with(conn->uri, "_ROWDATA.html"))
         {
             char * path = malloc((strlen(conn->uri) + 1 )* sizeof(char));
+			if (!path)
+			{
+				return MG_FALSE;
+			}
             strcpy(path, conn->uri);
             path[strlen(path) - strlen("_ROWDATA.html")] = 0x0;
             char * html = webgui_generate_row_html(path);

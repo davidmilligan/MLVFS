@@ -139,10 +139,16 @@ size_t gif_get_data(const char * path, uint8_t * output_buffer, off_t offset, si
         };
         
         uint8_t* gif_buffer = malloc(gif_size);
-        uint16_t* image_data = malloc(image_data_size);
         uint32_t position = 0;
         if(gif_buffer)
         {
+			uint16_t* image_data = malloc(image_data_size);
+			if (!image_data)
+			{
+				free(gif_buffer);
+				return 0;
+			}
+
             //file headers
             memwrite(gif_buffer, &header, position, sizeof(struct gif_header));
             memwrite(gif_buffer, gif_animation_application_block, position, sizeof(gif_animation_application_block));

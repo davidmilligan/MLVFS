@@ -56,6 +56,11 @@ struct stripes_correction * stripes_new_correction(const char * mlv_filename)
         current->next = new_correction;
     }
     new_correction->mlv_filename = (char *)malloc((sizeof(char) * (strlen(mlv_filename) + 2)));
+	if (!new_correction->mlv_filename)
+	{
+		free(new_correction);
+		return NULL;
+	}
     strcpy(new_correction->mlv_filename, mlv_filename);
     new_correction->correction_needed = 0;
     new_correction->next = NULL;

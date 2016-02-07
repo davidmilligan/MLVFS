@@ -188,6 +188,11 @@ static char * mlv_read_debug_log(const char *mlv_filename)
     }
     
     mlv_xref_hdr_t *block_xref = get_index(mlv_filename);
+	if (!block_xref)
+	{
+		mlvfs_close_chunks(chunk_files, chunk_count);
+		return NULL;
+	}
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
     
     mlv_hdr_t mlv_hdr;
@@ -195,11 +200,6 @@ static char * mlv_read_debug_log(const char *mlv_filename)
     uint32_t hdr_size;
     char * result = NULL;
 
-	if (!block_xref)
-	{
-		return "";
-	}
-    
     for(uint32_t block_xref_pos = 0; block_xref_pos < block_xref->entryCount; block_xref_pos++)
     {
         /* get the file and position of the next block */
@@ -258,7 +258,10 @@ static char * mlv_read_debug_log(const char *mlv_filename)
             }
         }
     }
-    
+
+	free(block_xref);
+	mlvfs_close_chunks(chunk_files, chunk_count);
+
     return result;
 }
 
@@ -283,6 +286,12 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
     memset(frame_headers, 0, sizeof(struct frame_headers));
 
     mlv_xref_hdr_t *block_xref = get_index(mlv_filename);
+	if (!block_xref)
+	{
+		mlvfs_close_chunks(chunk_files, chunk_count);
+		return 0;
+	}
+
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
 
     int found = 0;
@@ -389,8 +398,8 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
     }
     
     free(block_xref);
-
     mlvfs_close_chunks(chunk_files, chunk_count);
+
     return found && rawi_found;
 }
 
@@ -419,6 +428,10 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
         file_set_pos(file, frame_headers->position + frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t), SEEK_SET);
         size_t frame_size = frame_headers->vidf_hdr.blockSize - (frame_headers->vidf_hdr.frameSpace + sizeof(mlv_vidf_hdr_t));
         uint8_t * frame_buffer = malloc(frame_size);
+		if (!frame_buffer)
+		{
+			return NULL;
+		}
         
         fread(frame_buffer, sizeof(uint8_t), frame_size, file);
         if(ferror(file))
@@ -470,6 +483,12 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                 {
                     /* we need a temporary buffer so we dont overwrite source data */
                     uint16_t *decompressed = malloc(out_size);
+					if (!decompressed)
+					{
+						free(frame_buffer);
+						fprintf(stderr, "LJ92 malloc failed!\n");
+						return NULL;
+					}
                     
                     ret = lj92_decode(handle, decompressed, lj92_width * lj92_height, 0, NULL, 0);
                     
@@ -784,6 +803,10 @@ static void check_prefetch(const char *path)
         if(get_image_buffer_count() < mlvfs.prefetch)
         {
             char * path_copy = (char*)malloc(sizeof(char) * (strlen(path) + 1));
+			if (!path_copy)
+			{
+				return;
+			}
             strcpy(path_copy, path);
             pthread_t thread;
             pthread_create(&thread, NULL, do_prefetch, path_copy);
@@ -1113,41 +1136,60 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
     if(string_ends_with(path, ".dng") && get_mlv_filename(path, &mlv_filename))
     {
         size_t header_size = dng_get_header_size();
-        size_t remaining = 0;
+		size_t remaining = 0;
         off_t image_offset = 0;
         int was_created = 0;
         
         struct image_buffer * image_buffer = get_or_create_image_buffer(path, &process_frame, &was_created);
+		if (!image_buffer)
+		{
+			fprintf(stderr, "mlvfs_read: DNG image_buffer is NULL\n");
+			return 0;
+		}
+		if (!image_buffer->header)
+		{
+			fprintf(stderr, "mlvfs_read: DNG image_buffer->header is NULL\n");
+			return 0;
+		}
+		if (!image_buffer->data)
+		{
+			fprintf(stderr, "mlvfs_read: DNG image_buffer->data is NULL\n");
+			return 0;
+		}
         if(was_created)
         {
             check_prefetch(path);
         }
+		
+		/* sanitize parameters to prevent errors by accesses beyond end */
+		long file_size = image_buffer->header_size + image_buffer->size;
+		long read_offset = MAX(0, MIN(offset, file_size));
+		long read_size = MAX(0, MIN(size, file_size - read_offset));
         
-        if(offset + size > image_buffer->header_size + image_buffer->size)
+        if(read_offset + read_size > file_size)
         {
-            size = (size_t)(image_buffer->header_size + image_buffer->size - offset);
+			read_size = (size_t)(file_size - read_offset);
         }
         
-        if(offset < header_size && image_buffer->header_size > 0)
+        if(read_offset < header_size && image_buffer->header_size > 0)
         {
-            remaining = MIN(size, header_size - offset);
-            memcpy(buf, image_buffer->header + offset, remaining);
+            remaining = MIN(read_size, header_size - read_offset);
+            memcpy(buf, image_buffer->header + read_offset, remaining);
         }
         else
         {
-            image_offset = offset - header_size;
+            image_offset = read_offset - header_size;
         }
         
-        uint8_t* image_output_buf = (uint8_t*)buf + remaining;
-        
-        if(remaining < size && image_buffer->size > 0)
+        if(remaining < read_size && image_buffer->size > 0)
         {
-            memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(size - remaining, image_buffer->size - image_offset));
+			uint8_t* image_output_buf = (uint8_t*)buf + remaining;
+            memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(read_size - remaining, image_buffer->size - image_offset));
         }
         
         image_buffer_read_end(image_buffer);
         free(mlv_filename);
-        return (int)size;
+        return (int)read_size;
     }
     else if(string_ends_with(path, ".wav") && get_mlv_filename(path, &mlv_filename))
     {
@@ -1159,10 +1201,23 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
     {
         int was_created;
         struct image_buffer * image_buffer = get_or_create_image_buffer(path, &create_preview, &was_created);
-        memcpy(buf, ((uint8_t*)image_buffer->data) + offset, MIN(size, image_buffer->size - offset));
+		if (!image_buffer)
+		{
+			fprintf(stderr, "mlvfs_read: GIF image_buffer is NULL\n");
+			return 0;
+		}
+		if (!image_buffer->data)
+		{
+			fprintf(stderr, "mlvfs_read: GIF image_buffer->data is NULL\n");
+			return 0;
+		}
+		/* ensure that reads with offset beyond end will not cause negative memcpy sizes */
+		int read_size = MAX(0, MIN(size, image_buffer->size - offset));
+
+        memcpy(buf, ((uint8_t*)image_buffer->data) + offset, read_size);
         image_buffer_read_end(image_buffer);
         free(mlv_filename);
-        return (int)size;
+        return read_size;
     }
     else if(string_ends_with(path, ".log") && get_mlv_filename(path, &mlv_filename))
     {

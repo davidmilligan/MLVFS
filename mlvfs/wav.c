@@ -111,6 +111,11 @@ int wav_get_headers(const char *path, mlv_file_hdr_t * file_hdr, mlv_wavi_hdr_t 
     }
     
     mlv_xref_hdr_t *block_xref = get_index(path);
+	if (!block_xref)
+	{
+		close_chunks(chunk_files, chunk_count);
+		return 0;
+	}
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
     
     int found_file = 0;
@@ -200,6 +205,11 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
             return 0;
         }
         mlv_xref_hdr_t *block_xref = get_index(path);
+		if (!block_xref)
+		{
+			close_chunks(chunk_files, chunk_count);
+			return 0;
+		}
 
         read = wav_get_data_direct(chunk_files, block_xref, &file_hdr, &wavi_hdr, &rcti_hdr, &idnt_hdr, size, output_buffer, offset, MIN(max_size, size - offset));
 

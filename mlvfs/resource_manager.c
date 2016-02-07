@@ -66,6 +66,11 @@ static struct image_buffer * new_image_buffer(const char * dng_filename)
         current->next = new_buffer;
     }
     new_buffer->dng_filename = malloc((sizeof(char) * (strlen(dng_filename) + 2)));
+	if (!new_buffer->dng_filename)
+	{
+		free(new_buffer);
+		return NULL;
+	}
     strcpy(new_buffer->dng_filename, dng_filename);
     INIT_LOCK(new_buffer->mutex);
     return new_buffer;
@@ -208,6 +213,10 @@ int get_image_buffer_count()
 static char * trim_path(const char *path)
 {
     char * path_copy = (char*)malloc(sizeof(char) * (strlen(path) + 1));
+	if (!path_copy)
+	{
+		return NULL;
+	}
     strcpy(path_copy, path);
     char * end = strrchr(path_copy, '/');
     if(end != NULL) *end = 0x0;
@@ -370,8 +379,19 @@ void register_mlv_name(const char * real_path, const char * virtual_path)
             if(new_buffer)
             {
                 new_buffer->real_path = (char*)malloc((sizeof(char) * (strlen(real_path) + 2)));
+				if (!new_buffer->real_path)
+				{
+					UNLOCK(mlv_name_mapping_mutex)
+					return;
+				}
                 strcpy(new_buffer->real_path, real_path);
                 new_buffer->virtual_path = (char*)malloc((sizeof(char) * (strlen(virtual_path) + 2)));
+				if (!new_buffer->virtual_path)
+				{
+					free(new_buffer->real_path);
+					UNLOCK(mlv_name_mapping_mutex)
+					return;
+				}
                 strcpy(new_buffer->virtual_path, virtual_path);
                 new_buffer->next = mlv_name_mappings;
                 mlv_name_mappings = new_buffer;
@@ -433,8 +453,19 @@ void register_dng_attr(const char * path, struct FUSE_STAT *attr)
             if(new_buffer)
             {
                 new_buffer->path = (char*)malloc((sizeof(char) * (strlen(path) + 2)));
+				if (!new_buffer->path)
+				{
+					UNLOCK(dng_attr_mapping_mutex)
+					return;
+				}
                 strcpy(new_buffer->path, path);
                 new_buffer->attr = (struct FUSE_STAT*)malloc(sizeof(struct FUSE_STAT));
+				if (!new_buffer->attr)
+				{
+					free(new_buffer->path);
+					UNLOCK(dng_attr_mapping_mutex)
+					return;
+				}
                 memcpy(new_buffer->attr, attr, sizeof(struct FUSE_STAT));
                 new_buffer->next = dng_attr_mappings;
                 dng_attr_mappings = new_buffer;
