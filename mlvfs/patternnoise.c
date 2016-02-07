@@ -90,7 +90,7 @@ static void horizontal_edge_aware_blur_rggb(
                                             int16_t * out_r, int16_t * out_g1, int16_t * out_g2, int16_t * out_b,
                                             int w, int h, int strength, int thr)
 {
-	#define NMAX 128
+    #define NMAX 128
     int16_t g1[NMAX];
     int16_t g2[NMAX];
     int16_t rg[NMAX];

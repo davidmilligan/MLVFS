@@ -144,10 +144,10 @@ void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, 
     if(raw2ev == NULL) return;
     
     uint16_t * buf = (uint16_t *)malloc(w*h*sizeof(uint16_t));
-	if (!buf)
-	{
-		return;
-	}
+    if (!buf)
+    {
+        return;
+    }
     memcpy(buf, image_data, w*h*sizeof(uint16_t));
     
     switch (method) {

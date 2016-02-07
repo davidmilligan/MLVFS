@@ -274,9 +274,9 @@ static const struct camera_focal_resolution camera_focal_resolutions[] =
  * are my own and should be taken with a grain of salt.
  */
 static const double XYZ_to_RGB[3][3] = {
-    { 3.24071,	-0.969258,  0.0556352 },
-    { -1.53726,	1.87599,    -0.203996 },
-    { -0.498571,	0.0415557,  1.05707 }
+    { 3.24071,    -0.969258,  0.0556352 },
+    { -1.53726,    1.87599,    -0.203996 },
+    { -0.498571,    0.0415557,  1.05707 }
 };
 
 static const double xyz_rgb[3][3] = {
@@ -486,7 +486,7 @@ struct directory_entry {
 //CDNG tag codes
 enum
 {
-	tcTimeCodes				= 51043,
+    tcTimeCodes                = 51043,
     tcFrameRate             = 51044,
     tcTStop                 = 51058,
     tcReelName              = 51081,
@@ -798,8 +798,8 @@ size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packe
     uint16_t * dng_data = (uint16_t *)(output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2);
     uint32_t mask = (1 << bpp) - 1;
     
-	/* ok this is pointing outside the reserved buffer, but its indexed later to get within bounds again */
-	uint16_t * raw_bits = (uint16_t *)(packed_bits - pixel_start_address);
+    /* ok this is pointing outside the reserved buffer, but its indexed later to get within bounds again */
+    uint16_t * raw_bits = (uint16_t *)(packed_bits - pixel_start_address);
     
     for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
     {
