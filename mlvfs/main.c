@@ -59,7 +59,11 @@ int string_ends_with(const char *source, const char *ending)
     if(source == NULL || ending == NULL) return 0;
     if(strlen(source) <= 0) return 0;
     if(strlen(source) < strlen(ending)) return 0;
+#ifdef WIN32
+	return !_stricmp(source + strlen(source) - strlen(ending), ending);
+#else
     return !strcmp(source + strlen(source) - strlen(ending), ending);
+#endif
 }
 
 /**
