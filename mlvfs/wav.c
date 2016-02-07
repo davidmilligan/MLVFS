@@ -211,7 +211,9 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
             return 0;
         }
 
-        read = wav_get_data_direct(chunk_files, block_xref, &file_hdr, &wavi_hdr, &rcti_hdr, &idnt_hdr, size, output_buffer, offset, MIN(max_size, size - offset));
+        long read_offset = MAX(0, MIN(offset, size));
+        long read_size = MAX(0, MIN(size, size - read_offset));
+        read = wav_get_data_direct(chunk_files, block_xref, &file_hdr, &wavi_hdr, &rcti_hdr, &idnt_hdr, size, output_buffer, read_offset, read_size);
 
         free(block_xref);
         close_chunks(chunk_files, chunk_count);
