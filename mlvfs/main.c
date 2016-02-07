@@ -434,7 +434,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
         uint8_t * frame_buffer = malloc(frame_size);
         if (!frame_buffer)
         {
-            return NULL;
+            return 0;
         }
         
         fread(frame_buffer, sizeof(uint8_t), frame_size, file);
@@ -491,7 +491,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                     {
                         free(frame_buffer);
                         fprintf(stderr, "LJ92 malloc failed!\n");
-                        return NULL;
+                        return 0;
                     }
                     
                     ret = lj92_decode(handle, decompressed, lj92_width * lj92_height, 0, NULL, 0);
@@ -1216,12 +1216,12 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
             return 0;
         }
         /* ensure that reads with offset beyond end will not cause negative memcpy sizes */
-        int read_size = MAX(0, MIN(size, image_buffer->size - offset));
+        size_t read_size = MAX(0, MIN(size, image_buffer->size - offset));
 
         memcpy(buf, ((uint8_t*)image_buffer->data) + offset, read_size);
         image_buffer_read_end(image_buffer);
         free(mlv_filename);
-        return read_size;
+        return (int)read_size;
     }
     else if(string_ends_with(path, ".log") && get_mlv_filename(path, &mlv_filename))
     {
