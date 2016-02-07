@@ -40,7 +40,6 @@ struct mlvfs
     int hdr_interpolation_method;
     int hdr_no_fullres;
     int hdr_no_alias_map;
-    int prefetch;
     double fps;
     int deflicker;
     int fix_pattern_noise;

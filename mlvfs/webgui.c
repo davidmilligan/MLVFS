@@ -258,9 +258,8 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         if (strcmp(conn->uri, "/get_value") == 0)
         {
             mg_printf_data(conn,
-                           "{\"dir\": \"%s\", \"prefetch\": \"%d\", \"fps\": \"%f\", \"deflicker\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"fix_pattern_noise\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
+                           "{\"dir\": \"%s\", \"fps\": \"%f\", \"deflicker\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"fix_pattern_noise\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
                            mlvfs_config->mlv_path,
-                           mlvfs_config->prefetch,
                            mlvfs_config->fps,
                            mlvfs_config->deflicker,
                            mlvfs_config->name_scheme,
@@ -277,9 +276,6 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         {
             // This Ajax endpoint sets the new value for the device variable
             char buf[100] = "";
-            mg_get_var(conn, "prefetch", buf, sizeof(buf));
-            if(strlen(buf) > 0) mlvfs_config->prefetch = atoi(buf);
-            
             mg_get_var(conn, "fps", buf, sizeof(buf));
             if(strlen(buf) > 0) mlvfs_config->fps = atof(buf);
             
@@ -345,7 +341,7 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
             struct image_buffer * image_buffer = get_or_create_image_buffer(conn->uri, &create_preview, &was_created);
             mg_send_header(conn, "Content-Type", "image/gif");
             mg_send_data(conn, image_buffer->data, (int)image_buffer->size);
-            image_buffer_read_end(image_buffer);
+            release_image_buffer(image_buffer);
         }
         else
         {

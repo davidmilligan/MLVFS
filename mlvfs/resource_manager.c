@@ -27,7 +27,12 @@
 #include "resource_manager.h"
 #include "sys/stat.h"
 
+#define MAX_UNUSED_IMAGE_BUFFER_COUNT 4
+#define MAX_TOTAL_IMAGE_BUFFER_COUNT 16
+
 CREATE_MUTEX(image_buffer_mutex)
+
+static void image_buffer_cleanup();
 
 static struct image_buffer * image_buffers = NULL;
 
@@ -44,8 +49,7 @@ static struct image_buffer * get_image_buffer(const char * dng_filename)
 
 static struct image_buffer * new_image_buffer(const char * dng_filename)
 {
-    //TODO: limit the total amount of buffer memory in case programs don't call fclose in a timely manner
-    //though this doesn't seem to be an issue with any programs I've used
+    image_buffer_cleanup();
     struct image_buffer * new_buffer = malloc(sizeof(struct image_buffer));
     if(new_buffer == NULL) return NULL;
     
@@ -87,6 +91,7 @@ struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buf
         if(!image_buffer)
         {
             image_buffer = new_image_buffer(path);
+            image_buffer->in_use = 1;
             *was_created = 1;
         }
     }
@@ -100,27 +105,15 @@ struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buf
         {
             new_buffer_cbr(image_buffer);
         }
-        image_buffer->in_use = 1;
     }
     UNLOCK(image_buffer->mutex)
     
     return image_buffer;
 }
 
-void free_image_buffer(struct image_buffer * image_buffer)
+static void free_image_buffer(struct image_buffer * image_buffer)
 {
     if(!image_buffer) return;
-    int in_use = 0;
-    RELOCK(image_buffer->mutex)
-    {
-        in_use = image_buffer->in_use;
-        if(in_use)
-        {
-            image_buffer->needs_destroy = 1;
-        }
-    }
-    UNLOCK(image_buffer->mutex)
-    if(in_use) return;
     
     if(image_buffer == image_buffers)
     {
@@ -140,21 +133,18 @@ void free_image_buffer(struct image_buffer * image_buffer)
     DESTROY_LOCK(image_buffer->mutex);
     free(image_buffer->dng_filename);
     free(image_buffer->data);
+    free(image_buffer->header);
     free(image_buffer);
     image_buffer_count--;
 }
 
-void free_image_buffer_by_path(const char * path)
+void release_image_buffer(struct image_buffer * image_buffer)
 {
-    RELOCK(image_buffer_mutex)
+    RELOCK(image_buffer->mutex)
     {
-        struct image_buffer * image_buffer = get_image_buffer(path);
-        if(image_buffer)
-        {
-            free_image_buffer(image_buffer);
-        }
+        image_buffer->in_use = 0;
     }
-    UNLOCK(image_buffer_mutex)
+    UNLOCK(image_buffer->mutex)
 }
 
 void release_image_buffer_by_path(const char * path)
@@ -185,55 +175,22 @@ void free_all_image_buffers()
     }
 }
 
-void image_buffer_read_end(struct image_buffer * image_buffer)
-{
-    int needs_destroy = 0;
-    RELOCK(image_buffer->mutex)
-    {
-        image_buffer->in_use = 0;
-        needs_destroy = image_buffer->needs_destroy;
-    }
-    UNLOCK(image_buffer->mutex)
-    
-    RELOCK(image_buffer_mutex)
-    {
-        if(needs_destroy)
-        {
-            free_image_buffer(image_buffer);
-        }
-    }
-    UNLOCK(image_buffer_mutex)
-}
-
 int get_image_buffer_count()
 {
     return image_buffer_count;
 }
 
-static char * trim_path(const char *path)
-{
-    char * path_copy = (char*)malloc(sizeof(char) * (strlen(path) + 1));
-    if (!path_copy)
-    {
-        return NULL;
-    }
-    strcpy(path_copy, path);
-    char * end = strrchr(path_copy, '/');
-    if(end != NULL) *end = 0x0;
-    return path_copy;
-}
-
 /*
  * Try and cleanup any potentially unused image_buffers
  */
-void image_buffer_cleanup(const char * current_path)
+static void image_buffer_cleanup()
 {
-    RELOCK(image_buffer_mutex)
+    while (get_image_buffer_count() > MAX_UNUSED_IMAGE_BUFFER_COUNT)
     {
-        char * current_path_base = trim_path(current_path);
+        //cleanup no longer in use image buffers starting with the oldest (appearing first in the linked list)
+        int any_in_use = 0;
         for(struct image_buffer * current = image_buffers; current != NULL; current = current->next)
         {
-            char * buffer_path_base = trim_path(current->dng_filename);
             int in_use = 0;
             RELOCK(current->mutex)
             {
@@ -242,17 +199,22 @@ void image_buffer_cleanup(const char * current_path)
             UNLOCK(current->mutex)
             if(!in_use)
             {
+                any_in_use = 1;
                 free_image_buffer(current);
-                free(buffer_path_base);
                 //freeing the buffer modifies our linked list, so we better exit the loop or screwy things could happen
                 //TODO: figure out how to cleanup everything in one pass
                 break;
             }
-            free(buffer_path_base);
         }
-        free(current_path_base);
+        if (!any_in_use) break;
     }
-    UNLOCK(image_buffer_mutex)
+    
+    //just in case programs don't close a file, limit the total number of buffers we can have
+    while (get_image_buffer_count() > MAX_TOTAL_IMAGE_BUFFER_COUNT)
+    {
+        if(!image_buffers) break;
+        free_image_buffer(image_buffers);
+    }
 }
 
 #ifdef KEEP_FILES_OPEN

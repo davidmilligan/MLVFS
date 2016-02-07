@@ -59,7 +59,6 @@
             success: function(d)
             {
                 $('#dir').val(d.dir);
-                $('#prefetch').val(d.prefetch);
                 $('#fps').val(d.fps);
                 $('#deflicker').val(d.deflicker);
                 $('input:radio[name="name_scheme"][value=' + d.name_scheme + ']').prop('checked', true);
@@ -118,19 +117,6 @@
             }
             return true;
         });
-        $('#prefetch').on('change', function()
-        {
-            $.ajax(
-            {
-                url: '/set_value',
-                dataType: 'json',
-                data:
-                {
-                    "prefetch": $('#prefetch').val(),
-                }
-            });
-            return true;
-        });
         $('#deflicker').on('change', function()
         {
             $.ajax(
@@ -176,13 +162,9 @@
             <tr>
                 <th colspan=2>Configuration Options</th>
             </tr>
-            <tr>
+            <tr class=odd>
                 <td>Source Directory</td>
                 <td><input type=text id=dir size=64 readonly/></td>
-            </tr>
-            <tr class=odd>
-                <td>Prefetch</td>
-                <td><input type=text id=prefetch size=8/> frames</td>
             </tr>
             <tr>
                 <td>Override Framerate</td>
