@@ -212,7 +212,7 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
         }
 
         long read_offset = MAX(0, MIN(offset, size));
-        long read_size = MAX(0, MIN(size, size - read_offset));
+        long read_size = MAX(0, MIN(max_size, size - read_offset));
         read = wav_get_data_direct(chunk_files, block_xref, &file_hdr, &wavi_hdr, &rcti_hdr, &idnt_hdr, size, output_buffer, read_offset, read_size);
 
         free(block_xref);
@@ -225,24 +225,6 @@ size_t wav_get_data(const char *path, uint8_t * output_buffer, off_t offset, siz
 
 size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv_file_hdr_t * mlv_hdr, mlv_wavi_hdr_t * wavi_hdr, mlv_rtci_hdr_t * rtci_hdr, mlv_idnt_hdr_t * idnt_hdr, size_t file_size, uint8_t * output_buffer, off_t offset, size_t length)
 {
-    #ifdef _WIN32 // Windows does not support C99 designated initializers
-    struct wav_header header;
-    strncpy(header.RIFF, "RIFF", 4);
-    header.file_size = (uint32_t)file_size;
-    strncpy(header.WAVE, "WAVE", 4);
-    strncpy(header.bext.description, "bext", 4);
-    strncpy(header.fmt, "fmt\x20", 4);
-    header.bext_size = sizeof(struct wav_bext) + 4;
-    header.subchunk1_size = 16;
-    header.audio_format = 1;
-    header.num_channels = wavi_hdr->channels;
-    header.sample_rate = wavi_hdr->samplingRate;
-    header.byte_rate = wavi_hdr->bytesPerSecond;
-    header.block_align = 4;
-    header.bits_per_sample = wavi_hdr->bitsPerSample;
-    strncpy(header.data, "data", 4);
-    header.subchunk2_size = (uint32_t)(file_size - sizeof(struct wav_header) + 8);
-    #else
     struct wav_header header =
     {
         .RIFF = "RIFF",
@@ -264,7 +246,6 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
         .data = "data",
         .subchunk2_size = (uint32_t)(file_size - sizeof(struct wav_header) + 8),
     };
-    #endif
     
     char temp[33];
     snprintf(temp, sizeof(temp), "%s", idnt_hdr->cameraName);
@@ -286,18 +267,36 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
     int fps_denom = mlv_hdr->sourceFpsDenom;
     int fps_nom = mlv_hdr->sourceFpsNom;
     snprintf(header.iXML, header.iXML_size, iXML, project, notes, keywords, tape, scene, shot, take, fps_nom, fps_denom, fps_nom, fps_denom, fps_nom, fps_denom);
-    
+
     int64_t output_position = 0;
-    if(offset < sizeof(struct wav_header))
+    int64_t read_offset = offset;
+    int64_t remaining = length;
+
+    if(read_offset < sizeof(struct wav_header))
     {
-        memcpy(output_buffer, &header + offset, MIN(sizeof(struct wav_header) - offset, length));
-        output_position += MIN(sizeof(struct wav_header) - offset, length);
+        long this_size = MIN(sizeof(struct wav_header) - read_offset, remaining);
+        uint8_t *data_ptr = (uint8_t *)&header;
+
+        memcpy(&output_buffer[output_position], &data_ptr[read_offset], this_size);
+
+        /* update variables so that less data has to be delivered */
+        output_position += this_size;
+        read_offset += this_size;
+        remaining -= this_size;
     }
+
+    /* nothing left, return the amount that was served */
+    if (!remaining)
+    {
+        return length;
+    }
+
+    /* header part was served, offset is now in wave data */
+    read_offset -= sizeof(struct wav_header);
 
     mlv_xref_t *xrefs = (mlv_xref_t *)&(((uint8_t*)block_xref)[sizeof(mlv_xref_hdr_t)]);
     mlv_audf_hdr_t audf_hdr;
     int64_t audio_position = 0;
-    int64_t requested_audio_offset = offset - sizeof(struct wav_header);
 
     for(uint32_t block_xref_pos = 0; (block_xref_pos < block_xref->entryCount); block_xref_pos++)
     {
@@ -311,25 +310,36 @@ size_t wav_get_data_direct(FILE ** chunk_files, mlv_xref_hdr_t * block_xref, mlv
             fread(&audf_hdr, sizeof(mlv_audf_hdr_t), 1, in_file);
             if(!memcmp(audf_hdr.blockType, "AUDF", 4))
             {
-                size_t frame_size = audf_hdr.blockSize - sizeof(mlv_audf_hdr_t) - audf_hdr.frameSpace;
+                int64_t frame_size = audf_hdr.blockSize - sizeof(mlv_audf_hdr_t) - audf_hdr.frameSpace;
                 int64_t frame_end = audio_position + frame_size;
-                if(frame_end >= requested_audio_offset)
+
+                if(frame_end >= read_offset)
                 {
-                    int64_t start_offset = offset - sizeof(struct wav_header) - audio_position;
-                    start_offset = MAX(0, start_offset);
-                    file_set_pos(in_file, position + sizeof(mlv_audf_hdr_t) + audf_hdr.frameSpace + start_offset, SEEK_SET);
-                    fread(output_buffer + output_position, MIN(frame_size - start_offset, length - output_position), 1, in_file);
-                    output_position += MIN(frame_size - start_offset, length - output_position);
-                    if(length - output_position <= 0) break;
+                    int64_t this_offset = MAX(0, read_offset - audio_position);
+                    int64_t this_size = MIN(frame_size - this_offset, remaining);
+
+                    file_set_pos(in_file, position + sizeof(mlv_audf_hdr_t) + audf_hdr.frameSpace + this_offset, SEEK_SET);
+
+                    fread(&output_buffer[output_position], this_size, 1, in_file);
+
+                    output_position += this_size;
+                    read_offset += this_size;
+                    remaining -= this_size;
+
+                    /* all data read? */
+                    if (remaining == 0)
+                    {
+                        break;
+                    }
                 }
                 audio_position += frame_size;
             }
         }
     }
 
-    if(output_position < length)
+    if(output_position < remaining)
     {
-        memset(output_buffer + output_position, 0, length - output_position);
+        memset(&output_buffer[output_position], 0, remaining - output_position);
     }
 
     return length;
