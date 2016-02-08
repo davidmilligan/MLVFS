@@ -53,6 +53,9 @@ static struct mlvfs mlvfs;
 
 #ifdef WIN32
 
+/* this wraps the function and the struct name */
+#define stat64 _stat64
+
 int pread(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
@@ -967,9 +970,9 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
         {
             mlv_filename = concat_string(mlvfs.mlv_path, path);
         }
-        struct stat mlv_stat;
+        struct stat64 mlv_stat;
         struct stat mld_stat;
-        int mlv_status = stat(mlv_filename, &mlv_stat);
+        int mlv_status = stat64(mlv_filename, &mlv_stat);
         int mld_status = stat(mld_filename, &mld_stat);
         
         if(mlv_status == 0 || mld_status == 0)
