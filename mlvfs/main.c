@@ -76,7 +76,7 @@ int pwrite(int fh, void *buf, size_t size, long offset)
 
 int ExceptionFilter(const char *func, unsigned int line, unsigned int code, struct _EXCEPTION_POINTERS *info)
 {
-    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08X\n", func, line, code, info->ExceptionRecord->ExceptionAddress);
+    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08X\n", func, line, code, (unsigned int)info->ExceptionRecord->ExceptionAddress);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
