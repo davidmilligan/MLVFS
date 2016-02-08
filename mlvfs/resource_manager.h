@@ -25,6 +25,10 @@
 //#define KEEP_FILES_OPEN
 
 #include <stdio.h>
+#include <pthread.h>
+
+#define THREAD_T pthread_t
+#define LOCK_T pthread_mutex_t
 
 struct image_buffer
 {
@@ -37,6 +41,8 @@ struct image_buffer
     LOCK_T mutex;
     int in_use;
 };
+
+int create_preview(struct image_buffer * image_buffer);
 
 struct image_buffer * get_or_create_image_buffer(const char * path, int(*new_buffer_cbr)(struct image_buffer *), int * was_created);
 void release_image_buffer_by_path(const char * path);

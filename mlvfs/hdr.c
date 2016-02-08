@@ -31,6 +31,10 @@
 #include "opt_med.h"
 #include "wirth.h"
 #include "cs.h"
+#include <pthread.h>
+
+#define LOCK(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER; pthread_mutex_lock(&x);
+#define UNLOCK(x) pthread_mutex_unlock(&(x));
 
 //this is just meant to be fast
 int hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, off_t offset, size_t max_size)
@@ -226,7 +230,6 @@ int hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data
 //from cr2hdr 20bit version
 //this is not thread safe (yet)
 
-#define EV_RESOLUTION 32768
 #define BRIGHT_ROW (is_bright[y % 4])
 #define COUNT(x) ((int)(sizeof(x)/sizeof((x)[0])))
 

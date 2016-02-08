@@ -87,6 +87,76 @@ int ExceptionFilter(const char *func, unsigned int line, unsigned int code)
 #endif
 
 
+double * get_raw2evf(int black)
+{
+    static int initialized = 0;
+    static double raw2ev_base[16384 + MAX_BLACK];
+    
+    if(!initialized)
+    {
+        memset(raw2ev_base, 0, MAX_BLACK * sizeof(int));
+        int i;
+        for (i = 0; i < 16384; i++)
+        {
+            raw2ev_base[i + MAX_BLACK] = log2(i) * EV_RESOLUTION;
+        }
+        initialized = 1;
+    }
+    
+    if(black > MAX_BLACK)
+    {
+        fprintf(stderr, "Black level too large for processing\n");
+        return NULL;
+    }
+    double * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
+    
+    return raw2ev;
+}
+
+int * get_raw2ev(int black)
+{
+    
+    static int initialized = 0;
+    static int raw2ev_base[16384 + MAX_BLACK];
+    
+    if(!initialized)
+    {
+        memset(raw2ev_base, 0, MAX_BLACK * sizeof(int));
+        int i;
+        for (i = 0; i < 16384; i++)
+        {
+            raw2ev_base[i + MAX_BLACK] = (int)(log2(i) * EV_RESOLUTION);
+        }
+        initialized = 1;
+    }
+    
+    if(black > MAX_BLACK)
+    {
+        fprintf(stderr, "Black level too large for processing\n");
+        return NULL;
+    }
+    int * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
+    
+    return raw2ev;
+}
+
+int * get_ev2raw()
+{
+    static int initialized = 0;
+    static int _ev2raw[24*EV_RESOLUTION];
+    int* ev2raw = _ev2raw + 10*EV_RESOLUTION;
+    if(!initialized)
+    {
+        int i;
+        for (i = -10*EV_RESOLUTION; i < 14*EV_RESOLUTION; i++)
+        {
+            ev2raw[i] = (int)(pow(2, (float)i / EV_RESOLUTION));
+        }
+        initialized = 1;
+    }
+    return ev2raw;
+}
+
 /**
  * Determines if a string ends in some string
  */
@@ -1484,6 +1554,11 @@ int main(int argc, char **argv)
     }
     else if (mlvfs.mlv_path != NULL)
     {
+        //init luts
+        get_raw2evf(0);
+        get_raw2ev(0);
+        get_ev2raw();
+        
         // shell and wildcard expansion, taking just the first result
         char *expanded_path = NULL;
 

@@ -27,6 +27,15 @@
 #include "resource_manager.h"
 #include "sys/stat.h"
 
+//some macros for simple thread synchronization
+#define CREATE_MUTEX(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER;
+#define LOCK(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER; pthread_mutex_lock(&x);
+#define RELOCK(x) pthread_mutex_lock(&(x));
+#define UNLOCK(x) pthread_mutex_unlock(&(x));
+#define CURRENT_THREAD (pthread_self())
+#define INIT_LOCK(x) pthread_mutex_init(&(x), NULL)
+#define DESTROY_LOCK(x) pthread_mutex_destroy(&(x))
+
 #define MAX_UNUSED_IMAGE_BUFFER_COUNT 4
 #define MAX_TOTAL_IMAGE_BUFFER_COUNT 16
 

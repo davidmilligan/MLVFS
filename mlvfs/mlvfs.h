@@ -79,23 +79,18 @@ FILE** mlvfs_load_chunks(const char * path, uint32_t * chunk_count);
 int mlv_get_frame_headers(const char *path, int index, struct frame_headers * frame_headers);
 int mlv_get_frame_count(const char *real_path);
 size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t * output_buffer, off_t offset, size_t max_size);
-#include <pthread.h>
-
-//some macros for simple thread synchronization
-#define CREATE_MUTEX(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER;
-#define LOCK(x) static pthread_mutex_t x = PTHREAD_MUTEX_INITIALIZER; pthread_mutex_lock(&x);
-#define RELOCK(x) pthread_mutex_lock(&(x));
-#define UNLOCK(x) pthread_mutex_unlock(&(x));
-#define CURRENT_THREAD (pthread_self())
-#define THREAD_T pthread_t
-#define LOCK_T pthread_mutex_t
-#define INIT_LOCK(x) pthread_mutex_init(&(x), NULL)
-#define DESTROY_LOCK(x) pthread_mutex_destroy(&(x))
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define COERCE(x,lo,hi) MAX(MIN((x),(hi)),(lo))
 #define ABS(a) ((a) > 0 ? (a) : -(a))
+
+#define EV_RESOLUTION 32768
+#define MAX_BLACK 16384
+
+double * get_raw2evf(int black);
+int * get_raw2ev(int black);
+int * get_ev2raw();
 
 #ifdef _WIN32
 #define log2(x) log((float)(x))/log(2.)
@@ -103,10 +98,5 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
 #define FUSE_OFF_T off_t
 #define FUSE_STAT stat
 #endif
-
-
-#include "resource_manager.h"
-
-int create_preview(struct image_buffer * image_buffer);
 
 #endif
