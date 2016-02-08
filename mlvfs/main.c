@@ -72,11 +72,11 @@ int pwrite(int fh, void *buf, size_t size, long offset)
 }
 
 /* visual studio compilers for win32 offer a C exception handling. make use of it to reduce risk of severe crashes. */
-#define TRY_WRAP(code) __try { code } __except(ExceptionFilter(__FUNCTION__,__LINE__,GetExceptionCode())) { return -ENOENT; }
+#define TRY_WRAP(code) __try { code } __except(ExceptionFilter(__FUNCTION__,__LINE__,GetExceptionCode(), GetExceptionInformation())) { return -ENOENT; }
 
-int ExceptionFilter(const char *func, unsigned int line, unsigned int code)
+int ExceptionFilter(const char *func, unsigned int line, unsigned int code, struct _EXCEPTION_POINTERS *info)
 {
-    fprintf(stderr, "%s(%d): caught exception 0x%08X\n", func, line, code);
+    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08X\n", func, line, code, info->ExceptionRecord->ExceptionAddress);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
