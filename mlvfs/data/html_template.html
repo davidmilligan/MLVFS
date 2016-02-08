@@ -53,12 +53,12 @@
     jQuery(function()
     {
         $.ajax(
-        {
-            url: '/get_value',
-            dataType: 'json',
-            success: function(d)
             {
-                $('#dir').val(d.dir);
+                url: '/get_value',
+                dataType: 'json'
+            })
+            .done(function(d)
+            {
                 $('#fps').val(d.fps);
                 $('#deflicker').val(d.deflicker);
                 $('input:radio[name="name_scheme"][value=' + d.name_scheme + ']').prop('checked', true);
@@ -82,8 +82,8 @@
                     $('#hdr_no_alias_map').hide();
                     $('#hdr_no_fullres').hide();
                 }
-            }
-        });
+            })
+           .fail(function(jqXHR, textStatus, errorThrown){ alert(errorThrown); });
         $(document).on('click', 'input:radio', function()
         {
             $.ajax(
@@ -161,10 +161,6 @@
         <table>
             <tr>
                 <th colspan=2>Configuration Options</th>
-            </tr>
-            <tr class=odd>
-                <td>Source Directory</td>
-                <td><input type=text id=dir size=64 readonly/></td>
             </tr>
             <tr>
                 <td>Override Framerate</td>

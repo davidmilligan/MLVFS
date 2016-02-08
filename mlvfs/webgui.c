@@ -257,9 +257,9 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
     {
         if (strcmp(conn->uri, "/get_value") == 0)
         {
+			mg_send_header(conn, "Content-Type", "application/json");
             mg_printf_data(conn,
-                           "{\"dir\": \"%s\", \"fps\": \"%f\", \"deflicker\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"fix_pattern_noise\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
-                           mlvfs_config->mlv_path,
+                           "{\"fps\": \"%f\", \"deflicker\": \"%d\", \"name_scheme\": %d, \"badpix\": %d, \"chroma_smooth\": %d, \"stripes\": %d, \"fix_pattern_noise\": %d, \"dual_iso\": %d, \"hdr_interpolation_method\": %d, \"hdr_no_alias_map\": %d, \"hdr_no_fullres\": %d}",
                            mlvfs_config->fps,
                            mlvfs_config->deflicker,
                            mlvfs_config->name_scheme,
@@ -315,6 +315,7 @@ static int webgui_handler(struct mg_connection *conn, enum mg_event ev)
         {
             if (load_resource(&JQUERY, "jquery-1.12.0.min.js"))
             {
+				mg_send_header(conn, "Content-Type", "text/javascript");
                 mg_printf_data(conn, "%s", JQUERY);
             }
         }
