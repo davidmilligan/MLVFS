@@ -86,6 +86,16 @@ int ExceptionFilter(const char *func, unsigned int line, unsigned int code, stru
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
+static timestruc_t timeToTimestruct(time_t t)
+{
+    timestruc_t ts;
+    
+    ts.tv_nsec = 0;
+    ts.tv_sec = t;
+    
+    return ts;
+}
+
 #else
 
 #define TRY_WRAP(code) code
@@ -871,17 +881,6 @@ int create_preview(struct image_buffer * image_buffer)
         free(mlv_filename);
     }
     return 1;
-}
-
-
-static timestruc_t timeToTimestruct(time_t t)
-{
-    timestruc_t ts;
-
-    ts.tv_nsec = 0;
-    ts.tv_sec = t;
-
-    return ts;
 }
 
 static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
