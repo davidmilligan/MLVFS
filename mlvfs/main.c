@@ -254,7 +254,7 @@ static int get_mlv_filename(const char *path, char ** mlv_filename)
     *mlv_filename = NULL;
     char *temp = copy_string(path);
     char *split;
-    if((split = strrchr(temp + 1, '/')) != NULL)
+    if((split = find_last_separator(temp + 1)) != NULL)
     {
         *split = 0x00;
         if(mlvfs.name_scheme)
@@ -684,7 +684,7 @@ static int get_mlv_basename(const char *path, char ** mlv_basename)
 {
     if(!(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))) return 0;
     char *temp = copy_string(path);
-    const char *start = strrchr(temp, '/') ? strrchr(temp, '/') + 1 : temp;
+    const char *start = find_last_separator(temp) ? find_last_separator(temp) + 1 : temp;
     char *dot = strchr(start, '.');
     if(dot == NULL) { free(temp); return 0; }
     *dot = '\0';
@@ -793,7 +793,7 @@ static int process_frame(struct image_buffer * image_buffer)
             char * mlv_basename = copy_string(image_buffer->dng_filename);
             if(mlv_basename != NULL)
             {
-                char * dir = strrchr(mlv_basename, '/');
+                char * dir = find_last_separator(mlv_basename);
                 if(dir != NULL) *dir = 0;
             }
             

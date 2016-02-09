@@ -176,7 +176,7 @@ static char * webgui_generate_row_html(const char * path)
         free(temp);
         return NULL;
     }
-    const char *short_path = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+    const char *short_path = find_last_separator(path) ? find_last_separator(path) + 1 : path;
     snprintf(temp, HTML_SIZE, "<td><a href=\"%s\">%s</a></td>", path, short_path);
     strncpy(html, temp, HTML_SIZE);
     snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/_PREVIEW.gif\"/></td>", path);
@@ -196,7 +196,7 @@ static char * webgui_generate_html(const char * path)
     if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
         snprintf(html, HTML_SIZE, "%s", TABLE_HEADER_NO_PREVIEW);
-        const char *short_path = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+        const char *short_path = find_last_separator(path) ? find_last_separator(path) + 1 : path;
         snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", short_path);
         strncat(html, temp, HTML_SIZE);
         webgui_generate_mlv_html(html, path);
