@@ -233,7 +233,7 @@ static struct mlv_chunks * get_chunks(const char * path)
 {
     for(struct mlv_chunks * current = loaded_chunks; current != NULL; current = current->next)
     {
-        if(current->thread_id == CURRENT_THREAD && !strcmp(current->path, path)) return current;
+        if(current->thread_id == CURRENT_THREAD && !filename_strcmp(current->path, path)) return current;
     }
     return NULL;
 }
@@ -324,7 +324,7 @@ static char * lookup_mlv_name_internal(const char * virtual_path)
 {
     for(struct mlv_name_mapping * current = mlv_name_mappings; current != NULL; current = current->next)
     {
-        if(!strcmp(current->virtual_path, virtual_path)) return current->real_path;
+        if(!filename_strcmp(current->virtual_path, virtual_path)) return current->real_path;
     }
     return NULL;
 }
@@ -398,7 +398,7 @@ static struct FUSE_STAT * lookup_dng_attr_internal(const char * path)
 {
     for(struct dng_attr_mapping * current = dng_attr_mappings; current != NULL; current = current->next)
     {
-        if(!strcmp(current->path, path)) return current->attr;
+        if(!filename_strcmp(current->path, path)) return current->attr;
     }
     return NULL;
 }

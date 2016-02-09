@@ -93,8 +93,10 @@ int * get_raw2ev(int black);
 int * get_ev2raw();
 
 #ifdef _WIN32
+#define filename_strcmp _stricmp
 #define log2(x) log((float)(x))/log(2.)
 #else
+#define filename_strcmp strcmp
 #define FUSE_OFF_T off_t
 #define FUSE_STAT stat
 #endif

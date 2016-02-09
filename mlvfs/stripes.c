@@ -32,7 +32,7 @@ struct stripes_correction * stripes_get_correction(const char * mlv_filename)
 {
     for(struct stripes_correction * current = corrections; current != NULL; current = current->next)
     {
-        if(!strcmp(current->mlv_filename, mlv_filename)) return current;
+        if(!filename_strcmp(current->mlv_filename, mlv_filename)) return current;
     }
     return NULL;
 }
