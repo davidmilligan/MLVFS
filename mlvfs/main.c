@@ -692,7 +692,7 @@ static int get_mlv_basename(const char *path, char ** mlv_basename)
     if(mlvfs.name_scheme == 1 && mlv_get_frame_headers(path, 0, &frame_headers))
     {
         *mlv_basename =  malloc(sizeof(char) * (strlen(start) + 1024));
-        sprintf(*mlv_basename, "%s_1_%d-%02d-%02d_%04d_C%04d", start, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon, frame_headers.rtci_hdr.tm_mday, 1, 0);
+        sprintf(*mlv_basename, "%s_1_%d-%02d-%02d_%04d_C%04d", start, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon + 1, frame_headers.rtci_hdr.tm_mday, 1, 0);
     }
     else
     {
