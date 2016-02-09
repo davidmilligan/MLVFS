@@ -53,13 +53,15 @@ static struct mlvfs mlvfs;
 
 #ifdef WIN32
 
+
 /* this wraps the function and the struct name */
 #define stat64 _stat64
 
 int pread(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
-    int res = (int)read(fh, buf, size, offset);
+    lseek(fh, offset, SEEK_SET);
+    int res = read(fh, buf, size);
     lseek(fh, pos, SEEK_SET);
 
     return res;
@@ -68,7 +70,8 @@ int pread(int fh, void *buf, size_t size, long offset)
 int pwrite(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
-    int res = (int)write(fh, buf, size, offset);
+    lseek(fh, offset, SEEK_SET);
+    int res = write(fh, buf, size);
     lseek(fh, pos, SEEK_SET);
 
     return res;
@@ -874,6 +877,17 @@ int create_preview(struct image_buffer * image_buffer)
     return 1;
 }
 
+
+static timestruc_t timeToTimestruct(time_t t)
+{
+    timestruc_t ts;
+
+    ts.tv_nsec = 0;
+    ts.tv_sec = t;
+
+    return ts;
+}
+
 static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
 {
     int result = -ENOENT;
@@ -917,11 +931,7 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     timespec_str.tv_nsec = ((frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) % 1000000) * 1000;
                     
                     // OS-specific timestamps
-                    #ifdef WIN32
-                    memcpy(&stbuf->st_atim, &timespec_str, sizeof(struct timespec));
-                    memcpy(&stbuf->st_ctim, &timespec_str, sizeof(struct timespec));
-                    memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
-                    #elif __DARWIN_UNIX03
+                    #if __DARWIN_UNIX03
                     memcpy(&stbuf->st_atimespec, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_birthtimespec, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_ctimespec, &timespec_str, sizeof(struct timespec));
@@ -991,6 +1001,12 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     stbuf->st_mode = mld_stat.st_mode;
                     stbuf->st_size = mld_stat.st_size;
                     stbuf->st_nlink = mld_stat.st_nlink;
+                    stbuf->st_rdev = mld_stat.st_rdev;
+                    stbuf->st_dev = mld_stat.st_dev;
+                    stbuf->st_ino = mld_stat.st_ino;
+                    stbuf->st_atim = timeToTimestruct(mld_stat.st_atime);
+                    stbuf->st_ctim = timeToTimestruct(mld_stat.st_ctime);
+                    stbuf->st_mtim = timeToTimestruct(mld_stat.st_mtime);
 #endif
                 }
                 else
@@ -1035,6 +1051,12 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     stbuf->st_mode = mld_stat.st_mode;
                     stbuf->st_size = mld_stat.st_size;
                     stbuf->st_nlink = mld_stat.st_nlink;
+                    stbuf->st_rdev = mld_stat.st_rdev;
+                    stbuf->st_dev = mld_stat.st_dev;
+                    stbuf->st_ino = mld_stat.st_ino;
+                    stbuf->st_atim = timeToTimestruct(mld_stat.st_atime);
+                    stbuf->st_ctim = timeToTimestruct(mld_stat.st_ctime);
+                    stbuf->st_mtim = timeToTimestruct(mld_stat.st_mtime);
 #endif
                 }
                 else
