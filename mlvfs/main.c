@@ -241,6 +241,33 @@ static char * concat_string3(const char * str1, const char * str2, const char * 
     return copy;
 }
 
+static char * path_append(const char * path1, const char * path2)
+{
+	if (path1 == NULL || path2 == NULL) return NULL;
+	if (string_ends_with(path1, "/") || string_ends_with(path1, "\\"))
+	{
+		if (path2[0] == '/' || path2[0] == '\\')
+		{
+			return concat_string(path1, path2 + 1);
+		}
+		else
+		{
+			return concat_string(path1, path2);
+		}
+	}
+	else
+	{
+		if (path2[0] == '/' || path2[0] == '\\')
+		{
+			return concat_string(path1, path2);
+		}
+		else
+		{
+			return concat_string3(path1, "/", path2);
+		}
+	}
+}
+
 /**
  * Determines the real path to an MLV file based on a virtual path from FUSE
  * @param path The virtual path within the FUSE filesystem
@@ -251,28 +278,42 @@ static int get_mlv_filename(const char *path, char ** mlv_filename)
 {
     if(strstr(path,"/._")) return 0;
     int result = 0;
-    *mlv_filename = NULL;
-    char *temp = copy_string(path);
-    char *split;
-    if((split = find_last_separator(temp + 1)) != NULL)
+	char * found = NULL;
+    if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
     {
-        *split = 0x00;
-        if(mlvfs.name_scheme)
+        *mlv_filename = path_append(mlvfs.mlv_path, path);
+        result = 1;
+    }
+	else if ((found = lookup_mlv_name(path)) != NULL)
+	{
+		*mlv_filename = copy_string(found);
+		result = 1;
+	}
+    else
+    {
+        *mlv_filename = NULL;
+        char *temp = copy_string(path);
+        char *split;
+        if((split = find_last_separator(temp + 1)) != NULL)
         {
-            char * found = lookup_mlv_name(temp);
-            if(found)
+            *split = 0x00;
+            if(mlvfs.name_scheme)
             {
-                *mlv_filename = copy_string(found);
-                result = 1;
+                char * found = lookup_mlv_name(temp);
+                if(found)
+                {
+                    *mlv_filename = copy_string(found);
+                    result = 1;
+                }
+            }
+            else
+            {
+                *mlv_filename = path_append(mlvfs.mlv_path, temp);
+                result = string_ends_with(temp, ".MLV") || string_ends_with(temp, ".mlv");
             }
         }
-        else
-        {
-            *mlv_filename = concat_string(mlvfs.mlv_path, temp);
-            result = string_ends_with(temp, ".MLV") || string_ends_with(temp, ".mlv");
-        }
+        free(temp);
     }
-    free(temp);
     return result;
 }
 
@@ -711,15 +752,14 @@ static int get_real_path(char ** real_path, const char *path)
 {
     char * mlv_filename = NULL;
     *real_path = NULL;
-    if(!mlvfs.name_scheme)
-    {
-        *real_path = malloc(sizeof(char) * (strlen(mlvfs.mlv_path) + strlen(path) + 2));
-        sprintf(*real_path, "%s%s", mlvfs.mlv_path, path);
-    }
-    else if(get_mlv_filename(path, &mlv_filename))
+    if(mlvfs.name_scheme && get_mlv_filename(path, &mlv_filename))
     {
         *real_path = mlv_filename;
     }
+	else
+	{
+		*real_path = path_append(mlvfs.mlv_path, path);
+	}
     
     if(*real_path != NULL)
     {
@@ -968,17 +1008,17 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
     else if(!strstr(path,"/._"))
     {
         char * mld_filename = NULL;
-        char * temp = concat_string(path, "/");
         int mld = get_real_path(&mld_filename, path);
-        int is_mlv_dir = get_mlv_filename(temp, &mlv_filename);
+        int is_mlv_dir = get_mlv_filename(path, &mlv_filename);
         if(!is_mlv_dir)
         {
-            mlv_filename = concat_string(mlvfs.mlv_path, path);
+            mlv_filename = path_append(mlvfs.mlv_path, path);
         }
         struct stat64 mlv_stat;
         struct stat mld_stat;
         int mlv_status = stat64(mlv_filename, &mlv_stat);
-        int mld_status = stat(mld_filename, &mld_stat);
+		int mld_status = -1;
+		if(mld && mld_filename) mld_status = stat(mld_filename, &mld_stat);
         
         if(mlv_status == 0 || mld_status == 0)
         {
@@ -1060,7 +1100,6 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                 }
             }
         }
-        free(temp);
         free(mlv_filename);
         free(mld_filename);
     }
@@ -1113,10 +1152,9 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
     char * real_path = NULL;
     char * mlv_basename = NULL;
     if(string_ends_with(path, ".MLD")) return -ENOENT;
-    char * path_dir = concat_string(path, "/");
-    if(!get_mlv_filename(path_dir, &real_path))
+    if(!get_mlv_filename(path, &real_path))
     {
-        real_path = concat_string(mlvfs.mlv_path, path);
+        real_path = path_append(mlvfs.mlv_path, path);
     }
     else
     {
@@ -1175,11 +1213,11 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
         {
             if(!string_ends_with(child->d_name, ".MLD") && strcmp(child->d_name, "..") && strcmp(child->d_name, "."))
             {
-                char * real_file_path = concat_string3(real_path, "/", child->d_name);
+                char * real_file_path = path_append(real_path, child->d_name);
                 if(mlvfs.name_scheme && get_mlv_basename(real_file_path, &mlv_basename))
                 {
                     filler(buf, mlv_basename, NULL, 0);
-                    char * virtual_path =  concat_string((string_ends_with(path, "/") ? path : path_dir), mlv_basename);
+                    char * virtual_path = path_append(path, mlv_basename);
                     register_mlv_name(real_file_path, virtual_path);
                     free(virtual_path);
                     free(mlv_basename);
@@ -1203,7 +1241,6 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
         result = 0;
     }
     free(real_path);
-    free(path_dir);
     return result;
 }
 
