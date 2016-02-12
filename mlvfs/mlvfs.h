@@ -96,11 +96,15 @@ int * get_ev2raw();
 #define filename_strcmp _stricmp
 #define find_last_separator(path) MAX(strrchr((path), '/'), strrchr((path), '\\'))
 #define log2(x) log((float)(x))/log(2.)
+#define FORCE_INLINE __forceinline
+#define ROR(v,a) _rotr(v,a)
 #else
 #define filename_strcmp strcmp
 #define find_last_separator(path) strrchr((path), '/')
 #define FUSE_OFF_T off_t
 #define FUSE_STAT stat
+#define FORCE_INLINE __always_inline
+#define ROR(v,a) ((v) >> (a) | (v) << (32-(a)))  /* is there an intrinsic for? */
 #endif
 
 #endif

@@ -780,37 +780,75 @@ size_t dng_get_header_size()
 }
 
 /**
- * Unpacks bits to 16 bit little endian
+ * Inline routine that really unpacks bits to 16 bit little endian
+ * It only works on LE machines. Needs to be changed for BE machines.
  * @param frame_headers The MLV blocks associated with the frame
  * @param packed_bits A buffer containing the packed imaged data
  * @param output_buffer The buffer where the result will be written
  * @param offset The offset into the frame to read
  * @param max_size The size in bytes to write into the buffer
+ * @param bpp raw data bits per pixel
  * @return The number of bytes written (just max_size)
  */
+static FORCE_INLINE size_t dng_get_image_data_inline(struct frame_headers * frame_headers, uint16_t * packed_bits, uint8_t * output_buffer, off_t offset, size_t max_size, int32_t bpp)
+{
+    uint32_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
+    uint32_t pixel_start_address = pixel_start_index * bpp / 16;
+    size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
+    uint32_t mask = (1 << bpp) - 1;
+
+    /* ok both are pointing outside the reserved buffer, but its indexed later to get within bounds again.
+    doing that helps us to simplify the expensive loop below by using the loop counter as index. */
+    uint16_t *raw_bits = (uint16_t *)(packed_bits - pixel_start_address);
+    uint16_t *dng_bits = (uint16_t *)(output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2) - pixel_start_index;
+
+    int32_t pixel_end = pixel_start_index + output_size / 2;
+
+    for (int32_t dng_pixel_index = pixel_start_index; dng_pixel_index < pixel_end; dng_pixel_index++)
+    {
+        uint32_t bits_offset = dng_pixel_index * bpp;
+        uint32_t bits_address = bits_offset / 16;
+        uint32_t bits_shift = bits_offset % 16;
+
+        /* now fetch two 16 bit words into a 32 bit register and correct it plus shift it as needed.
+        after the 32 bit fetch, the two 16 bit words will be swapped, so use a ROR to align them correctly.
+        ROR by 16 to swap 16 bit words plus the bits needed to put the needed pixel bits to right position */
+        uint32_t rotate_value = 16 + ((32 - bpp) - bits_shift);
+        uint32_t uncorrected_data = *((uint32_t *)&raw_bits[bits_address]);
+        uint32_t data = ROR(uncorrected_data, rotate_value);
+
+        dng_bits[dng_pixel_index] = (uint16_t)(data & mask);
+    }
+    return max_size;
+}
+
+/**
+* Unpacks bits to 16 bit little endian
+* @param frame_headers The MLV blocks associated with the frame
+* @param packed_bits A buffer containing the packed imaged data
+* @param output_buffer The buffer where the result will be written
+* @param offset The offset into the frame to read
+* @param max_size The size in bytes to write into the buffer
+* @return The number of bytes written (just max_size)
+*/
 size_t dng_get_image_data(struct frame_headers * frame_headers, uint16_t * packed_bits, uint8_t * output_buffer, off_t offset, size_t max_size)
 {
     int bpp = frame_headers->rawi_hdr.raw_info.bits_per_pixel;
-    uint64_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
-    uint64_t pixel_start_address = pixel_start_index * bpp / 16;
-    size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
-    uint64_t pixel_count = output_size / 2;
-    uint16_t * dng_data = (uint16_t *)(output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2);
-    uint32_t mask = (1 << bpp) - 1;
-    
-    /* ok this is pointing outside the reserved buffer, but its indexed later to get within bounds again */
-    uint16_t * raw_bits = (uint16_t *)(packed_bits - pixel_start_address);
-    
-    for(size_t pixel_index = 0; pixel_index < pixel_count; pixel_index++)
+
+    switch (bpp)
     {
-        uint64_t bits_offset = (pixel_start_index + pixel_index) * bpp;
-        uint64_t bits_address = bits_offset / 16;
-        uint32_t bits_shift = bits_offset % 16;
-        uint32_t data = (raw_bits[bits_address] << 16) | raw_bits[bits_address + 1];
-        
-        dng_data[pixel_index] = (uint16_t)((data >> ((32 - bpp) - bits_shift)) & mask);
+        case 8:
+            return dng_get_image_data_inline(frame_headers, packed_bits, output_buffer, offset, max_size, 8);
+        case 10:
+            return dng_get_image_data_inline(frame_headers, packed_bits, output_buffer, offset, max_size, 10);
+        case 12:
+            return dng_get_image_data_inline(frame_headers, packed_bits, output_buffer, offset, max_size, 12);
+        case 14:
+            return dng_get_image_data_inline(frame_headers, packed_bits, output_buffer, offset, max_size, 14);
+
+        default:
+            return dng_get_image_data_inline(frame_headers, packed_bits, output_buffer, offset, max_size, bpp);
     }
-    return max_size;
 }
 
 /**
