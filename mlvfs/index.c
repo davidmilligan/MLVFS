@@ -384,7 +384,7 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
     if (!files[0])
     {
         int err = errno;
-        fprintf(stderr, "load_chunks: fopen error: %s\n", strerror(err));
+        fprintf(stderr, "load_chunks: fopen('%s') error: %s\n", filename, strerror(err));
         return NULL;
     }
 
