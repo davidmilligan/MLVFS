@@ -933,7 +933,7 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
     {
         if(get_mlv_filename(path, &mlv_filename))
         {
-            struct stat * dng_st = NULL;
+            struct FUSE_STAT * dng_st = NULL;
             if (string_ends_with(path, ".dng") && (dng_st = lookup_dng_attr(mlv_filename)) != NULL)
             {
                 memcpy(stbuf, dng_st, sizeof(struct FUSE_STAT));
@@ -1348,6 +1348,10 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
     }
     else
     {
+        if (fi->fh == UINT64_MAX)
+        {
+            return -ENOENT;
+        }
         int res = (int)pread((int)fi->fh, buf, size, offset);
         if (res == -1) res = -errno;
         return res;
@@ -1473,6 +1477,10 @@ static int mlvfs_write(const char *path, const char *buf, size_t size, FUSE_OFF_
 {
     if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
     {
+        if (fi->fh == UINT64_MAX)
+        {
+            return -ENOENT;
+        }
         int res = (int)pwrite((int)fi->fh, buf, size, offset);
         if (res == -1) res = -errno;
         return res;
