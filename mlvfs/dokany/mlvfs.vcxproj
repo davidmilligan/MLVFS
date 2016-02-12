@@ -126,6 +126,7 @@
       <ExceptionHandling>Async</ExceptionHandling>
       <EnablePREfast>false</EnablePREfast>
       <ControlFlowGuard>Guard</ControlFlowGuard>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
