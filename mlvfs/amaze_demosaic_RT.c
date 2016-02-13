@@ -1055,7 +1055,7 @@ void amaze_demosaic_RT(
 //					hvwtalt = 0.25*(hvwt[(indx-m1)>>1]+hvwt[(indx+p1)>>1]+hvwt[(indx-p1)>>1]+hvwt[(indx+m1)>>1]);
 //					vo=fabsf(0.5-hvwt[indx>>1]);
 //					ve=fabsf(0.5-hvwtalt);
-					if (fabsf(0.5-hvwt[indx>>1])<fabsf(0.5-hvwtalt)) {hvwt[indx>>1]=hvwtalt;}//a better result was obtained from the neighbors
+					if (fabsf(0.5f-hvwt[indx>>1])<fabsf(0.5f-hvwtalt)) {hvwt[indx>>1]=hvwtalt;}//a better result was obtained from the neighbors
 //					if (vo<ve) {hvwt[indx>>1]=hvwtalt;}//a better result was obtained from the neighbors
 
 
@@ -1287,7 +1287,7 @@ void amaze_demosaic_RT(
 			for (rr=12; rr<rr1-12; rr++)
 				for (cc=12+(FC(rr,2)&1),indx=rr*TS+cc,indx1=indx>>1; cc<cc1-12; cc+=2,indx+=2,indx1++) {
 
-					if (fabsf(0.5-pmwt[indx>>1])<fabsf(0.5-hvwt[indx>>1]) )
+					if (fabsf(0.5f-pmwt[indx>>1])<fabsf(0.5f-hvwt[indx>>1]) )
 						continue;
 
 					//now interpolate G vertically/horizontally using R+B values

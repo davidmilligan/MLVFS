@@ -792,7 +792,7 @@ size_t dng_get_header_size()
  */
 static FORCE_INLINE size_t dng_get_image_data_inline(struct frame_headers * frame_headers, uint16_t * packed_bits, uint8_t * output_buffer, off_t offset, size_t max_size, int32_t bpp)
 {
-    uint32_t pixel_start_index = MAX(0, offset) / 2; //lets hope offsets are always even for now
+    uint32_t pixel_start_index = (uint32_t)MAX(0, offset) / 2; //lets hope offsets are always even for now
     uint32_t pixel_start_address = pixel_start_index * bpp / 16;
     size_t output_size = max_size - (offset < 0 ? (size_t)(-offset) : 0);
     uint32_t mask = (1 << bpp) - 1;
@@ -802,7 +802,7 @@ static FORCE_INLINE size_t dng_get_image_data_inline(struct frame_headers * fram
     uint16_t *raw_bits = (uint16_t *)(packed_bits - pixel_start_address);
     uint16_t *dng_bits = (uint16_t *)(output_buffer + (offset < 0 ? (size_t)(-offset) : 0) + offset % 2) - pixel_start_index;
 
-    int32_t pixel_end = pixel_start_index + output_size / 2;
+    int32_t pixel_end = (int32_t)(pixel_start_index + output_size / 2);
 
     for (int32_t dng_pixel_index = pixel_start_index; dng_pixel_index < pixel_end; dng_pixel_index++)
     {
