@@ -1014,9 +1014,9 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
         {
             mlv_filename = path_append(mlvfs.mlv_path, path);
         }
-        struct stat64 mlv_stat;
+        struct STAT64 mlv_stat;
         struct stat mld_stat;
-        int mlv_status = stat64(mlv_filename, &mlv_stat);
+        int mlv_status = STAT64(mlv_filename, &mlv_stat);
 		int mld_status = -1;
 		if(mld && mld_filename) mld_status = stat(mld_filename, &mld_stat);
         
