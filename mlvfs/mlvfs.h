@@ -107,4 +107,9 @@ int * get_ev2raw();
 #define ROR(v,a) ((v) >> (a) | (v) << (32-(a)))  /* is there an intrinsic for? */
 #endif
 
+#if __clang__
+#undef FORCE_INLINE
+#define FORCE_INLINE inline
+#endif
+
 #endif
