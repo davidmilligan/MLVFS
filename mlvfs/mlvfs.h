@@ -98,7 +98,7 @@ int * get_ev2raw();
 #define log2(x) log((float)(x))/log(2.)
 #define FORCE_INLINE __forceinline
 #define ROR(v,a) _rotr(v,a)
-#define STAT64 stat64
+#define STAT64 _stat64 /* this wraps the function and the struct name */
 #else
 #define filename_strcmp strcmp
 #define find_last_separator(path) strrchr((path), '/')
@@ -106,7 +106,7 @@ int * get_ev2raw();
 #define FUSE_STAT stat
 #define FORCE_INLINE __always_inline
 #define ROR(v,a) ((v) >> (a) | (v) << (32-(a)))  /* is there an intrinsic for? */
-#define STAT64 stat
+#define STAT64 stat /* this wraps the function and the struct name */
 #endif
 
 #if __clang__

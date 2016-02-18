@@ -53,10 +53,6 @@ static struct mlvfs mlvfs;
 
 #ifdef WIN32
 
-
-/* this wraps the function and the struct name */
-#define stat64 _stat64
-
 int pread(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
