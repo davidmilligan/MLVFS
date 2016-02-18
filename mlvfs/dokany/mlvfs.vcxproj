@@ -85,17 +85,17 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(PROGRAMFILES)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\include\fuse;.</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <CreateHotpatchableImage>true</CreateHotpatchableImage>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <EnablePREfast>true</EnablePREfast>
+      <EnablePREfast>false</EnablePREfast>
       <ExceptionHandling>Async</ExceptionHandling>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(PROGRAMFILES)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>dokanfuse1.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\x86\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -103,15 +103,15 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(ProgramW6432)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\include\fuse;.</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <CreateHotpatchableImage>true</CreateHotpatchableImage>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProgramW6432)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>dokanfuse1.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -121,18 +121,19 @@
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(PROGRAMFILES)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\include\fuse;.</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>Async</ExceptionHandling>
       <EnablePREfast>false</EnablePREfast>
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(PROGRAMFILES)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>dokanfuse1.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\x86\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -142,14 +143,15 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(ProgramW6432)\Dokan\DokanLibrary\include\fuse;.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\include\fuse;.</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>dokanfuse.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProgramW6432)\Dokan\DokanLibrary\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>dokanfuse1.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProgramW6432)\Dokan\Dokan Library-1.0.0\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
