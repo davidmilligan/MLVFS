@@ -818,7 +818,8 @@ static int get_real_path(const char *path, char ** real_path)
 static void check_mld_exists(char * path)
 {
     char *temp = copy_string(path);
-    char * mld_ext = strstr(temp, ".MLD");
+    char *mld_ext = strstr(temp, ".MLD");
+
     if(mld_ext != NULL)
     {
         *(mld_ext + 4) = 0x0;
@@ -1262,6 +1263,17 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 
     if (resolved_filename)
     {
+        int fd = open(resolved_filename, O_RDONLY | O_BINARY);
+        free(resolved_filename);
+
+        if (fd < 0)
+        {
+            return -errno;
+        }
+
+        /* always close file after read/write operations. else deleting etc will fail on windows */
+        close(fd);
+
         return 0;
     }
     
@@ -1414,17 +1426,21 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
     {
         fd = open(resolved_filename, O_RDONLY | O_BINARY);
         free(resolved_filename);
-    }
 
-    /* there is a handle for, just pass through */
-    if (fd >= 0)
-    {
+        if (fd < 0)
+        {
+            return -errno;
+        }
+
         int res = pread(fd, buf, size, offset);
-        if (res == -1) res = -errno;
+        if (res < 0)
+        {
+            res = -errno;
+        }
 
         /* always close file after read/write operations. else deleting etc will fail on windows */
         close(fd);
-        
+
         return res;
     }
 
@@ -1551,10 +1567,15 @@ static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
 
     check_mld_exists(resolved_filename);
 
-    int fd = open(resolved_filename, O_CREAT);
+#if _WIN32
+    /* on windows only these modes are allowed */
+    mode &= (_S_IREAD | _S_IWRITE);
+#endif
+
+    int fd = creat(resolved_filename, mode);
     free(resolved_filename);
 
-    if (fd == -1)
+    if (fd < 0)
     {
         return -errno;
     }
@@ -1673,10 +1694,14 @@ static int mlvfs_write(const char *path, const char *buf, size_t size, FUSE_OFF_
 
     if (fd < 0)
     {
-        return -ENOENT;
+        return -errno;
     }
+
     int res = pwrite(fd, buf, size, offset);
-    if (res == -1) res = -errno;
+    if (res < 0)
+    {
+        res = -errno;
+    }
 
     /* always close file after read/write operations. else deleting etc will fail on windows */
     close(fd);
@@ -1687,7 +1712,7 @@ static int mlvfs_write(const char *path, const char *buf, size_t size, FUSE_OFF_
 static int mlvfs_statfs(const char *path, struct statvfs *stat)
 {
     stat->f_bsize = 512;
-    stat->f_blocks = (1024 * 1024 * 1024 * 1024) / stat->f_bsize;
+    stat->f_blocks = (1 * 1024 * 1024 * 1024) / stat->f_bsize;
     stat->f_bfree = stat->f_blocks;
     stat->f_bavail = stat->f_blocks;
 
