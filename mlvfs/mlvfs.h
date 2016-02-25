@@ -22,6 +22,7 @@
 #define mlvfs_mlvfs_h
 
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <math.h>
 #include <stdint.h>
@@ -94,14 +95,30 @@ int * get_ev2raw();
 
 #ifdef _WIN32
 #define filename_strcmp _stricmp
+#define DIR_SEP_CHAR '\\'
+#define DIR_SEP_STR "\\"
 #define find_last_separator(path) MAX(strrchr((path), '/'), strrchr((path), '\\'))
+static void *find_first_separator(const char *path)
+{
+    void *path1 = strchr(path, '\\');
+    void *path2 = strchr(path, '/');
+    if (path1 && path2)
+    {
+        return MIN(path1, path2);
+    }
+    return MAX(path1, path2);
+}
+
 #define log2(x) log((float)(x))/log(2.)
 #define FORCE_INLINE __forceinline
 #define ROR(v,a) _rotr(v,a)
 #define STAT64 _stat64 /* this wraps the function and the struct name */
 #else
 #define filename_strcmp strcmp
+#define DIR_SEP_CHAR '/'
+#define DIR_SEP_STR "/"
 #define find_last_separator(path) strrchr((path), '/')
+#define find_first_separator(path) strchr((path), '/')
 #define FUSE_OFF_T off_t
 #define FUSE_STAT stat
 #define FORCE_INLINE __always_inline
