@@ -54,14 +54,17 @@ static struct mlvfs mlvfs;
 //#define dbg_fprintf fprintf
 #define dbg_fprintf if(0)
 
+
 #ifdef _WIN32
 
+#include <io.h>
+#include <direct.h>
 
 int pread(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
     lseek(fh, offset, SEEK_SET);
-    int res = read(fh, buf, size);
+    int res = read(fh, buf, (unsigned int)size);
     lseek(fh, pos, SEEK_SET);
 
     return res;
@@ -71,7 +74,7 @@ int pwrite(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
     lseek(fh, offset, SEEK_SET);
-    int res = write(fh, buf, size);
+    int res = write(fh, buf, (unsigned int)size);
     lseek(fh, pos, SEEK_SET);
 
     return res;
@@ -104,7 +107,7 @@ int truncate(char *file, size_t length)
 
 int ExceptionFilter(const char *func, unsigned int line, unsigned int code, struct _EXCEPTION_POINTERS *info)
 {
-    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08X\n", func, line, code, (unsigned int)info->ExceptionRecord->ExceptionAddress);
+    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08llX\n", func, line, code, (uint64_t)info->ExceptionRecord->ExceptionAddress);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
@@ -826,7 +829,11 @@ static void check_mld_exists(char * path)
         struct stat mld_stat;
         if(stat(temp, &mld_stat))
         {
+#ifdef _WIN32
+            mkdir(temp);
+#else
             mkdir(temp, 0777);
+#endif
         }
     }
     free(temp);
@@ -969,15 +976,83 @@ static int is_mlv_file(char *filename)
 {
     if (string_ends_with(filename, ".MLV") || string_ends_with(filename, ".mlv"))
     {
-        struct STAT64 mlv_stat;
-
         /* just treat as if it were existing. will fail later */
-        //if (STAT64(filename, &mlv_stat) == 0)
+        // struct STAT64 mlv_stat;
+        // if (STAT64(filename, &mlv_stat) == 0)
         {
             return 1;
         }
     }
     return 0;
+}
+
+/**
+* check if the given path is within a MLV file or a MLV itself
+* Make sure you free() the result
+* @return 1 if the real path is a MLV or inside a MLV, 0 otherwise
+*/
+static int mlvfs_resolve_path(const char *path, char **mlv_file, char **path_in_mlv)
+{
+    int ret = 0;
+    int done = 0;
+    const char *current_token = path;
+    char *current_path = malloc(strlen(path) + 16);
+    current_path[0] = 0;
+
+    while (!done)
+    {
+        /* skip leading slashes */
+        while (find_first_separator(current_token) == current_token)
+        {
+            current_token++;
+        }
+
+        /* check if the current path is already a valid MLV */
+        char *mlv_file_check = path_append(mlvfs.mlv_path, path_slashfix(current_path));
+
+        if (is_mlv_file(mlv_file_check))
+        {
+            /* ok, return MLV path and virtual file path (or empty) */
+            *mlv_file = path_append(mlvfs.mlv_path, path_slashfix(current_path));
+            *path_in_mlv = copy_string(current_token);
+            done = 1;
+            ret = 1;
+        }
+        else if (*current_token == 0)
+        {
+            /* no more tokens, its not a virtual file */
+            done = 1;
+        }
+        else
+        {
+            /* no slash in the front */
+            if (strlen(current_path) != 0)
+            {
+                strcat(current_path, DIR_SEP_STR);
+            }
+
+            /* is there another slash? */
+            char *token_end = find_first_separator((const char*)current_token);
+            if (token_end)
+            {
+                /* yes, add token until slash */
+                uint32_t length = (uint32_t)((uintmax_t)token_end - (uintmax_t)current_token);
+                strncat(current_path, current_token, length);
+                current_token = token_end + 1;
+            }
+            else
+            {
+                /* no, add remaining token */
+                strcat(current_path, current_token);
+                current_token += strlen(current_token);
+            }
+        }
+        free(mlv_file_check);
+    }
+
+    free(current_path);
+
+    return ret;
 }
 
 /**
@@ -1026,79 +1101,12 @@ static char *mlvfs_resolve_virtual(const char *path)
     else
     {
         /* this file is not within a virtual directory, so just get it from the existing one */
-        resolved_filename = path_append(mlvfs.mlv_path, path_slashfix(path));
+        char *tmp_path = path_slashfix(copy_string(path));
+        resolved_filename = path_append((const char*)mlvfs.mlv_path, (const char*)tmp_path);
+        free(tmp_path);
     }
 
     return resolved_filename;
-}
-
-/**
-* check if the given path is within a MLV file or a MLV itself
-* Make sure you free() the result
-* @return 1 if the real path is a MLV or inside a MLV, 0 otherwise
-*/
-static int mlvfs_resolve_path(const char *path, char **mlv_file, char **path_in_mlv)
-{
-    int ret = 0;
-    int done = 0;
-    char *current_token = path;
-    char *current_path = malloc(strlen(path) + 16);
-    current_path[0] = 0;
-
-    while (!done)
-    {
-        /* skip leading slashes */
-        while (find_first_separator(current_token) == current_token)
-        {
-            current_token++;
-        }
-
-        /* check if the current path is already a valid MLV */
-        char *mlv_file_check = path_append(mlvfs.mlv_path, path_slashfix(current_path));
-
-        if (is_mlv_file(mlv_file_check))
-        {
-            /* ok, return MLV path and virtual file path (or empty) */
-            *mlv_file = path_append(mlvfs.mlv_path, path_slashfix(current_path));
-            *path_in_mlv = copy_string(current_token);
-            done = 1;
-            ret = 1;
-        }
-        else if (*current_token == 0)
-        {
-            /* no more tokens, its not a virtual file */
-            done = 1;
-        }
-        else
-        {
-            /* no slash in the front */
-            if (strlen(current_path) != 0)
-            {
-                strcat(current_path, DIR_SEP_STR);
-            }
-
-            /* is there another slash? */
-            char *token_end = find_first_separator(current_token);
-            if (token_end)
-            {
-                /* yes, add token until slash */
-                uint32_t length = (uint32_t)token_end - (uint32_t)current_token;
-                strncat(current_path, current_token, length);
-                current_token = token_end + 1;
-            }
-            else
-            {
-                /* no, add remaining token */
-                strcat(current_path, current_token);
-                current_token += strlen(current_token);
-            }
-        }
-        free(mlv_file_check);
-    }
-
-    free(current_path);
-
-    return ret;
 }
 
 static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
@@ -1260,7 +1268,7 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
     int result = 0;
 
     /* reset the cached image buffer, if any */
-    fi->fh = NULL;
+    fi->fh = 0;
 
     /* try to find the real file on disk */
     char *resolved_filename = mlvfs_resolve_virtual(path);
@@ -1362,7 +1370,9 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
     else
     {
         /* its not within a MLV */
-        real_path = path_append(mlvfs.mlv_path, path_slashfix(path));
+        char *tmp_path = path_slashfix(copy_string(path));
+        real_path = path_append((const char*)mlvfs.mlv_path, (const char*)tmp_path);
+        free(tmp_path);
     }
 
     if (real_path)
@@ -1490,7 +1500,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
             }
 
             /* cache the expensive locking/lookup for a potential next read */
-            fi->fh = image_buffer;
+            fi->fh = (uint64_t)image_buffer;
 
             /* sanitize parameters to prevent errors by accesses beyond end */
             long file_size = image_buffer->header_size + image_buffer->size;
@@ -1617,7 +1627,11 @@ static int mlvfs_mkdir(const char *path, mode_t mode)
     if(real_path)
     {
         check_mld_exists(real_path);
+#ifdef _WIN32
+        mkdir(real_path);
+#else
         mkdir(real_path, mode);
+#endif
         free(real_path);
         result = 0;
     }
@@ -1627,7 +1641,7 @@ static int mlvfs_mkdir(const char *path, mode_t mode)
 static int mlvfs_release(const char *path, struct fuse_file_info *fi)
 {
     /* reset the cached image buffer pointer, if any */
-    fi->fh = NULL;
+    fi->fh = 0;
 
     if (string_ends_with(path, ".dng") || string_ends_with(path, ".gif"))
     {
