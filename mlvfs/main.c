@@ -51,8 +51,8 @@
 
 static struct mlvfs mlvfs;
 
-#define dbg_fprintf fprintf
-//#define dbg_fprintf if(0)
+//#define dbg_fprintf fprintf
+#define dbg_fprintf if(0)
 
 #ifdef _WIN32
 
@@ -971,7 +971,8 @@ static int is_mlv_file(char *filename)
     {
         struct STAT64 mlv_stat;
 
-        if (STAT64(filename, &mlv_stat) == 0)
+        /* just treat as if it were existing. will fail later */
+        //if (STAT64(filename, &mlv_stat) == 0)
         {
             return 1;
         }
@@ -1258,6 +1259,9 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
     int result = 0;
 
+    /* reset the cached image buffer, if any */
+    fi->fh = NULL;
+
     /* try to find the real file on disk */
     char *resolved_filename = mlvfs_resolve_virtual(path);
 
@@ -1418,46 +1422,57 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
 
 static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
-    /* files are always opened/closed before/after any file operation */
-    char *resolved_filename = mlvfs_resolve_virtual(path);
-    int fd = -1;
-
-    if (resolved_filename)
+    /* if we already had a read on that handle and it was a .dng, it's info will be cached */
+    if (fi->fh == 0)
     {
-        fd = open(resolved_filename, O_RDONLY | O_BINARY);
-        free(resolved_filename);
+        /* files are always opened/closed before/after any file operation */
+        char *resolved_filename = mlvfs_resolve_virtual(path);
+        int fd = -1;
 
-        if (fd < 0)
+        if (resolved_filename)
         {
-            return -errno;
+            fd = open(resolved_filename, O_RDONLY | O_BINARY);
+            free(resolved_filename);
+
+            if (fd < 0)
+            {
+                return -errno;
+            }
+
+            int res = pread(fd, buf, size, offset);
+            if (res < 0)
+            {
+                res = -errno;
+            }
+
+            /* always close file after read/write operations. else deleting etc will fail on windows */
+            close(fd);
+
+            return res;
         }
-
-        int res = pread(fd, buf, size, offset);
-        if (res < 0)
-        {
-            res = -errno;
-        }
-
-        /* always close file after read/write operations. else deleting etc will fail on windows */
-        close(fd);
-
-        return res;
     }
 
     char *mlv_filename = NULL;
     char *path_in_mlv = NULL;
 
-    /* if there is no handle, it must be a virtual file */
-    if (mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
+    /* if there is no handle, it must be a virtual file, or it is an already opened .dng */
+    if (fi->fh || mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
     {
-        if (string_ends_with(path_in_mlv, ".dng"))
+        if (fi->fh || string_ends_with(path_in_mlv, ".dng"))
         {
             size_t header_size = dng_get_header_size();
             size_t remaining = 0;
             off_t image_offset = 0;
             int was_created = 0;
 
-            struct image_buffer * image_buffer = get_or_create_image_buffer(path, &process_frame, &was_created);
+            struct image_buffer * image_buffer = (struct image_buffer *)fi->fh;
+            
+            /* was the image buffer already cached? */
+            if (!image_buffer)
+            {
+                image_buffer = get_or_create_image_buffer(path, &process_frame, &was_created);
+            }
+
             if (!image_buffer)
             {
                 fprintf(stderr, "mlvfs_read: DNG image_buffer is NULL\n");
@@ -1473,6 +1488,9 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
                 fprintf(stderr, "mlvfs_read: DNG image_buffer->data is NULL\n");
                 return 0;
             }
+
+            /* cache the expensive locking/lookup for a potential next read */
+            fi->fh = image_buffer;
 
             /* sanitize parameters to prevent errors by accesses beyond end */
             long file_size = image_buffer->header_size + image_buffer->size;
@@ -1608,6 +1626,9 @@ static int mlvfs_mkdir(const char *path, mode_t mode)
 
 static int mlvfs_release(const char *path, struct fuse_file_info *fi)
 {
+    /* reset the cached image buffer pointer, if any */
+    fi->fh = NULL;
+
     if (string_ends_with(path, ".dng") || string_ends_with(path, ".gif"))
     {
         release_image_buffer_by_path(path);
