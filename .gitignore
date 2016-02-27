@@ -11,3 +11,8 @@ MLVFS.workflow/Contents/QuickLook/Preview.png
 
 .DS_Store
 *.dmg
+*.vcxproj.user
+mlvfs/dokany/.vs
+mlvfs/dokany/Debug
+mlvfs/dokany/Release
+mlvfs/dokany/x64
