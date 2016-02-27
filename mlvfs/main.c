@@ -1295,7 +1295,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
     char *mlv_filename = NULL;
     char *path_in_mlv = NULL;
     int result = -ENOENT;
-    int dots_listed = 0;
+    int is_mld_dir = 0;
 
     if (string_ends_with(path, ".MLD"))
     {
@@ -1315,7 +1315,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
             /* it refers to the MLV itself */
             filler(buf, ".", NULL, 0);
             filler(buf, "..", NULL, 0);
-            dots_listed = 1;
+            is_mld_dir = 1;
 
             char * mlv_basename = NULL;
             get_mlv_basename(mlv_filename, &mlv_basename);
@@ -1371,7 +1371,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
 
         if (dir != NULL)
         {
-            if (!dots_listed)
+            if (!is_mld_dir)
             {
                 filler(buf, ".", NULL, 0);
                 filler(buf, "..", NULL, 0);
@@ -1397,10 +1397,10 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
                     free(virtual_path);
                     free(mlv_basename);
                 }
-                else /* if (string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || mld)*/
+                else if (string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || is_mld_dir)
                 {
                     filler(buf, child->d_name, NULL, 0);
-                }/*
+                }
                 else if (child->d_type == DT_UNKNOWN) // If d_type is not supported on this filesystem
                 {
                     struct stat file_stat;
@@ -1408,7 +1408,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
                     {
                         filler(buf, child->d_name, NULL, 0);
                     }
-                }*/
+                }
                 free(real_file_path);
             }
             closedir(dir);
