@@ -1040,7 +1040,7 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     stbuf->st_mtim = timeToTimestruct(mld_stat.st_mtime);
 #endif
                 }
-                else
+                else if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
                 {
                     stbuf->st_mode = S_IFDIR | 0777;
                     stbuf->st_nlink = 3;
@@ -1062,6 +1062,10 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
                     memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
                     #endif
+                }
+                else
+                {
+                    return -ENOENT;
                 }
             }
             else
