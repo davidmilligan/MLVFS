@@ -51,10 +51,6 @@
 
 static struct mlvfs mlvfs;
 
-//#define dbg_fprintf fprintf
-#define dbg_fprintf if(0)
-
-
 #ifdef _WIN32
 
 #include <io.h>
@@ -103,11 +99,11 @@ int truncate(char *file, size_t length)
 }
 
 /* visual studio compilers for win32 offer a C exception handling. make use of it to reduce risk of severe crashes. */
-#define TRY_WRAP(code) __try { code } __except(ExceptionFilter(__FUNCTION__,__LINE__,GetExceptionCode(), GetExceptionInformation())) { return -ENOENT; }
+#define TRY_WRAP(code) __try { code } __except(ExceptionFilter(GetExceptionCode(), GetExceptionInformation())) { return -ENOENT; }
 
-int ExceptionFilter(const char *func, unsigned int line, unsigned int code, struct _EXCEPTION_POINTERS *info)
+int ExceptionFilter(unsigned int code, struct _EXCEPTION_POINTERS *info)
 {
-    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08llX\n", func, line, code, (uint64_t)info->ExceptionRecord->ExceptionAddress);
+    err_printf("caught exception 0x%08X at address 0x%08llX\n", code, (uint64_t)info->ExceptionRecord->ExceptionAddress);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
@@ -146,7 +142,7 @@ double * get_raw2evf(int black)
     
     if(black > MAX_BLACK)
     {
-        fprintf(stderr, "Black level too large for processing\n");
+        err_printf("Black level too large for processing\n");
         return NULL;
     }
     double * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
@@ -173,7 +169,7 @@ int * get_raw2ev(int black)
     
     if(black > MAX_BLACK)
     {
-        fprintf(stderr, "Black level too large for processing\n");
+        err_printf("Black level too large for processing\n");
         return NULL;
     }
     int * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
@@ -223,7 +219,7 @@ static char * copy_string(const char * source)
     else
     {
         int err = errno;
-        fprintf(stderr, "copy_string: malloc error: %s\n", strerror(err));
+        err_printf("malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -242,7 +238,7 @@ static char * concat_string(const char * str1, const char * str2)
     else
     {
         int err = errno;
-        fprintf(stderr, "concat_string: malloc error: %s\n", strerror(err));
+        err_printf("malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -261,7 +257,7 @@ static char * concat_string3(const char * str1, const char * str2, const char * 
     else
     {
         int err = errno;
-        fprintf(stderr, "concat_string3: malloc error: %s\n", strerror(err));
+        err_printf("malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -452,7 +448,7 @@ static char * mlv_read_debug_log(const char *mlv_filename)
                         else
                         {
                             int err = errno;
-                            fprintf(stderr, "mlv_read_debug_log: malloc error: %s\n", strerror(err));
+                            err_printf("malloc error: %s\n", strerror(err));
                         }
                     }
                 }
@@ -460,7 +456,7 @@ static char * mlv_read_debug_log(const char *mlv_filename)
             if(ferror(in_file))
             {
                 int err = errno;
-                fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
+                err_printf("fread error: %s\n", strerror(err));
             }
         }
     }
@@ -589,18 +585,18 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
         if(ferror(in_file))
         {
             int err = errno;
-            fprintf(stderr, "%s: mlv_get_frame_headers: fread error: %s\n", mlv_filename, strerror(err));
+            err_printf("%s: fread error: %s\n", mlv_filename, strerror(err));
         }
     }
     
     if(found && !rawi_found)
     {
-        fprintf(stderr, "%s: Error reading frame headers: no rawi block was found\n", mlv_filename);
+        err_printf("%s: Error reading frame headers: no rawi block was found\n", mlv_filename);
     }
     
     if(!found)
     {
-        fprintf(stderr, "%s: Error reading frame headers: vidf block for frame %d was not found\n", mlv_filename, index);
+        err_printf("%s: Error reading frame headers: vidf block for frame %d was not found\n", mlv_filename, index);
     }
     
     free(block_xref);
@@ -643,7 +639,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
         if(ferror(file))
         {
             int err = errno;
-            fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
+            err_printf("fread error: %s\n", strerror(err));
         }
         else
         {
@@ -663,7 +659,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                 }
                 else
                 {
-                    fprintf(stderr, "LZMA Failed!\n");
+                    err_printf("LZMA Failed!\n");
                 }
             }
             else if(lj92_compressed)
@@ -682,7 +678,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                 
                 if(out_size != out_size_stored)
                 {
-                    fprintf(stderr, "LJ92: non-critical internal error occurred: frame size mismatch (%d != %d)\n", (uint32_t)out_size, (uint32_t)out_size_stored);
+                    err_printf("LJ92: non-critical internal error occurred: frame size mismatch (%d != %d)\n", (uint32_t)out_size, (uint32_t)out_size_stored);
                 }
                 
                 if(ret == LJ92_ERROR_NONE)
@@ -692,7 +688,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                     if (!decompressed)
                     {
                         free(frame_buffer);
-                        fprintf(stderr, "LJ92 malloc failed!\n");
+                        err_printf("LJ92 malloc failed!\n");
                         return 0;
                     }
                     
@@ -723,12 +719,12 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                     }
                     else
                     {
-                        fprintf(stderr, "get_image_data: LJ92: Failed (%d)\n", ret);
+                        err_printf("LJ92: Failed (%d)\n", ret);
                     }
                 }
                 else
                 {
-                    fprintf(stderr, "get_image_data: LJ92: Failed (%d)\n", ret);
+                    err_printf("LJ92: Failed (%d)\n", ret);
                 }
             }
         }
@@ -745,7 +741,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
             if(ferror(file))
             {
                 int err = errno;
-                fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
+                err_printf("fread error: %s\n", strerror(err));
             }
             else
             {
@@ -905,7 +901,7 @@ static int process_frame(struct image_buffer * image_buffer)
                     else
                     {
                         int err = errno;
-                        fprintf(stderr, "process_frame: malloc error: %s\n", strerror(err));
+                        err_printf("malloc error: %s\n", strerror(err));
                     }
                 }
                 stripes_apply_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
@@ -1330,7 +1326,7 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
             else
             {
                 int err = errno;
-                fprintf(stderr, "mlvfs_readdir: malloc error: %s\n", strerror(err));
+                err_printf("malloc error: %s\n", strerror(err));
                 result = -ENOENT;
             }
         }
@@ -1453,17 +1449,17 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
 
             if (!image_buffer)
             {
-                fprintf(stderr, "mlvfs_read: DNG image_buffer is NULL\n");
+                err_printf("DNG image_buffer is NULL\n");
                 return 0;
             }
             if (!image_buffer->header)
             {
-                fprintf(stderr, "mlvfs_read: DNG image_buffer->header is NULL\n");
+                err_printf("DNG image_buffer->header is NULL\n");
                 return 0;
             }
             if (!image_buffer->data)
             {
-                fprintf(stderr, "mlvfs_read: DNG image_buffer->data is NULL\n");
+                err_printf("DNG image_buffer->data is NULL\n");
                 return 0;
             }
 
@@ -1511,12 +1507,12 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
             struct image_buffer * image_buffer = get_or_create_image_buffer(path, &create_preview, &was_created);
             if (!image_buffer)
             {
-                fprintf(stderr, "mlvfs_read: GIF image_buffer is NULL\n");
+                err_printf("GIF image_buffer is NULL\n");
                 return 0;
             }
             if (!image_buffer->data)
             {
-                fprintf(stderr, "mlvfs_read: GIF image_buffer->data is NULL\n");
+                err_printf("GIF image_buffer->data is NULL\n");
                 return 0;
             }
 
@@ -1626,7 +1622,7 @@ static int mlvfs_rename(const char *from, const char *to)
 
     if(real_from && real_to)
     {
-        dbg_fprintf(stderr, "mlvfs_rename: real_path '%s' -> '%s'\n", real_from, real_to);
+        dbg_printf("real_path '%s' -> '%s'\n", real_from, real_to);
         rename(real_from, real_to);
         result = 0;
     }
@@ -1647,7 +1643,7 @@ static int mlvfs_rmdir(const char *path)
     char * real_path = mlvfs_resolve_virtual(path);
     if (real_path)
     {
-        dbg_fprintf(stderr, "mlvfs_rmdir: real_path '%s'\n", real_path);
+        dbg_printf("real_path '%s'\n", real_path);
         rmdir(real_path);
         free(real_path);
         result = 0;
@@ -1661,7 +1657,7 @@ static int mlvfs_unlink(const char *path)
     char * real_path = mlvfs_resolve_virtual(path);
     if (real_path)
     {
-        dbg_fprintf(stderr, "mlvfs_unlink: real_path '%s'\n", real_path);
+        dbg_printf("real_path '%s'\n", real_path);
         unlink(real_path);
         free(real_path);
         result = 0;
@@ -1675,7 +1671,7 @@ static int mlvfs_truncate(const char *path, FUSE_OFF_T offset)
     char * real_path = mlvfs_resolve_virtual(path);
     if(real_path)
     {
-        dbg_fprintf(stderr, "mlvfs_truncate: real_path '%s'\n", real_path);
+        dbg_printf("real_path '%s'\n", real_path);
         truncate(real_path, offset);
         free(real_path);
         result = 0;
@@ -1724,72 +1720,72 @@ static int mlvfs_statfs(const char *path, struct statvfs *stat)
 
 static int mlvfs_wrap_getattr(const char *path, struct FUSE_STAT *stbuf)
 {
-    dbg_fprintf(stderr, "mlvfs_getattr: '%s' 0x%08X\n", path, (uint32_t)stbuf);
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)stbuf);
     TRY_WRAP(return mlvfs_getattr(path, stbuf); )
 }
 static int mlvfs_wrap_open(const char *path, struct fuse_file_info *fi)
 {
-    dbg_fprintf(stderr, "mlvfs_open: '%s' 0x%08X\n", path, (uint32_t)fi);
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)fi);
     TRY_WRAP(return mlvfs_open(path, fi); )
 }
 static int mlvfs_wrap_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
-    dbg_fprintf(stderr, "mlvfs_readdir: '%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)filler, (uint32_t)offset, (uint32_t)fi);
+    dbg_printf("'%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)filler, (uint32_t)offset, (uint32_t)fi);
     TRY_WRAP(return mlvfs_readdir(path, buf, filler, offset, fi); )
 }
 static int mlvfs_wrap_read(const char *path, char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
-    dbg_fprintf(stderr, "mlvfs_read: '%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)size, (uint32_t)offset, (uint32_t)fi);
+    dbg_printf("'%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)size, (uint32_t)offset, (uint32_t)fi);
     TRY_WRAP(return mlvfs_read(path, buf, size, offset, fi); )
 }
 static int mlvfs_wrap_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    dbg_fprintf(stderr, "mlvfs_create: '%s' 0x%08X 0x%08X\n", path, (uint32_t)mode, (uint32_t)fi);
+    dbg_printf("'%s' 0x%08X 0x%08X\n", path, (uint32_t)mode, (uint32_t)fi);
     TRY_WRAP(return mlvfs_create(path, mode, fi); )
 }
 static int mlvfs_wrap_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
-    dbg_fprintf(stderr, "mlvfs_fsync: '%s' 0x%08X 0x%08X\n", path, (uint32_t)isdatasync, (uint32_t)fi);
+    dbg_printf("'%s' 0x%08X 0x%08X\n", path, (uint32_t)isdatasync, (uint32_t)fi);
     TRY_WRAP(return mlvfs_fsync(path, isdatasync, fi); )
 }
 static int mlvfs_wrap_mkdir(const char *path, mode_t mode)
 {
-    dbg_fprintf(stderr, "mlvfs_mkdir: '%s' 0x%08X\n", path, (uint32_t)mode);
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)mode);
     TRY_WRAP(return mlvfs_mkdir(path, mode); )
 }
 static int mlvfs_wrap_release(const char *path, struct fuse_file_info *fi)
 {
-    dbg_fprintf(stderr, "mlvfs_release: '%s' 0x%08X\n", path, (uint32_t)fi);
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)fi);
     TRY_WRAP(return mlvfs_release(path, fi); )
 }
 static int mlvfs_wrap_rename(const char *from, const char *to)
 {
-    dbg_fprintf(stderr, "mlvfs_rename: '%s' '%s'\n", from, to);
+    dbg_printf("'%s' '%s'\n", from, to);
     TRY_WRAP(return mlvfs_rename(from, to); )
 }
 static int mlvfs_wrap_rmdir(const char *path)
 {
-    dbg_fprintf(stderr, "mlvfs_rmdir: '%s'\n", path);
+    dbg_printf("'%s'\n", path);
     TRY_WRAP(return mlvfs_rmdir(path); )
 }
 static int mlvfs_wrap_truncate(const char *path, FUSE_OFF_T offset)
 {
-    dbg_fprintf(stderr, "mlvfs_truncate: '%s' 0x%08X\n", path, (uint32_t)offset);
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)offset);
     TRY_WRAP(return mlvfs_truncate(path, offset); )
 }
 static int mlvfs_wrap_write(const char *path, const char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
-    dbg_fprintf(stderr, "mlvfs_write: '%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)size, (uint32_t)offset, (uint32_t)fi);
+    dbg_printf("'%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)size, (uint32_t)offset, (uint32_t)fi);
     TRY_WRAP(return mlvfs_write(path, buf, size, offset, fi); )
 }
 static int mlvfs_wrap_statfs(const char *path, struct statvfs *stat)
 {
-    dbg_fprintf(stderr, "mlvfs_statfs: '%s' 0x%08X\n", path, (uint32_t)stat);
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)stat);
     TRY_WRAP(return mlvfs_statfs(path, stat); )
 }
 static int mlvfs_wrap_unlink(const char *path)
 {
-    dbg_fprintf(stderr, "mlvfs_unlink: '%s'\n", path);
+    dbg_printf("'%s'\n", path);
     TRY_WRAP(return mlvfs_unlink(path); )
 }
 
@@ -1911,7 +1907,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            fprintf(stderr, "MLVFS: mlv path is not a directory\n");
+            err_printf("MLVFS: mlv path is not a directory\n");
         }
 
         if(!res)
@@ -1925,7 +1921,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        fprintf(stderr, "MLVFS: no mlv path specified\n");
+        err_printf("MLVFS: no mlv path specified\n");
         display_help();
     }
 

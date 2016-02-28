@@ -102,7 +102,7 @@ int hdr_convert_data(struct frame_headers * frame_headers, uint16_t * image_data
     }
     else
     {
-        fprintf(stderr, "Could not detect dual ISO interlaced lines\n");
+        err_printf("Could not detect dual ISO interlaced lines\n");
         return 0;
     }
     
@@ -1516,7 +1516,7 @@ static inline void hdr_chroma_smooth(struct raw_info raw_info, uint32_t * input,
             break;
             
         default:
-            fprintf(stderr, "Unsupported chroma smooth method\n");
+            err_printf("Unsupported chroma smooth method\n");
             break;
     }
 }

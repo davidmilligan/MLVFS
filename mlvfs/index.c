@@ -26,6 +26,7 @@
 
 #include "raw.h"
 #include "mlv.h"
+#include "mlvfs.h"
 
 /* helper macros */
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -103,7 +104,7 @@ mlv_xref_hdr_t *load_index(const char *base_filename)
     
     if(!filename)
     {
-        fprintf(stderr, "load_index: malloc error (requested size %zu)\n", filename_size);
+        err_printf("malloc error (requested size %zu)\n", filename_size);
         return NULL;
     }
     strncpy(filename, base_filename, filename_size);
@@ -178,7 +179,7 @@ void save_index(const char *base_filename, mlv_file_hdr_t *ref_file_hdr, int fil
     
     if(!filename)
     {
-        fprintf(stderr, "save_index: malloc error (requested size %zu)\n", filename_size);
+        err_printf("malloc error (requested size %zu)\n", filename_size);
         return;
     }
     strncpy(filename, base_filename, filename_size);
@@ -238,7 +239,7 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
                 if(ferror(chunk_files[chunk]))
                 {
                     int err = errno;
-                    fprintf(stderr, "make_index: File #%d, %zu bytes read, fread error: %s\n", chunk, read, strerror(err));
+                    err_printf("File #%d, %zu bytes read, fread error: %s\n", chunk, read, strerror(err));
                 }
                 break;
             }
@@ -246,7 +247,7 @@ mlv_xref_hdr_t *make_index(FILE **chunk_files, uint32_t chunk_count)
             /* unexpected block header size? */
             if(buf.blockSize < sizeof(mlv_hdr_t) || buf.blockSize > 1024 * 1024 * 1024)
             {
-                fprintf(stderr, "make_index: Invalid header size: %d bytes at 0x%08llX\n", buf.blockSize, position);
+                err_printf("Invalid header size: %d bytes at 0x%08llX\n", buf.blockSize, position);
                 break;
             }
 
@@ -350,11 +351,11 @@ void build_index(const char *base_filename, FILE **chunk_files, uint32_t chunk_c
         if(ferror(chunk_files[0]))
         {
             int err = errno;
-            fprintf(stderr, "build_index: fread error: %s\n", strerror(err));
+            err_printf("fread error: %s\n", strerror(err));
         }
         else
         {
-            fprintf(stderr, "build_index: could not read main header\n");
+            err_printf("could not read main header\n");
         }
     }
 
@@ -372,7 +373,7 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
 
     if(!filename)
     {
-        fprintf(stderr, "load_chunks: malloc error (requested size %zu)\n", filename_size);
+        err_printf("malloc error (requested size %zu)\n", filename_size);
         return NULL;
     }
     *entries = 0;
@@ -384,7 +385,7 @@ FILE **load_chunks(const char *base_filename, uint32_t *entries)
     if (!files[0])
     {
         int err = errno;
-        fprintf(stderr, "load_chunks: fopen('%s') error: %s\n", filename, strerror(err));
+        err_printf("fopen('%s') error: %s\n", filename, strerror(err));
         return NULL;
     }
 
@@ -425,7 +426,7 @@ void close_chunks(FILE **chunk_files, uint32_t chunk_count)
 {
     if(!chunk_files || !chunk_count || chunk_count > 100)
     {
-        fprintf(stderr, "close_chunks: faulty parameters\n");
+        err_printf("faulty parameters\n");
         return;
     }
 

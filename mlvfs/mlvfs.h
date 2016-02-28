@@ -67,9 +67,7 @@ struct frame_headers
 #ifndef VERSION
 #define VERSION "UNKNOWN"
 #endif
-#ifndef BUILD_DATE
-#define BUILD_DATE "UNKNOWN"
-#endif
+#define BUILD_DATE __DATE__ __TIME__
 
 //Let the DNGs be "writeable" for AE, even though they're not actually writable
 //You'll get an error if you actually try to write to them
@@ -132,5 +130,12 @@ static void *find_first_separator(const char *path)
 #undef FORCE_INLINE
 #define FORCE_INLINE inline
 #endif
+
+#if DEBUG
+#define dbg_printf(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
+#else
+#define dbg_printf(fmt, args...)
+#endif
+#define err_printf(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
 
 #endif

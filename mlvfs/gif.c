@@ -158,7 +158,7 @@ size_t gif_get_data(const char * path, uint8_t * output_buffer, off_t offset, si
                 
                 if(!mlv_get_frame_headers(path, mlv_frame_number, &frame_headers))
                 {
-                    fprintf(stderr, "GIF Error: could not get MLV frame headers\n");
+                    err_printf("GIF Error: could not get MLV frame headers\n");
                     continue;
                 }
                 get_image_data(&frame_headers, chunk_files[frame_headers.fileNumber], (uint8_t*) image_data, 0, image_data_size);
@@ -212,7 +212,7 @@ size_t gif_get_data(const char * path, uint8_t * output_buffer, off_t offset, si
         else
         {
             close_chunks(chunk_files, chunk_count);
-            fprintf(stderr, "malloc error (requested size: %zu)\n", image_data_size);
+            err_printf("malloc error (requested size: %zu)\n", image_data_size);
         }
     }
     return 0;
