@@ -1035,7 +1035,7 @@ static char *mlvfs_resolve_virtual(const char *path)
     {
         int is_in_mlv_root = (find_first_separator(path_in_mlv) == NULL);
 
-        if (is_in_mlv_root && (string_ends_with(path_in_mlv, ".dng") || string_ends_with(path_in_mlv, ".wav") || string_ends_with(path_in_mlv, ".gif") || string_ends_with(path_in_mlv, ".log")))
+        if (is_in_mlv_root && !strstr(path,"/._") && (string_ends_with(path_in_mlv, ".dng") || string_ends_with(path_in_mlv, ".wav") || string_ends_with(path_in_mlv, ".gif") || string_ends_with(path_in_mlv, ".log")))
         {
             /* a DNG etc in the MLV root -> virtual */
             resolved_filename = NULL;
