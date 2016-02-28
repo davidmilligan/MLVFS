@@ -112,6 +112,17 @@ static void *find_first_separator(const char *path)
 #define ROR(v,a) _rotr(v,a)
 #define STAT64 _stat64 /* this wraps the function and the struct name */
 #define unlink _unlink
+
+
+#define STRINGIFY2(x) #x
+#define STRINGIFY(x) STRINGIFY2(x)
+#if DEBUG
+#define dbg_printf(...) fprintf(stderr, __FILE__ ":" STRINGIFY(__LINE__) ":" __FUNCTION__ "():" __VA_ARGS__)
+#else
+#define dbg_printf(...)
+#endif
+#define err_printf(...) fprintf(stderr, __FILE__ ":" STRINGIFY(__LINE__) ":" __FUNCTION__ "():" __VA_ARGS__)
+
 #else
 #define O_BINARY 0
 #define filename_strcmp strcmp
@@ -124,12 +135,7 @@ static void *find_first_separator(const char *path)
 #define FORCE_INLINE __always_inline
 #define ROR(v,a) ((v) >> (a) | (v) << (32-(a)))  /* is there an intrinsic for? */
 #define STAT64 stat /* this wraps the function and the struct name */
-#endif
 
-#if __clang__
-#undef FORCE_INLINE
-#define FORCE_INLINE inline
-#endif
 
 #if DEBUG
 #define dbg_printf(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
@@ -137,5 +143,12 @@ static void *find_first_separator(const char *path)
 #define dbg_printf(fmt, args...)
 #endif
 #define err_printf(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
+
+#endif
+
+#if __clang__
+#undef FORCE_INLINE
+#define FORCE_INLINE inline
+#endif
 
 #endif
