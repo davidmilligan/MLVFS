@@ -786,38 +786,6 @@ static int get_mlv_basename(const char *path, char ** mlv_basename)
     return 1;
 }
 
-/**
- * Converts a path in the MLVFS file system to a path in the real filesystem
- * Make sure you free() the result!!!
- * @return 1 if the real path is inside a .MLD directory, 0 otherwise
- */
-static int get_real_path(const char *path, char ** real_path)
-{
-    char * mlv_filename = NULL;
-    *real_path = NULL;
-    if(mlvfs.name_scheme && get_mlv_filename(path, &mlv_filename))
-    {
-        *real_path = mlv_filename;
-    }
-	else
-	{
-		*real_path = path_append(mlvfs.mlv_path, path);
-	}
-    
-    if(*real_path != NULL)
-    {
-        char * mlv_ext = strstr(*real_path, ".MLV");
-        if(mlv_ext == NULL) mlv_ext = strstr(*real_path, ".mlv");
-        if(mlv_ext != NULL)
-        {
-            //replace .MLV in the path with .MLD
-            mlv_ext[1] = 'M';mlv_ext[2] = 'L';mlv_ext[3] = 'D';
-            return 1;
-        }
-    }
-    return 0;
-}
-
 static void check_mld_exists(char * path)
 {
     char *temp = copy_string(path);
@@ -1449,7 +1417,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
                 return -errno;
             }
 
-            int res = pread(fd, buf, size, offset);
+            int res = (int)pread(fd, buf, size, offset);
             if (res < 0)
             {
                 res = -errno;
@@ -1694,7 +1662,7 @@ static int mlvfs_unlink(const char *path)
     if (real_path)
     {
         dbg_fprintf(stderr, "mlvfs_unlink: real_path '%s'\n", real_path);
-        _unlink(real_path);
+        unlink(real_path);
         free(real_path);
         result = 0;
     }
@@ -1732,7 +1700,7 @@ static int mlvfs_write(const char *path, const char *buf, size_t size, FUSE_OFF_
         return -errno;
     }
 
-    int res = pwrite(fd, buf, size, offset);
+    int res = (int)pwrite(fd, buf, size, offset);
     if (res < 0)
     {
         res = -errno;

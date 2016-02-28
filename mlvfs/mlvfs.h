@@ -113,7 +113,9 @@ static void *find_first_separator(const char *path)
 #define FORCE_INLINE __forceinline
 #define ROR(v,a) _rotr(v,a)
 #define STAT64 _stat64 /* this wraps the function and the struct name */
+#define unlink _unlink
 #else
+#define O_BINARY 0
 #define filename_strcmp strcmp
 #define DIR_SEP_CHAR '/'
 #define DIR_SEP_STR "/"
