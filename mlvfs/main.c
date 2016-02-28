@@ -99,11 +99,11 @@ int truncate(char *file, size_t length)
 }
 
 /* visual studio compilers for win32 offer a C exception handling. make use of it to reduce risk of severe crashes. */
-#define TRY_WRAP(code) __try { code } __except(ExceptionFilter(GetExceptionCode(), GetExceptionInformation())) { return -ENOENT; }
+#define TRY_WRAP(code) __try { code } __except(ExceptionFilter(__FUNCTION__,__LINE__,GetExceptionCode(), GetExceptionInformation())) { return -ENOENT; }
 
-int ExceptionFilter(unsigned int code, struct _EXCEPTION_POINTERS *info)
+int ExceptionFilter(const char *func, unsigned int line, unsigned int code, struct _EXCEPTION_POINTERS *info)
 {
-    err_printf("caught exception 0x%08X at address 0x%08llX\n", code, (uint64_t)info->ExceptionRecord->ExceptionAddress);
+    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08llX\n", func, line, code, (uint64_t)info->ExceptionRecord->ExceptionAddress);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
