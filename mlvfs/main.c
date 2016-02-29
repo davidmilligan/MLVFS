@@ -1658,7 +1658,11 @@ static int mlvfs_unlink(const char *path)
     if (real_path)
     {
         dbg_printf("real_path '%s'\n", real_path);
+#ifdef _WIN32
+        _unlink(real_path);
+#else
         unlink(real_path);
+#endif
         free(real_path);
         result = 0;
     }
