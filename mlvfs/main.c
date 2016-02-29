@@ -1290,46 +1290,54 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
             is_mld_dir = 1;
 
             char * mlv_basename = NULL;
-            get_mlv_basename(mlv_filename, &mlv_basename);
-
-            char *filename = malloc(sizeof(char) * (strlen(mlv_basename) + 1024));
-            if (filename)
+            if(get_mlv_basename(mlv_filename, &mlv_basename))
             {
-                if (has_audio(mlv_filename))
+                char *filename = malloc(sizeof(char) * (strlen(mlv_basename) + 1024));
+                if (filename)
                 {
-                    sprintf(filename, "%s.wav", mlv_basename);
+                    if (has_audio(mlv_filename))
+                    {
+                        sprintf(filename, "%s.wav", mlv_basename);
+                        filler(buf, filename, NULL, 0);
+                    }
+                    sprintf(filename, "%s.log", mlv_basename);
                     filler(buf, filename, NULL, 0);
-                }
-                sprintf(filename, "%s.log", mlv_basename);
-                filler(buf, filename, NULL, 0);
-                int frame_count = mlv_get_frame_count(mlv_filename);
-                for (int i = 0; i < frame_count; i++)
-                {
-                    sprintf(filename, "%s_%06d.dng", mlv_basename, i);
+                    int frame_count = mlv_get_frame_count(mlv_filename);
+                    for (int i = 0; i < frame_count; i++)
+                    {
+                        sprintf(filename, "%s_%06d.dng", mlv_basename, i);
+                        filler(buf, filename, NULL, 0);
+                    }
+                    sprintf(filename, "_PREVIEW.gif");
                     filler(buf, filename, NULL, 0);
+                    result = 0;
+                    
+                    /* now pass over the MLD dir to the "real" directory listing code */
+                    real_path = copy_string(mlv_filename);
+                    char *dot = strrchr(real_path, '.');
+                    
+                    if (dot)
+                    {
+                        strcpy(dot, ".MLD");
+                    }
+                    
+                    free(filename);
                 }
-                sprintf(filename, "_PREVIEW.gif");
-                filler(buf, filename, NULL, 0);
-                result = 0;
-
-                /* now pass over the MLD dir to the "real" directory listing code */
-                real_path = copy_string(mlv_filename);
-                char *dot = strrchr(real_path, '.');
-
-                if (dot)
+                else
                 {
-                    strcpy(dot, ".MLD");
+                    int err = errno;
+                    err_printf("malloc error: %s\n", strerror(err));
+                    result = -ENOENT;
                 }
-
-                free(filename);
+                free(mlv_basename);
             }
             else
             {
-                int err = errno;
-                err_printf("malloc error: %s\n", strerror(err));
-                result = -ENOENT;
+                err_printf("could not get mlv basename\n");
             }
         }
+        free(mlv_filename);
+        free(path_in_mlv);
     }
     else
     {
@@ -1450,16 +1458,22 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
             if (!image_buffer)
             {
                 err_printf("DNG image_buffer is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
                 return 0;
             }
             if (!image_buffer->header)
             {
                 err_printf("DNG image_buffer->header is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
                 return 0;
             }
             if (!image_buffer->data)
             {
                 err_printf("DNG image_buffer->data is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
                 return 0;
             }
 
@@ -1491,14 +1505,16 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
                 uint8_t* image_output_buf = (uint8_t*)buf + remaining;
                 memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(read_size - remaining, image_buffer->size - image_offset));
             }
-
+            
             free(mlv_filename);
+            free(path_in_mlv);
             return (int)read_size;
         }
         else if (string_ends_with(path_in_mlv, ".wav"))
         {
             int result = (int)wav_get_data(mlv_filename, (uint8_t*)buf, offset, size);
             free(mlv_filename);
+            free(path_in_mlv);
             return result;
         }
         else if (string_ends_with(path_in_mlv, ".gif"))
@@ -1508,11 +1524,15 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
             if (!image_buffer)
             {
                 err_printf("GIF image_buffer is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
                 return 0;
             }
             if (!image_buffer->data)
             {
                 err_printf("GIF image_buffer->data is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
                 return 0;
             }
 
@@ -1522,6 +1542,7 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
 
             memcpy(buf, ((uint8_t*)image_buffer->data) + read_offset, read_size);
             free(mlv_filename);
+            free(path_in_mlv);
             return (int)read_size;
         }
         else if (string_ends_with(path_in_mlv, ".log"))
@@ -1539,8 +1560,11 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
                 free(log);
             }
             free(mlv_filename);
+            free(path_in_mlv);
             return (int)read_bytes;
         }
+        free(mlv_filename);
+        free(path_in_mlv);
     }
     
     return -ENOENT;
