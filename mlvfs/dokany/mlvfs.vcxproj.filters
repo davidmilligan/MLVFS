@@ -139,6 +139,9 @@
     <ClCompile Include="..\webgui.c">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\slre\slre.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\LZMA\7zCrc.h">
@@ -286,6 +289,9 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\resource_manager.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\slre\slre.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

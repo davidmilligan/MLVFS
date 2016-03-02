@@ -202,6 +202,7 @@
     <ClCompile Include="..\patternnoise.c" />
     <ClCompile Include="..\resource_manager.c" />
     <ClCompile Include="..\sleefsseavx.c" />
+    <ClCompile Include="..\slre\slre.c" />
     <ClCompile Include="..\stripes.c" />
     <ClCompile Include="..\wav.c" />
     <ClCompile Include="..\webgui.c" />
@@ -250,6 +251,7 @@
     <ClInclude Include="..\patternnoise.h" />
     <ClInclude Include="..\raw.h" />
     <ClInclude Include="..\resource_manager.h" />
+    <ClInclude Include="..\slre\slre.h" />
     <ClInclude Include="..\stripes.h" />
     <ClInclude Include="..\wav.h" />
     <ClInclude Include="..\webgui.h" />
