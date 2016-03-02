@@ -40,6 +40,7 @@
 		63095A0C19F2F2890019B61F /* amaze_demosaic_RT.c in Sources */ = {isa = PBXBuildFile; fileRef = 63095A0A19F2F2890019B61F /* amaze_demosaic_RT.c */; };
 		63095A1419F43FEF0019B61F /* resource_manager.c in Sources */ = {isa = PBXBuildFile; fileRef = 63095A1219F43FEF0019B61F /* resource_manager.c */; };
 		6319AB3919AD0F1000032A1A /* OSXFUSE.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6319AB3819AD0F1000032A1A /* OSXFUSE.framework */; };
+		632F7D811C867B8F00311E91 /* slre.c in Sources */ = {isa = PBXBuildFile; fileRef = 632F7D7F1C867B8F00311E91 /* slre.c */; settings = {ASSET_TAGS = (); }; };
 		634B603319BBFED2008CF973 /* wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 634B603219BBFED2008CF973 /* wav.c */; };
 		634BD5A31AACE4550022FD14 /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = 634BD5A11AACE4550022FD14 /* mongoose.c */; };
 		63B4287E19E7150100B83CD3 /* webgui.c in Sources */ = {isa = PBXBuildFile; fileRef = 63B4287C19E7150100B83CD3 /* webgui.c */; };
@@ -132,6 +133,8 @@
 		6319AB3A19AD3B1100032A1A /* mlv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mlv.h; sourceTree = "<group>"; };
 		6319AB3B19AD4EEA00032A1A /* raw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raw.h; sourceTree = "<group>"; };
 		632F7D7A1C658A8A00311E91 /* data */ = {isa = PBXFileReference; lastKnownFileType = folder; name = data; path = mlvfs/data; sourceTree = "<group>"; };
+		632F7D7F1C867B8F00311E91 /* slre.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = slre.c; path = slre/slre.c; sourceTree = "<group>"; };
+		632F7D801C867B8F00311E91 /* slre.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = slre.h; path = slre/slre.h; sourceTree = "<group>"; };
 		634B603219BBFED2008CF973 /* wav.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = wav.c; sourceTree = "<group>"; };
 		634B603419BBFEE4008CF973 /* wav.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wav.h; sourceTree = "<group>"; };
 		634BD5A11AACE4550022FD14 /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose.c; path = mongoose/mongoose.c; sourceTree = "<group>"; };
@@ -304,6 +307,8 @@
 				63FF20041A912D1B00CD44B7 /* gif.h */,
 				63B5F2111C38B04900BDB3CC /* patternnoise.c */,
 				63B5F2121C38B04900BDB3CC /* patternnoise.h */,
+				632F7D7F1C867B8F00311E91 /* slre.c */,
+				632F7D801C867B8F00311E91 /* slre.h */,
 				63B5F88719D79C510028614C /* Makefile */,
 				6302E2D71A8416BD000F76D9 /* LZMA */,
 			);
@@ -402,6 +407,7 @@
 				6302E3251A8416D4000F76D9 /* LzmaLib.c in Sources */,
 				6302E31B1A8416D4000F76D9 /* BraIA64.c in Sources */,
 				63DA867819B113A80065788E /* dng.c in Sources */,
+				632F7D811C867B8F00311E91 /* slre.c in Sources */,
 				6302E30F1A8416D4000F76D9 /* 7zBuf.c in Sources */,
 				6302E3101A8416D4000F76D9 /* 7zBuf2.c in Sources */,
 				63095A0C19F2F2890019B61F /* amaze_demosaic_RT.c in Sources */,
