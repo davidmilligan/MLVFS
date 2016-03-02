@@ -206,6 +206,7 @@ size_t gif_get_data(const char * path, uint8_t * output_buffer, off_t offset, si
             
             memcpy(output_buffer, gif_buffer + offset, MIN(max_size, gif_size - offset));
             free(gif_buffer);
+            free(image_data);
             close_chunks(chunk_files, chunk_count);
             return max_size;
         }
