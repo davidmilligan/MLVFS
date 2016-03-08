@@ -1555,36 +1555,42 @@ static struct fuse_operations mlvfs_filesystem_operations =
 
 struct fuse_opt_ex
 {
-    struct fuse_opt opt;
-    const char * help;
+    struct fuse_opt opt;            /* Fuse-compatible option */
+    const char * help;              /* Help text for each option */
+    const char * next_group;        /* Option group name for the next options (fixme: a little hackish) */
 };
 
-#define MLVFS_OPTION(option, field, value, help) \
-    { { option, offsetof(struct mlvfs, field), value }, help }
+#define MLVFS_OPTION(option, field, value, help, next_group) \
+    { { option, offsetof(struct mlvfs, field), value }, help, next_group }
 
 static const struct fuse_opt_ex mlvfs_opts_ex[] =
 {
-    MLVFS_OPTION("--mlv_dir=%s",        mlv_path,                 0, 0),
-    MLVFS_OPTION("--mlv-dir=%s",        mlv_path,                 0, "Directory containing MLV files"),
-    MLVFS_OPTION("--port=%s",           port,                     0, "Port used for web GUI (default: 8000)"),
-    MLVFS_OPTION("--resolve-naming",    name_scheme,              1, "DNG file names compatible with DaVinci Resolve"),
-    MLVFS_OPTION("--cs2x2",             chroma_smooth,            2, "2x2 chroma smoothing"),
-    MLVFS_OPTION("--cs3x3",             chroma_smooth,            3, "3x3 chroma smoothing"),
-    MLVFS_OPTION("--cs5x5",             chroma_smooth,            5, "5x5 chroma smoothing"),
-    MLVFS_OPTION("--bad-pix",           fix_bad_pixels,           1, "Fix bad pixels (autodetected)"),
-    MLVFS_OPTION("--really-bad-pix",    fix_bad_pixels,           2, "Aggressive bad pixel fix"),
-    MLVFS_OPTION("--stripes",           fix_stripes,              1, "Vertical stripe correction in highlights (nonuniform column gains)"),
-    MLVFS_OPTION("--dual-iso-preview",  dual_iso,                 1, "Preview Dual ISO files (fast)"),
-    MLVFS_OPTION("--dual-iso",          dual_iso,                 2, "Render Dual ISO files (high quality)"),
-    MLVFS_OPTION("--amaze-edge",        hdr_interpolation_method, 0, "Dual ISO: interpolation method (high quality)"),
-    MLVFS_OPTION("--mean23",            hdr_interpolation_method, 1, "Dual ISO: interpolation method (fast)"),
-    MLVFS_OPTION("--no-alias-map",      hdr_no_alias_map,         1, "Dual ISO: disable alias map"),
-    MLVFS_OPTION("--alias-map",         hdr_no_alias_map,         0, "Dual ISO: enable alias map"),
-    MLVFS_OPTION("--fps=%f",            fps,                      0, "FPS used for playback in web GUI"  ),
+    MLVFS_OPTION("--mlv_dir=%s",        mlv_path,                 0, 0,
+"File/folder options"),
+    MLVFS_OPTION("--mlv-dir=%s",        mlv_path,                 0, "Directory containing MLV files", 0),
+    MLVFS_OPTION("--resolve-naming",    name_scheme,              1, "DNG file names compatible with DaVinci Resolve",
+"Processing options"),
+    MLVFS_OPTION("--cs2x2",             chroma_smooth,            2, "2x2 chroma smoothing", 0),
+    MLVFS_OPTION("--cs3x3",             chroma_smooth,            3, "3x3 chroma smoothing", 0),
+    MLVFS_OPTION("--cs5x5",             chroma_smooth,            5, "5x5 chroma smoothing", 0),
+    MLVFS_OPTION("--bad-pix",           fix_bad_pixels,           1, "Fix bad pixels (autodetected)", 0),
+    MLVFS_OPTION("--really-bad-pix",    fix_bad_pixels,           2, "Aggressive bad pixel fix", 0),
+    MLVFS_OPTION("--fix-pattern-noise", fix_pattern_noise,        1, "Fix row/column noise in shadows (slow)", 0),
+    MLVFS_OPTION("--stripes",           fix_stripes,              1, "Vertical stripe correction in highlights (nonuniform column gains)", 0),
     MLVFS_OPTION("--deflicker=%d",      deflicker,                0, "Per-frame exposure compensation for flicker-free video\n"
-                                          "                           (your raw processor must interpret the BaselineExposure DNG tag)"),
-    MLVFS_OPTION("--fix-pattern-noise", fix_pattern_noise,        1, "Fix row/column noise in shadows"),
-    MLVFS_OPTION("--version",           version,                  1, "Display MLVFS version"),
+                                          "                           (your raw processor must interpret the BaselineExposure DNG tag)",
+"Dual ISO options"),
+    MLVFS_OPTION("--dual-iso-preview",  dual_iso,                 1, "Preview Dual ISO files (fast)", 0),
+    MLVFS_OPTION("--dual-iso",          dual_iso,                 2, "Render Dual ISO files (high quality)", 0),
+    MLVFS_OPTION("--amaze-edge",        hdr_interpolation_method, 0, "Dual ISO: interpolation method (high quality)", 0),
+    MLVFS_OPTION("--mean23",            hdr_interpolation_method, 1, "Dual ISO: interpolation method (fast)", 0),
+    MLVFS_OPTION("--no-alias-map",      hdr_no_alias_map,         1, "Dual ISO: disable alias map", 0),
+    MLVFS_OPTION("--alias-map",         hdr_no_alias_map,         0, "Dual ISO: enable alias map",
+"Web GUI options"),
+    MLVFS_OPTION("--port=%s",           port,                     0, "Port used for web GUI (default: 8000)", 0),
+    MLVFS_OPTION("--fps=%f",            fps,                      0, "FPS used for playback in web GUI",
+"Diagnostic options"),
+    MLVFS_OPTION("--version",           version,                  1, "Display MLVFS version", 0),
     { FUSE_OPT_END }
 };
 
@@ -1619,6 +1625,11 @@ static void display_help()
         if (mlvfs_opts_ex[i].help)
         {
             printf("    %-22s %s\n", mlvfs_opts[i].templ, mlvfs_opts_ex[i].help);
+        }
+        
+        if (mlvfs_opts_ex[i].next_group)
+        {
+            printf("\n- %s:\n", mlvfs_opts_ex[i].next_group);
         }
     }
     printf("\n");
