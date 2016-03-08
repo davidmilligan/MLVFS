@@ -116,7 +116,8 @@ static int load_resource(char** resource, const char * filename)
         }
         else
         {
-            fprintf(stderr, "load_resource: fopen error\n");
+            static char buf[1000];
+            fprintf(stderr, "load_resource: fopen error: %s cwd=%s\n", filename, (char*)getcwd(buf,1000));
             return 0;
         }
     }
