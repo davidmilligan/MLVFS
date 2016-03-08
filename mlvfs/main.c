@@ -1553,30 +1553,52 @@ static struct fuse_operations mlvfs_filesystem_operations =
     .write       = mlvfs_wrap_write,
 };
 
-static const struct fuse_opt mlvfs_opts[] =
+struct fuse_opt_ex
 {
-    { "--mlv_dir=%s",       offsetof(struct mlvfs, mlv_path),                   0 },
-    { "--mlv-dir=%s",       offsetof(struct mlvfs, mlv_path),                   0 },
-    { "--port=%s",          offsetof(struct mlvfs, port),                       0 },
-    { "--resolve-naming",   offsetof(struct mlvfs, name_scheme),                1 },
-    { "--cs2x2",            offsetof(struct mlvfs, chroma_smooth),              2 },
-    { "--cs3x3",            offsetof(struct mlvfs, chroma_smooth),              3 },
-    { "--cs5x5",            offsetof(struct mlvfs, chroma_smooth),              5 },
-    { "--bad-pix",          offsetof(struct mlvfs, fix_bad_pixels),             1 },
-    { "--really-bad-pix",   offsetof(struct mlvfs, fix_bad_pixels),             2 },
-    { "--stripes",          offsetof(struct mlvfs, fix_stripes),                1 },
-    { "--dual-iso-preview", offsetof(struct mlvfs, dual_iso),                   1 },
-    { "--dual-iso",         offsetof(struct mlvfs, dual_iso),                   2 },
-    { "--amaze-edge",       offsetof(struct mlvfs, hdr_interpolation_method),   0 },
-    { "--mean23",           offsetof(struct mlvfs, hdr_interpolation_method),   1 },
-    { "--no-alias-map",     offsetof(struct mlvfs, hdr_no_alias_map),           1 },
-    { "--alias-map",        offsetof(struct mlvfs, hdr_no_alias_map),           0 },
-    { "--fps=%f",           offsetof(struct mlvfs, fps),                        0 },
-    { "--deflicker=%d",     offsetof(struct mlvfs, deflicker),                  0 },
-    { "--fix-pattern-noise",offsetof(struct mlvfs, fix_pattern_noise),          1 },
-    { "--version",          offsetof(struct mlvfs, version),                    1 },
-    FUSE_OPT_END
+    struct fuse_opt opt;
+    const char * help;
 };
+
+#define MLVFS_OPTION(option, field, value, help) \
+    { { option, offsetof(struct mlvfs, field), value }, help }
+
+static const struct fuse_opt_ex mlvfs_opts_ex[] =
+{
+    MLVFS_OPTION("--mlv_dir=%s",        mlv_path,                 0, 0),
+    MLVFS_OPTION("--mlv-dir=%s",        mlv_path,                 0, "Directory containing MLV files"),
+    MLVFS_OPTION("--port=%s",           port,                     0, "Port used for web GUI (default: 8000)"),
+    MLVFS_OPTION("--resolve-naming",    name_scheme,              1, "DNG file names compatible with DaVinci Resolve"),
+    MLVFS_OPTION("--cs2x2",             chroma_smooth,            2, "2x2 chroma smoothing"),
+    MLVFS_OPTION("--cs3x3",             chroma_smooth,            3, "3x3 chroma smoothing"),
+    MLVFS_OPTION("--cs5x5",             chroma_smooth,            5, "5x5 chroma smoothing"),
+    MLVFS_OPTION("--bad-pix",           fix_bad_pixels,           1, "Fix bad pixels (autodetected)"),
+    MLVFS_OPTION("--really-bad-pix",    fix_bad_pixels,           2, "Aggressive bad pixel fix"),
+    MLVFS_OPTION("--stripes",           fix_stripes,              1, "Vertical stripe correction in highlights (nonuniform column gains)"),
+    MLVFS_OPTION("--dual-iso-preview",  dual_iso,                 1, "Preview Dual ISO files (fast)"),
+    MLVFS_OPTION("--dual-iso",          dual_iso,                 2, "Render Dual ISO files (high quality)"),
+    MLVFS_OPTION("--amaze-edge",        hdr_interpolation_method, 0, "Dual ISO: interpolation method (high quality)"),
+    MLVFS_OPTION("--mean23",            hdr_interpolation_method, 1, "Dual ISO: interpolation method (fast)"),
+    MLVFS_OPTION("--no-alias-map",      hdr_no_alias_map,         1, "Dual ISO: disable alias map"),
+    MLVFS_OPTION("--alias-map",         hdr_no_alias_map,         0, "Dual ISO: enable alias map"),
+    MLVFS_OPTION("--fps=%f",            fps,                      0, "FPS used for playback in web GUI"  ),
+    MLVFS_OPTION("--deflicker=%d",      deflicker,                0, "Per-frame exposure compensation for flicker-free video\n"
+                                          "                           (your raw processor must interpret the BaselineExposure DNG tag)"),
+    MLVFS_OPTION("--fix-pattern-noise", fix_pattern_noise,        1, "Fix row/column noise in shadows"),
+    MLVFS_OPTION("--version",           version,                  1, "Display MLVFS version"),
+    { FUSE_OPT_END }
+};
+
+static struct fuse_opt mlvfs_opts[sizeof(mlvfs_opts_ex) / sizeof(mlvfs_opts_ex[0])];
+
+static void mlvfs_args_init()
+{
+    /* copy MLVFS options into a fuse-compatible data structure */
+    int num_opts = sizeof(mlvfs_opts) / sizeof(mlvfs_opts[0]);
+    for (int i = 0; i < num_opts; i++)
+    {
+        mlvfs_opts[i] = mlvfs_opts_ex[i].opt;
+    }
+}
 
 static void display_help()
 {
@@ -1591,10 +1613,13 @@ static void display_help()
     /* display MLVFS options */
     /* todo: print a description for each option */
     printf("\nMLVFS options:\n");
-    int num_opts = sizeof(mlvfs_opts) / sizeof(mlvfs_opts[0]) - 1;
-    for (int i = 1; i < num_opts; i++)
+    int num_opts = sizeof(mlvfs_opts) / sizeof(mlvfs_opts[0]);
+    for (int i = 0; i < num_opts; i++)
     {
-        printf("    %s\n", mlvfs_opts[i].templ);
+        if (mlvfs_opts_ex[i].help)
+        {
+            printf("    %-22s %s\n", mlvfs_opts[i].templ, mlvfs_opts_ex[i].help);
+        }
     }
     printf("\n");
 }
@@ -1603,6 +1628,8 @@ int main(int argc, char **argv)
 {
     mlvfs.mlv_path = NULL;
     mlvfs.chroma_smooth = 0;
+
+    mlvfs_args_init();
 
     int res = 1;
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
