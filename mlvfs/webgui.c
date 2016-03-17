@@ -124,6 +124,20 @@ static int load_resource(char** resource, const char * filename)
     return  1;
 }
 
+//Make sure to free() the result
+static char * url_escape(const char * path)
+{
+    if (!path) return NULL;
+    size_t len = strlen(path);
+    size_t new_len = len * 3 + 1;
+    char * result = malloc(new_len);
+    if (result)
+    {
+        mg_url_encode(path, len, result, new_len);
+    }
+    return result;
+}
+
 static void webgui_generate_mlv_html(char * html, const char * path)
 {
     char real_path[1024];
@@ -178,12 +192,14 @@ static char * webgui_generate_row_html(const char * path)
         return NULL;
     }
     const char *short_path = find_last_separator(path) ? find_last_separator(path) + 1 : path;
-    snprintf(temp, HTML_SIZE, "<td><a href=\"%s\">%s</a></td>", path, short_path);
+    char * escaped = url_escape(short_path);
+    snprintf(temp, HTML_SIZE, "<td><a href=\"%s\">%s</a></td>", escaped, short_path);
     strncpy(html, temp, HTML_SIZE);
-    snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/_PREVIEW.gif\"/></td>", path);
+    snprintf(temp, HTML_SIZE, "<td><img src=\"#\" delayedsrc=\"%s/_PREVIEW.gif\"/></td>", escaped);
     strncat(html, temp, HTML_SIZE);
     webgui_generate_mlv_html(html, path);
     free(temp);
+    free(escaped);
     return html;
 }
 
@@ -198,13 +214,14 @@ static char * webgui_generate_html(const char * path)
     {
         snprintf(html, HTML_SIZE, "%s", TABLE_HEADER_NO_PREVIEW);
         const char *short_path = find_last_separator(path) ? find_last_separator(path) + 1 : path;
-        snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", short_path);
-        strncat(html, temp, HTML_SIZE);
+        char * short_path_escaped = url_escape(short_path);
+        snprintf(temp, HTML_SIZE, "<tr><td>%s</td>", short_path_escaped);        strncat(html, temp, HTML_SIZE);
         webgui_generate_mlv_html(html, path);
         strncat(html, "</tr>", HTML_SIZE);
         strncat(html, "</table>", HTML_SIZE);
-        snprintf(temp, HTML_SIZE, "<hr/><img src=\"%s/_PREVIEW.gif\"/>", path);
+        snprintf(temp, HTML_SIZE, "<hr/><img src=\"%s/_PREVIEW.gif\"/>", short_path_escaped);
         strncat(html, temp, HTML_SIZE);
+        free(short_path_escaped);
     }
     else
     {
@@ -219,15 +236,18 @@ static char * webgui_generate_html(const char * path)
             {
                 if(!string_ends_with(child->d_name, ".MLD") && strcmp(child->d_name, "..") && strcmp(child->d_name, "."))
                 {
+                    char * url_escaped = url_escape(child->d_name);
+                    //TODO: escape html, for now just send the escaped url, it should be legal
+                    char * html_escaped= url_escape(child->d_name);
                     if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR)
                     {
                         if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv"))
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\" delayedsrc=\"%s_ROWDATA.html\"><td><a href=\"%s\">%s</a> (Loading...)</td></tr>", (i++ % 2 ? "delayedeven" : "delayedodd"), child->d_name, child->d_name, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\" delayedsrc=\"%s_ROWDATA.html\"><td><a href=\"%s\">%s</a> (Loading...)</td></tr>", (i++ % 2 ? "delayedeven" : "delayedodd"), url_escaped, url_escaped, html_escaped);
                         }
                         else
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), child->d_name, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), url_escaped, html_escaped);
                         }
                         strncat(html, temp, HTML_SIZE - strlen(html));
                     }
@@ -238,10 +258,12 @@ static char * webgui_generate_html(const char * path)
                         sprintf(real_file_path, "%s/%s", real_path, child->d_name);
                         if ((stat(real_file_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
                         {
-                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), child->d_name, child->d_name);
+                            snprintf(temp, HTML_SIZE, "<tr class=\"%s\"><td><a href=\"%s/\">%s</a></td><td colspan=13 /></tr>", (i++ % 2 ? "even" : "odd"), url_escaped, html_escaped);
                             strncat(html, temp, HTML_SIZE - strlen(html));
                         }
                     }
+                    free(url_escaped);
+                    free(html_escaped);
                 }
             }
             closedir(dir);

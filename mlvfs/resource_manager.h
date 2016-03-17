@@ -64,18 +64,6 @@ void mlvfs_close_chunks(FILE **chunk_files, uint32_t chunk_count);
 void close_all_chunks();
 
 
-struct mlv_name_mapping
-{
-    struct mlv_name_mapping * next;
-    char *virtual_path;
-    char *real_path;
-};
-
-char * lookup_mlv_name(const char * virtual_path);
-void register_mlv_name(const char * real_path, const char * virtual_path);
-void free_mlv_name_mappings();
-
-
 struct dng_attr_mapping
 {
     struct dng_attr_mapping * next;

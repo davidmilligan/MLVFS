@@ -22,6 +22,7 @@
 #define mlvfs_mlvfs_h
 
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <math.h>
 #include <stdint.h>
@@ -66,9 +67,7 @@ struct frame_headers
 #ifndef VERSION
 #define VERSION "UNKNOWN"
 #endif
-#ifndef BUILD_DATE
-#define BUILD_DATE "UNKNOWN"
-#endif
+#define BUILD_DATE __DATE__ __TIME__
 
 //Let the DNGs be "writeable" for AE, even though they're not actually writable
 //You'll get an error if you actually try to write to them
@@ -94,24 +93,56 @@ int * get_ev2raw();
 
 #ifdef _WIN32
 #define filename_strcmp _stricmp
+#define DIR_SEP_CHAR '\\'
+#define DIR_SEP_STR "\\"
 #define find_last_separator(path) MAX(strrchr((path), '/'), strrchr((path), '\\'))
+static void *find_first_separator(const char *path)
+{
+    void *path1 = strchr(path, '\\');
+    void *path2 = strchr(path, '/');
+    if (path1 && path2)
+    {
+        return MIN(path1, path2);
+    }
+    return MAX(path1, path2);
+}
+
 #define log2(x) log((float)(x))/log(2.)
 #define FORCE_INLINE __forceinline
 #define ROR(v,a) _rotr(v,a)
 #define STAT64 _stat64 /* this wraps the function and the struct name */
+
+
+#define STRINGIFY2(x) #x
+#define STRINGIFY(x) STRINGIFY2(x)
+#if DEBUG
+#define dbg_printf(...) fprintf(stderr, __FILE__ ":" STRINGIFY(__LINE__) ":" __FUNCTION__ "():" __VA_ARGS__)
 #else
+#define dbg_printf(...)
+#endif
+#define err_printf(...) fprintf(stderr, __FILE__ ":" STRINGIFY(__LINE__) ":" __FUNCTION__ "():" __VA_ARGS__)
+
+#else
+#define O_BINARY 0
 #define filename_strcmp strcmp
+#define DIR_SEP_CHAR '/'
+#define DIR_SEP_STR "/"
 #define find_last_separator(path) strrchr((path), '/')
+#define find_first_separator(path) strchr((path), '/')
 #define FUSE_OFF_T off_t
 #define FUSE_STAT stat
-#define FORCE_INLINE __always_inline
+#define FORCE_INLINE inline
 #define ROR(v,a) ((v) >> (a) | (v) << (32-(a)))  /* is there an intrinsic for? */
 #define STAT64 stat /* this wraps the function and the struct name */
-#endif
 
-#if __clang__
-#undef FORCE_INLINE
-#define FORCE_INLINE inline
+
+#if DEBUG
+#define dbg_printf(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
+#else
+#define dbg_printf(fmt, args...)
+#endif
+#define err_printf(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
+
 #endif
 
 #endif

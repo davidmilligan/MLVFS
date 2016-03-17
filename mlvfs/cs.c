@@ -76,7 +76,7 @@ void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, 
             break;
             
         default:
-            fprintf(stderr, "Unsupported chroma smooth method\n");
+            err_printf("Unsupported chroma smooth method\n");
             break;
     }
     
@@ -176,7 +176,7 @@ static int add_focus_pixel(struct focus_pixel_map * map, int x, int y)
         map->pixels = realloc(map->pixels, sizeof(struct focus_pixel) * map->capacity);
         if(!map->pixels)
         {
-            fprintf(stderr, "malloc error\n");
+            err_printf("malloc error\n");
             map->count = 0;
             return 0;
         }
@@ -221,7 +221,7 @@ static struct focus_pixel_map * load_focus_pixel_map(uint32_t camera_id, int wid
                 else if(ferror(f))
                 {
                     int err = errno;
-                    fprintf(stderr, "load_focus_pixel_maps: file error: %s\n", strerror(err));
+                    err_printf("file error: %s\n", strerror(err));
                     break;
                 }
             }
@@ -230,7 +230,7 @@ static struct focus_pixel_map * load_focus_pixel_map(uint32_t camera_id, int wid
     }
     else
     {
-        fprintf(stderr, "malloc error\n");
+        err_printf("malloc error\n");
         focus_pixel_map_count = 0;
     }
     return NULL;
@@ -370,7 +370,7 @@ void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_dat
         
         if(raw2ev == NULL)
         {
-            fprintf(stderr, "raw2ev LUT error\n");
+            err_printf("raw2ev LUT error\n");
             return;
         }
         

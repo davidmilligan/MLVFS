@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#ifndef WIN32
+#ifndef _WIN32
 #include <sys/param.h>
 #include <unistd.h>
 #include <wordexp.h>
@@ -48,16 +48,20 @@
 #include "gif.h"
 #include "histogram.h"
 #include "patternnoise.h"
+#include "slre/slre.h"
 
 static struct mlvfs mlvfs;
 
-#ifdef WIN32
+#ifdef _WIN32
+
+#include <io.h>
+#include <direct.h>
 
 int pread(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
     lseek(fh, offset, SEEK_SET);
-    int res = read(fh, buf, size);
+    int res = read(fh, buf, (unsigned int)size);
     lseek(fh, pos, SEEK_SET);
 
     return res;
@@ -67,10 +71,32 @@ int pwrite(int fh, void *buf, size_t size, long offset)
 {
     off_t pos = lseek(fh, 0, SEEK_CUR);
     lseek(fh, offset, SEEK_SET);
-    int res = write(fh, buf, size);
+    int res = write(fh, buf, (unsigned int)size);
     lseek(fh, pos, SEEK_SET);
 
     return res;
+}
+
+int truncate(char *file, size_t length)
+{
+    LARGE_INTEGER large;
+    large.QuadPart = length;
+
+    HANDLE fh = CreateFile(file, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+    if (fh == INVALID_HANDLE_VALUE)
+    {
+        return 1;
+    }
+
+    if (SetFilePointerEx(fh, large, NULL, FILE_BEGIN) == 0 || SetEndOfFile(fh) == 0)
+    {
+        CloseHandle(fh);
+        return 1;
+    }
+
+    CloseHandle(fh);
+    return 0;
 }
 
 /* visual studio compilers for win32 offer a C exception handling. make use of it to reduce risk of severe crashes. */
@@ -78,7 +104,7 @@ int pwrite(int fh, void *buf, size_t size, long offset)
 
 int ExceptionFilter(const char *func, unsigned int line, unsigned int code, struct _EXCEPTION_POINTERS *info)
 {
-    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08X\n", func, line, code, (unsigned int)info->ExceptionRecord->ExceptionAddress);
+    fprintf(stderr, "%s(%d): caught exception 0x%08X at address 0x%08llX\n", func, line, code, (uint64_t)info->ExceptionRecord->ExceptionAddress);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
@@ -117,7 +143,7 @@ double * get_raw2evf(int black)
     
     if(black > MAX_BLACK)
     {
-        fprintf(stderr, "Black level too large for processing\n");
+        err_printf("Black level too large for processing\n");
         return NULL;
     }
     double * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
@@ -144,7 +170,7 @@ int * get_raw2ev(int black)
     
     if(black > MAX_BLACK)
     {
-        fprintf(stderr, "Black level too large for processing\n");
+        err_printf("Black level too large for processing\n");
         return NULL;
     }
     int * raw2ev = &(raw2ev_base[MAX_BLACK - black]);
@@ -194,7 +220,7 @@ static char * copy_string(const char * source)
     else
     {
         int err = errno;
-        fprintf(stderr, "copy_string: malloc error: %s\n", strerror(err));
+        err_printf("malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -213,7 +239,7 @@ static char * concat_string(const char * str1, const char * str2)
     else
     {
         int err = errno;
-        fprintf(stderr, "concat_string: malloc error: %s\n", strerror(err));
+        err_printf("malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -232,7 +258,7 @@ static char * concat_string3(const char * str1, const char * str2, const char * 
     else
     {
         int err = errno;
-        fprintf(stderr, "concat_string3: malloc error: %s\n", strerror(err));
+        err_printf("malloc error: %s\n", strerror(err));
     }
     return copy;
 }
@@ -259,58 +285,27 @@ static char * path_append(const char * path1, const char * path2)
 		}
 		else
 		{
-			return concat_string3(path1, "/", path2);
+			return concat_string3(path1, DIR_SEP_STR, path2);
 		}
 	}
 }
 
-/**
- * Determines the real path to an MLV file based on a virtual path from FUSE
- * @param path The virtual path within the FUSE filesystem
- * @param mlv_filename [out] The real path to the MLV file (Make sure you free() the result!!!)
- * @return 1 if apparently within an MLV file, 0 otherwise
- */
-static int get_mlv_filename(const char *path, char ** mlv_filename)
+static char *path_slashfix(char *path)
 {
-    if(strstr(path,"/._")) return 0;
-    int result = 0;
-	char * found = NULL;
-    if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
+    char *pos = path;
+
+    while (pos)
     {
-        *mlv_filename = path_append(mlvfs.mlv_path, path);
-        result = 1;
-    }
-	else if ((found = lookup_mlv_name(path)) != NULL)
-	{
-		*mlv_filename = copy_string(found);
-		result = 1;
-	}
-    else
-    {
-        *mlv_filename = NULL;
-        char *temp = copy_string(path);
-        char *split;
-        if((split = find_last_separator(temp + 1)) != NULL)
+        pos = find_first_separator(pos);
+
+        if (pos)
         {
-            *split = 0x00;
-            if(mlvfs.name_scheme)
-            {
-                char * found = lookup_mlv_name(temp);
-                if(found)
-                {
-                    *mlv_filename = copy_string(found);
-                    result = 1;
-                }
-            }
-            else
-            {
-                *mlv_filename = path_append(mlvfs.mlv_path, temp);
-                result = string_ends_with(temp, ".MLV") || string_ends_with(temp, ".mlv");
-            }
+            *pos = DIR_SEP_CHAR;
+            pos++;
         }
-        free(temp);
     }
-    return result;
+
+    return path;
 }
 
 /**
@@ -405,7 +400,7 @@ static char * mlv_read_debug_log(const char *mlv_filename)
                         else
                         {
                             int err = errno;
-                            fprintf(stderr, "mlv_read_debug_log: malloc error: %s\n", strerror(err));
+                            err_printf("malloc error: %s\n", strerror(err));
                         }
                     }
                 }
@@ -413,7 +408,7 @@ static char * mlv_read_debug_log(const char *mlv_filename)
             if(ferror(in_file))
             {
                 int err = errno;
-                fprintf(stderr, "mlv_read_debug_log: fread error: %s\n", strerror(err));
+                err_printf("fread error: %s\n", strerror(err));
             }
         }
     }
@@ -542,18 +537,18 @@ int mlv_get_frame_headers(const char *mlv_filename, int index, struct frame_head
         if(ferror(in_file))
         {
             int err = errno;
-            fprintf(stderr, "%s: mlv_get_frame_headers: fread error: %s\n", mlv_filename, strerror(err));
+            err_printf("%s: fread error: %s\n", mlv_filename, strerror(err));
         }
     }
     
     if(found && !rawi_found)
     {
-        fprintf(stderr, "%s: Error reading frame headers: no rawi block was found\n", mlv_filename);
+        err_printf("%s: Error reading frame headers: no rawi block was found\n", mlv_filename);
     }
     
     if(!found)
     {
-        fprintf(stderr, "%s: Error reading frame headers: vidf block for frame %d was not found\n", mlv_filename, index);
+        err_printf("%s: Error reading frame headers: vidf block for frame %d was not found\n", mlv_filename, index);
     }
     
     free(block_xref);
@@ -596,7 +591,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
         if(ferror(file))
         {
             int err = errno;
-            fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
+            err_printf("fread error: %s\n", strerror(err));
         }
         else
         {
@@ -616,7 +611,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                 }
                 else
                 {
-                    fprintf(stderr, "LZMA Failed!\n");
+                    err_printf("LZMA Failed!\n");
                 }
             }
             else if(lj92_compressed)
@@ -635,7 +630,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                 
                 if(out_size != out_size_stored)
                 {
-                    fprintf(stderr, "LJ92: non-critical internal error occurred: frame size mismatch (%d != %d)\n", (uint32_t)out_size, (uint32_t)out_size_stored);
+                    err_printf("LJ92: non-critical internal error occurred: frame size mismatch (%d != %d)\n", (uint32_t)out_size, (uint32_t)out_size_stored);
                 }
                 
                 if(ret == LJ92_ERROR_NONE)
@@ -645,7 +640,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                     if (!decompressed)
                     {
                         free(frame_buffer);
-                        fprintf(stderr, "LJ92 malloc failed!\n");
+                        err_printf("LJ92 malloc failed!\n");
                         return 0;
                     }
                     
@@ -676,12 +671,12 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
                     }
                     else
                     {
-                        fprintf(stderr, "get_image_data: LJ92: Failed (%d)\n", ret);
+                        err_printf("LJ92: Failed (%d)\n", ret);
                     }
                 }
                 else
                 {
-                    fprintf(stderr, "get_image_data: LJ92: Failed (%d)\n", ret);
+                    err_printf("LJ92: Failed (%d)\n", ret);
                 }
             }
         }
@@ -698,7 +693,7 @@ size_t get_image_data(struct frame_headers * frame_headers, FILE * file, uint8_t
             if(ferror(file))
             {
                 int err = errno;
-                fprintf(stderr, "get_image_data: fread error: %s\n", strerror(err));
+                err_printf("fread error: %s\n", strerror(err));
             }
             else
             {
@@ -722,14 +717,14 @@ static int get_mlv_basename(const char *path, char ** mlv_basename)
     if(!(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))) return 0;
     char *temp = copy_string(path);
     const char *start = find_last_separator(temp) ? find_last_separator(temp) + 1 : temp;
-    char *dot = strchr(start, '.');
+    char *dot = strrchr(start, '.');
     if(dot == NULL) { free(temp); return 0; }
     *dot = '\0';
     struct frame_headers frame_headers;
     if(mlvfs.name_scheme == 1 && mlv_get_frame_headers(path, 0, &frame_headers))
     {
         *mlv_basename =  malloc(sizeof(char) * (strlen(start) + 1024));
-        sprintf(*mlv_basename, "%s_1_%d-%02d-%02d_%04d_C%04d", start, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon + 1, frame_headers.rtci_hdr.tm_mday, 1, 0);
+        sprintf(*mlv_basename, "%s%s_1_%d-%02d-%02d_%04d_C%04d", start, dot + 1, 1900 + frame_headers.rtci_hdr.tm_year, frame_headers.rtci_hdr.tm_mon + 1, frame_headers.rtci_hdr.tm_mday, 1, 0);
     }
     else
     {
@@ -739,49 +734,159 @@ static int get_mlv_basename(const char *path, char ** mlv_basename)
     return 1;
 }
 
-/**
- * Converts a path in the MLVFS file system to a path in the real filesystem
- * Make sure you free() the result!!!
- * @return 1 if the real path is inside a .MLD directory, 0 otherwise
- */
-static int get_real_path(char ** real_path, const char *path)
+static char * get_capture(struct slre_cap cap)
 {
-    char * mlv_filename = NULL;
-    *real_path = NULL;
-    if(mlvfs.name_scheme && get_mlv_filename(path, &mlv_filename))
+    if (!cap.ptr) return NULL;
+    char * result = copy_string(cap.ptr);
+    if(result) result[cap.len] = 0;
+    return result;
+}
+
+/**
+ * Generates a customizable virtual name for the MLV file (for the virtual directory)
+ * Make sure you free() the result!!!
+ * @param path The virtual path
+ * @param mlv_basename [out] The MLV basename
+ * @return 1 if successful, 0 otherwise
+ */
+static int get_mlv_name_from_basename(const char *path, char ** mlv_name)
+{
+    if(mlvfs.name_scheme == 1)
     {
-        *real_path = mlv_filename;
-    }
-	else
-	{
-		*real_path = path_append(mlvfs.mlv_path, path);
-	}
-    
-    if(*real_path != NULL)
-    {
-        char * mlv_ext = strstr(*real_path, ".MLV");
-        if(mlv_ext == NULL) mlv_ext = strstr(*real_path, ".mlv");
-        if(mlv_ext != NULL)
+        struct slre_cap caps[2];
+        memset(caps, 0, sizeof(caps));
+        if(slre_match("(.+)(MLV|mlv)_1_\\d+-\\d+-\\d+_\\d+_[C|c]\\d+", path, (int)strlen(path), caps, 2, 0) >= 0)
         {
-            //replace .MLV in the path with .MLD
-            mlv_ext[1] = 'M';mlv_ext[2] = 'L';mlv_ext[3] = 'D';
+            char * result = get_capture(caps[0]);
+            char * ext = get_capture(caps[1]);
+            *mlv_name = concat_string3(result, ".", ext);
+            free(ext);
+            free(result);
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    else
+    {
+        *mlv_name = copy_string(path);
+        return 1;
+    }
+    return 0;
+}
+
+
+static int is_mlv_file(char *filename)
+{
+    if (string_ends_with(filename, ".MLV") || string_ends_with(filename, ".mlv"))
+    {
+        /* just treat as if it were existing. will fail later */
+        // struct STAT64 mlv_stat;
+        // if (STAT64(filename, &mlv_stat) == 0)
+        {
             return 1;
         }
     }
     return 0;
 }
 
+/**
+ * check if the given path is within a MLV file or a MLV itself
+ * Make sure you free() the result
+ * @return 1 if the real path is a MLV or inside a MLV, 0 otherwise
+ */
+static int mlvfs_resolve_path(const char *path, char **mlv_file, char **path_in_mlv)
+{
+    if(strstr(path,"/._")) return 0;
+    int ret = 0;
+    int done = 0;
+    const char *current_token = path;
+    char *current_path = malloc(strlen(path) + 16);
+    current_path[0] = 0;
+    
+    while (!done)
+    {
+        /* skip leading slashes */
+        while (find_first_separator(current_token) == current_token)
+        {
+            current_token++;
+        }
+        
+        /* check if the current path is already a valid MLV */
+        char *mlv_file_check = path_append(mlvfs.mlv_path, path_slashfix(current_path));
+        char *mlv_name = NULL;
+        
+        if (mlvfs.name_scheme && get_mlv_name_from_basename(path_slashfix(current_path), &mlv_name))
+        {
+            *mlv_file = path_append(mlvfs.mlv_path, mlv_name);
+            *path_in_mlv = copy_string(current_token);
+            done = 1;
+            ret = 1;
+            free(mlv_name);
+        }
+        else if (is_mlv_file(mlv_file_check))
+        {
+            /* ok, return MLV path and virtual file path (or empty) */
+            *mlv_file = path_append(mlvfs.mlv_path, path_slashfix(current_path));
+            *path_in_mlv = copy_string(current_token);
+            done = 1;
+            ret = 1;
+        }
+        else if (*current_token == 0)
+        {
+            /* no more tokens, its not a virtual file */
+            done = 1;
+        }
+        else
+        {
+            /* no slash in the front */
+            if (strlen(current_path) != 0)
+            {
+                strcat(current_path, DIR_SEP_STR);
+            }
+            
+            /* is there another slash? */
+            char *token_end = find_first_separator((const char*)current_token);
+            if (token_end)
+            {
+                /* yes, add token until slash */
+                uint32_t length = (uint32_t)((uintmax_t)token_end - (uintmax_t)current_token);
+                strncat(current_path, current_token, length);
+                current_token = token_end + 1;
+            }
+            else
+            {
+                /* no, add remaining token */
+                strcat(current_path, current_token);
+                current_token += strlen(current_token);
+            }
+        }
+        free(mlv_file_check);
+    }
+    
+    free(current_path);
+    
+    return ret;
+}
+
 static void check_mld_exists(char * path)
 {
     char *temp = copy_string(path);
-    char * mld_ext = strstr(temp, ".MLD");
+    char *mld_ext = strstr(temp, ".MLD");
+
     if(mld_ext != NULL)
     {
         *(mld_ext + 4) = 0x0;
         struct stat mld_stat;
         if(stat(temp, &mld_stat))
         {
+#ifdef _WIN32
+            mkdir(temp);
+#else
             mkdir(temp, 0777);
+#endif
         }
     }
     free(temp);
@@ -803,9 +908,10 @@ static void deflicker(struct frame_headers * frame_headers, int target, uint16_t
 static int process_frame(struct image_buffer * image_buffer)
 {
     char * mlv_filename = NULL;
+    char * path_in_mlv = NULL;
     const char * path = image_buffer->dng_filename;
     
-    if(string_ends_with(path, ".dng") && get_mlv_filename(path, &mlv_filename))
+    if(string_ends_with(path, ".dng") && mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
     {
         int frame_number = get_mlv_frame_number(path);
         struct frame_headers frame_headers;
@@ -885,7 +991,7 @@ static int process_frame(struct image_buffer * image_buffer)
                     else
                     {
                         int err = errno;
-                        fprintf(stderr, "process_frame: malloc error: %s\n", strerror(err));
+                        err_printf("malloc error: %s\n", strerror(err));
                     }
                 }
                 stripes_apply_correction(&frame_headers, correction, image_buffer->data, 0, image_buffer->size / 2);
@@ -894,6 +1000,7 @@ static int process_frame(struct image_buffer * image_buffer)
             free(mlv_basename);
         }
         free(mlv_filename);
+        free(path_in_mlv);
     }
     return 1;
 }
@@ -901,9 +1008,10 @@ static int process_frame(struct image_buffer * image_buffer)
 int create_preview(struct image_buffer * image_buffer)
 {
     char * mlv_filename = NULL;
+    char * path_in_mlv = NULL;
     const char * path = image_buffer->dng_filename;
     
-    if(string_ends_with(path, ".gif") && get_mlv_filename(path, &mlv_filename))
+    if(string_ends_with(path, ".gif") && mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
     {
         struct frame_headers frame_headers;
         if(mlv_get_frame_headers(mlv_filename, 0, &frame_headers))
@@ -915,38 +1023,160 @@ int create_preview(struct image_buffer * image_buffer)
             gif_get_data(mlv_filename, (uint8_t*)image_buffer->data, 0, image_buffer->size);
         }
         free(mlv_filename);
+        free(path_in_mlv);
     }
     return 1;
 }
 
+/**
+ * try to find the real file path from given virtual path
+ * Make sure you free() the result
+ * @return NULL if this is a pure virtual file or a char* with the name of the file on disk
+ */
+static char *mlvfs_resolve_virtual(const char *path)
+{
+    char *mlv_filename = NULL;
+    char *path_in_mlv = NULL;
+    char *resolved_filename = NULL;
+    
+    /* is this within a virtual directory? */
+    if (mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
+    {
+        int is_in_mlv_root = (find_first_separator(path_in_mlv) == NULL);
+        
+        if (is_in_mlv_root && !strstr(path,"/._") && (string_ends_with(path_in_mlv, ".dng") || string_ends_with(path_in_mlv, ".wav") || string_ends_with(path_in_mlv, ".gif") || string_ends_with(path_in_mlv, ".log")))
+        {
+            /* a DNG etc in the MLV root -> virtual */
+            resolved_filename = NULL;
+        }
+        else if (strlen(path_in_mlv) == 0)
+        {
+            /* it is the MLV itself */
+            resolved_filename = copy_string(mlv_filename);
+        }
+        else
+        {
+            char *mld_name = copy_string(mlv_filename);
+            char *dot = strrchr(mld_name, '.');
+            
+            if (dot)
+            {
+                strcpy(dot, ".MLD");
+            }
+            
+            resolved_filename = path_append(mld_name, path_slashfix(path_in_mlv));
+            
+            free(mld_name);
+        }
+        free(mlv_filename);
+        free(path_in_mlv);
+    }
+    else
+    {
+        /* this file is not within a virtual directory, so just get it from the existing one */
+        char *tmp_path = path_slashfix(copy_string(path));
+        resolved_filename = path_append((const char*)mlvfs.mlv_path, (const char*)tmp_path);
+        free(tmp_path);
+    }
+    
+    return resolved_filename;
+}
+
 static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
 {
-    int result = -ENOENT;
-    char * mlv_filename = NULL;
     memset(stbuf, 0, sizeof(struct FUSE_STAT));
 
-    if (string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".log"))
+    int result = -ENOENT;
+    char *mlv_filename = NULL;
+    char *path_in_mlv = NULL;
+    char *resolved_filename = NULL;
+
+    /* try to find the real file on disk */
+    resolved_filename = mlvfs_resolve_virtual(path);
+
+    if (resolved_filename)
     {
-        if(get_mlv_filename(path, &mlv_filename))
+        /* now try to get the file stat */
+        struct STAT64 file_stat;
+        int stat_code = STAT64(resolved_filename, &file_stat);
+
+        /* if that is a MLV file, fake it to be a directory */
+        if (is_mlv_file(resolved_filename))
         {
+            stbuf->st_mode = S_IFDIR | 0777;
+            stbuf->st_nlink = 3;
+
+#ifdef WIN32
+            stbuf->st_atim = timeToTimestruct(file_stat.st_atime);
+            stbuf->st_ctim = timeToTimestruct(file_stat.st_ctime);
+            stbuf->st_mtim = timeToTimestruct(file_stat.st_mtime);
+#elif __DARWIN_UNIX03
+            memcpy(&stbuf->st_atimespec, &file_stat.st_atimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_birthtimespec, &file_stat.st_birthtimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_ctimespec, &file_stat.st_ctimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_mtimespec, &file_stat.st_mtimespec, sizeof(struct timespec));
+#else
+            memcpy(&stbuf->st_atim, &file_stat.st_atim, sizeof(struct timespec));
+            memcpy(&stbuf->st_ctim, &file_stat.st_ctim, sizeof(struct timespec));
+            memcpy(&stbuf->st_mtim, &file_stat.st_mtim, sizeof(struct timespec));
+#endif
+        }
+        else if (stat_code == 0)
+        {
+            stbuf->st_uid = file_stat.st_uid;
+            stbuf->st_gid = file_stat.st_gid;
+            stbuf->st_mode = file_stat.st_mode;
+            stbuf->st_size = file_stat.st_size;
+            stbuf->st_nlink = file_stat.st_nlink;
+            stbuf->st_rdev = file_stat.st_rdev;
+            stbuf->st_dev = file_stat.st_dev;
+            stbuf->st_ino = file_stat.st_ino;
+#if defined(__DARWIN_UNIX03)
+            memcpy(&stbuf->st_atimespec, &file_stat.st_atimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_birthtimespec, &file_stat.st_birthtimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_ctimespec, &file_stat.st_ctimespec, sizeof(struct timespec));
+            memcpy(&stbuf->st_mtimespec, &file_stat.st_mtimespec, sizeof(struct timespec));
+#elif defined(_WIN32)
+            stbuf->st_atim = timeToTimestruct(file_stat.st_atime);
+            stbuf->st_ctim = timeToTimestruct(file_stat.st_ctime);
+            stbuf->st_mtim = timeToTimestruct(file_stat.st_mtime);
+#else
+            stbuf->st_atim = file_stat.st_atim;
+            stbuf->st_ctim = file_stat.st_ctim;
+            stbuf->st_mtim = file_stat.st_mtim;
+#endif
+        }
+        free(resolved_filename);
+
+        return (stat_code == 0) ? 0 : -ENOENT;
+    }
+
+    /* so this must be a virtual file, fetch MLV name and path */
+    if (mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
+    {
+        if (string_ends_with(path_in_mlv, ".dng") || string_ends_with(path_in_mlv, ".wav") || string_ends_with(path_in_mlv, ".gif") || string_ends_with(path_in_mlv, ".log"))
+        {
+            /* if it's a file in root, all accesses to DNG, WAV, GIF and LOG are redirected */
             struct FUSE_STAT * dng_st = NULL;
-            if (string_ends_with(path, ".dng") && (dng_st = lookup_dng_attr(mlv_filename)) != NULL)
+
+            if (string_ends_with(path_in_mlv, ".dng") && (dng_st = lookup_dng_attr(mlv_filename)) != NULL)
             {
                 memcpy(stbuf, dng_st, sizeof(struct FUSE_STAT));
                 result = 0;
             }
             else
             {
-                #ifdef ALLOW_WRITEABLE_DNGS
+                int frame_number = string_ends_with(path_in_mlv, ".dng") ? get_mlv_frame_number(path_in_mlv) : 0;
+
+#ifdef ALLOW_WRITEABLE_DNGS
                 stbuf->st_mode = S_IFREG | 0666;
-                #else
+#else
                 stbuf->st_mode = S_IFREG | 0444;
-                #endif
+#endif
                 stbuf->st_nlink = 1;
-                
+
                 struct frame_headers frame_headers;
-                int frame_number = string_ends_with(path, ".dng") ? get_mlv_frame_number(path) : 0;
-                if(mlv_get_frame_headers(mlv_filename, frame_number, &frame_headers))
+                if (mlv_get_frame_headers(mlv_filename, frame_number, &frame_headers))
                 {
                     struct tm tm_str;
                     tm_str.tm_sec = (int)(frame_headers.rtci_hdr.tm_sec + (frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) / 1000000);
@@ -956,36 +1186,36 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     tm_str.tm_mon = frame_headers.rtci_hdr.tm_mon;
                     tm_str.tm_year = frame_headers.rtci_hdr.tm_year;
                     tm_str.tm_isdst = frame_headers.rtci_hdr.tm_isdst;
-                    
+
                     struct timespec timespec_str;
                     timespec_str.tv_sec = mktime(&tm_str);
                     timespec_str.tv_nsec = ((frame_headers.vidf_hdr.timestamp - frame_headers.rtci_hdr.timestamp) % 1000000) * 1000;
-                    
+
                     // OS-specific timestamps
-                    #if __DARWIN_UNIX03
+#if __DARWIN_UNIX03
                     memcpy(&stbuf->st_atimespec, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_birthtimespec, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_ctimespec, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_mtimespec, &timespec_str, sizeof(struct timespec));
-                    #else
+#else
                     memcpy(&stbuf->st_atim, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_ctim, &timespec_str, sizeof(struct timespec));
                     memcpy(&stbuf->st_mtim, &timespec_str, sizeof(struct timespec));
-                    #endif
-                    
-                    if(string_ends_with(path, ".dng"))
+#endif
+
+                    if (string_ends_with(path_in_mlv, ".dng"))
                     {
                         stbuf->st_size = dng_get_size(&frame_headers);
                         register_dng_attr(mlv_filename, stbuf);
                     }
-                    else if(string_ends_with(path, ".gif"))
+                    else if (string_ends_with(path_in_mlv, ".gif"))
                     {
                         stbuf->st_size = gif_get_size(&frame_headers);
                     }
-                    else if(string_ends_with(path, ".log"))
+                    else if (string_ends_with(path_in_mlv, ".log"))
                     {
                         char * log = mlv_read_debug_log(mlv_filename);
-                        if(log)
+                        if (log)
                         {
                             stbuf->st_size = strlen(log);
                             free(log);
@@ -998,110 +1228,9 @@ static int mlvfs_getattr(const char *path, struct FUSE_STAT *stbuf)
                     result = 0; // DNG frame found
                 }
             }
-            free(mlv_filename);
-        }
-    }
-    else if(!strstr(path,"/._"))
-    {
-        char * mld_filename = NULL;
-        int mld = get_real_path(&mld_filename, path);
-        int is_mlv_dir = get_mlv_filename(path, &mlv_filename);
-        if(!is_mlv_dir)
-        {
-            mlv_filename = path_append(mlvfs.mlv_path, path);
-        }
-        struct STAT64 mlv_stat;
-        struct stat mld_stat;
-        int mlv_status = STAT64(mlv_filename, &mlv_stat);
-		int mld_status = -1;
-		if(mld && mld_filename) mld_status = stat(mld_filename, &mld_stat);
-        
-        if(mlv_status == 0 || mld_status == 0)
-        {
-            result = 0;
-            if (is_mlv_dir && mlv_status == 0)
-            {
-                if(mld && mld_status == 0) //there's an MLD directory, use it's stats
-                {
-#ifndef WIN32
-                    memcpy(stbuf, &mld_stat, sizeof(struct stat));
-                    //stbuf->st_size = mld_stat.st_size + mlv_get_frame_count(mlv_filename);
-#else
-                    stbuf->st_uid = mld_stat.st_uid;
-                    stbuf->st_gid = mld_stat.st_gid;
-                    stbuf->st_mode = mld_stat.st_mode;
-                    stbuf->st_size = mld_stat.st_size;
-                    stbuf->st_nlink = mld_stat.st_nlink;
-                    stbuf->st_rdev = mld_stat.st_rdev;
-                    stbuf->st_dev = mld_stat.st_dev;
-                    stbuf->st_ino = mld_stat.st_ino;
-                    stbuf->st_atim = timeToTimestruct(mld_stat.st_atime);
-                    stbuf->st_ctim = timeToTimestruct(mld_stat.st_ctime);
-                    stbuf->st_mtim = timeToTimestruct(mld_stat.st_mtime);
-#endif
-                }
-                else if(string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv"))
-                {
-                    stbuf->st_mode = S_IFDIR | 0777;
-                    stbuf->st_nlink = 3;
-                    //doesn't really seem necessary to set the st_size correctly for dirs, so don't call mlv_get_frame_count, so there's no delay for IDX generation when listing parent dir
-                    //stbuf->st_size = mlv_get_frame_count(mlv_filename);
-                
-                    // OS-specific timestamps
-                    #ifdef WIN32
-                    memcpy(&stbuf->st_atim, &mlv_stat.st_atime, sizeof(struct timespec));
-                    memcpy(&stbuf->st_ctim, &mlv_stat.st_ctime, sizeof(struct timespec));
-                    memcpy(&stbuf->st_mtim, &mlv_stat.st_mtime, sizeof(struct timespec));
-                    #elif __DARWIN_UNIX03
-                    memcpy(&stbuf->st_atimespec, &mlv_stat.st_atimespec, sizeof(struct timespec));
-                    memcpy(&stbuf->st_birthtimespec, &mlv_stat.st_birthtimespec, sizeof(struct timespec));
-                    memcpy(&stbuf->st_ctimespec, &mlv_stat.st_ctimespec, sizeof(struct timespec));
-                    memcpy(&stbuf->st_mtimespec, &mlv_stat.st_mtimespec, sizeof(struct timespec));
-                    #else
-                    memcpy(&stbuf->st_atim, &mlv_stat.st_atim, sizeof(struct timespec));
-                    memcpy(&stbuf->st_ctim, &mlv_stat.st_ctim, sizeof(struct timespec));
-                    memcpy(&stbuf->st_mtim, &mlv_stat.st_mtim, sizeof(struct timespec));
-                    #endif
-                }
-                else
-                {
-                    return -ENOENT;
-                }
-            }
-            else
-            {
-                if(!mld && mlv_status == 0 && (mlv_stat.st_mode & S_IFMT) == S_IFDIR) //directory
-                {
-                    stbuf->st_mode = S_IFDIR | 0555;
-                    stbuf->st_nlink = 3;
-                    stbuf->st_size = mlv_stat.st_size;
-                }
-                else if(mld && mld_status == 0)
-                {
-#ifndef WIN32
-                    memcpy(stbuf, &mld_stat, sizeof(struct stat));
-#else
-                    stbuf->st_uid = mld_stat.st_uid;
-                    stbuf->st_gid = mld_stat.st_gid;
-                    stbuf->st_mode = mld_stat.st_mode;
-                    stbuf->st_size = mld_stat.st_size;
-                    stbuf->st_nlink = mld_stat.st_nlink;
-                    stbuf->st_rdev = mld_stat.st_rdev;
-                    stbuf->st_dev = mld_stat.st_dev;
-                    stbuf->st_ino = mld_stat.st_ino;
-                    stbuf->st_atim = timeToTimestruct(mld_stat.st_atime);
-                    stbuf->st_ctim = timeToTimestruct(mld_stat.st_ctime);
-                    stbuf->st_mtim = timeToTimestruct(mld_stat.st_mtime);
-#endif
-                }
-                else
-                {
-                    result = -ENOENT;
-                }
-            }
         }
         free(mlv_filename);
-        free(mld_filename);
+        free(path_in_mlv);
     }
 
     return result;
@@ -1111,30 +1240,26 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 {
     int result = 0;
 
-    fi->fh = UINT64_MAX;
+    /* reset the cached image buffer, if any */
+    fi->fh = 0;
 
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav") || string_ends_with(path, ".gif") || string_ends_with(path, ".log") || string_ends_with(path, ".MLV") || string_ends_with(path, ".mlv")))
+    /* try to find the real file on disk */
+    char *resolved_filename = mlvfs_resolve_virtual(path);
+
+    if (resolved_filename)
     {
-        char * real_path = NULL;
-        if(get_real_path(&real_path, path))
+        int fd = open(resolved_filename, O_RDONLY | O_BINARY);
+        free(resolved_filename);
+
+        if (fd < 0)
         {
-            int fd;
-            fd = open(real_path, fi->flags);
-            if (fd == -1)
-            {
-                result = -errno;
-            }
-            else
-            {
-                fi->fh = fd;
-                result = 0;
-            }
+            return -errno;
         }
-        else
-        {
-            result = -ENOENT;
-        }
-        free(real_path);
+
+        /* always close file after read/write operations. else deleting etc will fail on windows */
+        close(fd);
+
+        return 0;
     }
     
     #ifndef ALLOW_WRITEABLE_DNGS
@@ -1147,82 +1272,120 @@ static int mlvfs_open(const char *path, struct fuse_file_info *fi)
 
 static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
+    char *real_path = NULL;
+    char *mlv_filename = NULL;
+    char *path_in_mlv = NULL;
     int result = -ENOENT;
-    int mld = 0;
-    char * real_path = NULL;
-    char * mlv_basename = NULL;
-    if(string_ends_with(path, ".MLD")) return -ENOENT;
-    if(!get_mlv_filename(path, &real_path))
+    int is_mld_dir = 0;
+
+    if (string_ends_with(path, ".MLD"))
     {
-        real_path = path_append(mlvfs.mlv_path, path);
+        return -ENOENT;
     }
-    else
+
+    /* first check if that directory can be resolved */
+    if (mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
     {
-        filler(buf, ".", NULL, 0);
-        filler(buf, "..", NULL, 0);
-        
-        get_mlv_basename(real_path, &mlv_basename);
-        char * filename = malloc(sizeof(char) * (strlen(mlv_basename) + 1024));
-        if(filename)
+        /* it refers to a subdir (existing or not) */
+        if (strlen(path_in_mlv) > 0)
         {
-            if(has_audio(real_path))
-            {
-                sprintf(filename, "%s.wav", mlv_basename);
-                filler(buf, filename, NULL, 0);
-            }
-            sprintf(filename, "%s.log", mlv_basename);
-            filler(buf, filename, NULL, 0);
-            int frame_count = mlv_get_frame_count(real_path);
-            for (int i = 0; i < frame_count; i++)
-            {
-                sprintf(filename, "%s_%06d.dng", mlv_basename, i);
-                filler(buf, filename, NULL, 0);
-            }
-            sprintf(filename, "_PREVIEW.gif");
-            filler(buf, filename, NULL, 0);
-            result = 0;
-            
-            char *dot = strrchr(real_path, '.');
-            if(dot)
-            {
-                strcpy(dot, ".MLD");
-                mld = 1;
-            }
-            free(filename);
+            real_path = mlvfs_resolve_virtual(path);
         }
         else
         {
-            int err = errno;
-            fprintf(stderr, "mlvfs_readdir: malloc error: %s\n", strerror(err));
-            result = -ENOENT;
-        }
-        free(mlv_basename);
-    }
-    
-    DIR * dir = opendir(real_path);
-    if (dir != NULL)
-    {
-        if(!mld)
-        {
+            /* it refers to the MLV itself */
             filler(buf, ".", NULL, 0);
             filler(buf, "..", NULL, 0);
-        }
-        struct dirent * child;
-        
-        while ((child = readdir(dir)) != NULL)
-        {
-            if(!string_ends_with(child->d_name, ".MLD") && strcmp(child->d_name, "..") && strcmp(child->d_name, "."))
+            is_mld_dir = 1;
+
+            char * mlv_basename = NULL;
+            if(get_mlv_basename(mlv_filename, &mlv_basename))
             {
+                char *filename = malloc(sizeof(char) * (strlen(mlv_basename) + 1024));
+                if (filename)
+                {
+                    if (has_audio(mlv_filename))
+                    {
+                        sprintf(filename, "%s.wav", mlv_basename);
+                        filler(buf, filename, NULL, 0);
+                    }
+                    sprintf(filename, "%s.log", mlv_basename);
+                    filler(buf, filename, NULL, 0);
+                    int frame_count = mlv_get_frame_count(mlv_filename);
+                    for (int i = 0; i < frame_count; i++)
+                    {
+                        sprintf(filename, "%s_%06d.dng", mlv_basename, i);
+                        filler(buf, filename, NULL, 0);
+                    }
+                    sprintf(filename, "_PREVIEW.gif");
+                    filler(buf, filename, NULL, 0);
+                    result = 0;
+                    
+                    /* now pass over the MLD dir to the "real" directory listing code */
+                    real_path = copy_string(mlv_filename);
+                    char *dot = strrchr(real_path, '.');
+                    
+                    if (dot)
+                    {
+                        strcpy(dot, ".MLD");
+                    }
+                    
+                    free(filename);
+                }
+                else
+                {
+                    int err = errno;
+                    err_printf("malloc error: %s\n", strerror(err));
+                    result = -ENOENT;
+                }
+                free(mlv_basename);
+            }
+            else
+            {
+                err_printf("could not get mlv basename\n");
+            }
+        }
+        free(mlv_filename);
+        free(path_in_mlv);
+    }
+    else
+    {
+        /* its not within a MLV */
+        char *tmp_path = path_slashfix(copy_string(path));
+        real_path = path_append((const char*)mlvfs.mlv_path, (const char*)tmp_path);
+        free(tmp_path);
+    }
+
+    if (real_path)
+    {
+        DIR * dir = opendir(real_path);
+
+        if (dir != NULL)
+        {
+            if (!is_mld_dir)
+            {
+                filler(buf, ".", NULL, 0);
+                filler(buf, "..", NULL, 0);
+            }
+            struct dirent * child;
+
+            while ((child = readdir(dir)) != NULL)
+            {
+                /* ignore MLD directories and ./.. as we already put them */
+                if (string_ends_with(child->d_name, ".MLD") || string_ends_with(child->d_name, ".IDX") || !strcmp(child->d_name, "..") || !strcmp(child->d_name, "."))
+                {
+                    continue;
+                }
+
                 char * real_file_path = path_append(real_path, child->d_name);
-                if(mlvfs.name_scheme && get_mlv_basename(real_file_path, &mlv_basename))
+                char * mlv_basename = NULL;
+
+                if (mlvfs.name_scheme && get_mlv_basename(real_file_path, &mlv_basename))
                 {
                     filler(buf, mlv_basename, NULL, 0);
-                    char * virtual_path = path_append(path, mlv_basename);
-                    register_mlv_name(real_file_path, virtual_path);
-                    free(virtual_path);
                     free(mlv_basename);
                 }
-                else if(string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || mld)
+                else if (string_ends_with(child->d_name, ".MLV") || string_ends_with(child->d_name, ".mlv") || child->d_type == DT_DIR || is_mld_dir)
                 {
                     filler(buf, child->d_name, NULL, 0);
                 }
@@ -1236,125 +1399,178 @@ static int mlvfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FU
                 }
                 free(real_file_path);
             }
+            closedir(dir);
+            result = 0;
         }
-        closedir(dir);
-        result = 0;
+        free(real_path);
     }
-    free(real_path);
+
     return result;
 }
 
 static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
-    char * mlv_filename = NULL;
-    if(string_ends_with(path, ".dng") && get_mlv_filename(path, &mlv_filename))
+    /* if we already had a read on that handle and it was a .dng, it's info will be cached */
+    if (fi->fh == 0)
     {
-        size_t header_size = dng_get_header_size();
-        size_t remaining = 0;
-        off_t image_offset = 0;
-        int was_created = 0;
-        
-        struct image_buffer * image_buffer = get_or_create_image_buffer(path, &process_frame, &was_created);
-        if (!image_buffer)
-        {
-            fprintf(stderr, "mlvfs_read: DNG image_buffer is NULL\n");
-            return 0;
-        }
-        if (!image_buffer->header)
-        {
-            fprintf(stderr, "mlvfs_read: DNG image_buffer->header is NULL\n");
-            return 0;
-        }
-        if (!image_buffer->data)
-        {
-            fprintf(stderr, "mlvfs_read: DNG image_buffer->data is NULL\n");
-            return 0;
-        }
-        
-        /* sanitize parameters to prevent errors by accesses beyond end */
-        long file_size = image_buffer->header_size + image_buffer->size;
-        long read_offset = MAX(0, MIN(offset, file_size));
-        long read_size = MAX(0, MIN(size, file_size - read_offset));
-        
-        if(read_offset + read_size > file_size)
-        {
-            read_size = (size_t)(file_size - read_offset);
-        }
-        
-        if(read_offset < header_size && image_buffer->header_size > 0)
-        {
-            remaining = MIN(read_size, header_size - read_offset);
-            memcpy(buf, image_buffer->header + read_offset, remaining);
-        }
-        else
-        {
-            image_offset = read_offset - header_size;
-        }
-        
-        if(remaining < read_size && image_buffer->size > 0)
-        {
-            uint8_t* image_output_buf = (uint8_t*)buf + remaining;
-            memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(read_size - remaining, image_buffer->size - image_offset));
-        }
-        
-        free(mlv_filename);
-        return (int)read_size;
-    }
-    else if(string_ends_with(path, ".wav") && get_mlv_filename(path, &mlv_filename))
-    {
-        int result = (int)wav_get_data(mlv_filename, (uint8_t*)buf, offset, size);
-        free(mlv_filename);
-        return result;
-    }
-    else if(string_ends_with(path, ".gif") && get_mlv_filename(path, &mlv_filename))
-    {
-        int was_created;
-        struct image_buffer * image_buffer = get_or_create_image_buffer(path, &create_preview, &was_created);
-        if (!image_buffer)
-        {
-            fprintf(stderr, "mlvfs_read: GIF image_buffer is NULL\n");
-            return 0;
-        }
-        if (!image_buffer->data)
-        {
-            fprintf(stderr, "mlvfs_read: GIF image_buffer->data is NULL\n");
-            return 0;
-        }
+        /* files are always opened/closed before/after any file operation */
+        char *resolved_filename = mlvfs_resolve_virtual(path);
+        int fd = -1;
 
-        /* ensure that reads with offset beyond end will not cause negative memcpy sizes */
-        long read_offset = MAX(0, MIN(offset, image_buffer->size));
-        long read_size = MAX(0, MIN(size, image_buffer->size - read_offset));
-
-        memcpy(buf, ((uint8_t*)image_buffer->data) + read_offset, read_size);
-        free(mlv_filename);
-        return (int)read_size;
-    }
-    else if(string_ends_with(path, ".log") && get_mlv_filename(path, &mlv_filename))
-    {
-        char * log = mlv_read_debug_log(mlv_filename);
-        size_t read_bytes = 0;
-
-        if(log)
+        if (resolved_filename)
         {
-            if (offset < strlen(log))
+            fd = open(resolved_filename, O_RDONLY | O_BINARY);
+            free(resolved_filename);
+
+            if (fd < 0)
             {
-                read_bytes = MIN(size, strlen(log) - offset);
-                memcpy(buf, log + offset, read_bytes);
+                return -errno;
             }
-            free(log);
+
+            int res = (int)pread(fd, buf, size, offset);
+            if (res < 0)
+            {
+                res = -errno;
+            }
+
+            /* always close file after read/write operations. else deleting etc will fail on windows */
+            close(fd);
+
+            return res;
+        }
+    }
+
+    char *mlv_filename = NULL;
+    char *path_in_mlv = NULL;
+
+    /* if there is no handle, it must be a virtual file, or it is an already opened .dng */
+    if (fi->fh || mlvfs_resolve_path(path, &mlv_filename, &path_in_mlv))
+    {
+        if (fi->fh || string_ends_with(path_in_mlv, ".dng"))
+        {
+            size_t header_size = dng_get_header_size();
+            size_t remaining = 0;
+            off_t image_offset = 0;
+            int was_created = 0;
+
+            struct image_buffer * image_buffer = (struct image_buffer *)fi->fh;
+            
+            /* was the image buffer already cached? */
+            if (!image_buffer)
+            {
+                image_buffer = get_or_create_image_buffer(path, &process_frame, &was_created);
+            }
+
+            if (!image_buffer)
+            {
+                err_printf("DNG image_buffer is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
+                return 0;
+            }
+            if (!image_buffer->header)
+            {
+                err_printf("DNG image_buffer->header is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
+                return 0;
+            }
+            if (!image_buffer->data)
+            {
+                err_printf("DNG image_buffer->data is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
+                return 0;
+            }
+
+            /* cache the expensive locking/lookup for a potential next read */
+            fi->fh = (uint64_t)image_buffer;
+
+            /* sanitize parameters to prevent errors by accesses beyond end */
+            long file_size = image_buffer->header_size + image_buffer->size;
+            long read_offset = MAX(0, MIN(offset, file_size));
+            long read_size = MAX(0, MIN(size, file_size - read_offset));
+
+            if (read_offset + read_size > file_size)
+            {
+                read_size = (size_t)(file_size - read_offset);
+            }
+
+            if (read_offset < header_size && image_buffer->header_size > 0)
+            {
+                remaining = MIN(read_size, header_size - read_offset);
+                memcpy(buf, image_buffer->header + read_offset, remaining);
+            }
+            else
+            {
+                image_offset = read_offset - header_size;
+            }
+
+            if (remaining < read_size && image_buffer->size > 0)
+            {
+                uint8_t* image_output_buf = (uint8_t*)buf + remaining;
+                memcpy(image_output_buf, ((uint8_t*)image_buffer->data) + image_offset, MIN(read_size - remaining, image_buffer->size - image_offset));
+            }
+            
+            free(mlv_filename);
+            free(path_in_mlv);
+            return (int)read_size;
+        }
+        else if (string_ends_with(path_in_mlv, ".wav"))
+        {
+            int result = (int)wav_get_data(mlv_filename, (uint8_t*)buf, offset, size);
+            free(mlv_filename);
+            free(path_in_mlv);
+            return result;
+        }
+        else if (string_ends_with(path_in_mlv, ".gif"))
+        {
+            int was_created;
+            struct image_buffer * image_buffer = get_or_create_image_buffer(path, &create_preview, &was_created);
+            if (!image_buffer)
+            {
+                err_printf("GIF image_buffer is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
+                return 0;
+            }
+            if (!image_buffer->data)
+            {
+                err_printf("GIF image_buffer->data is NULL\n");
+                free(mlv_filename);
+                free(path_in_mlv);
+                return 0;
+            }
+
+            /* ensure that reads with offset beyond end will not cause negative memcpy sizes */
+            long read_offset = MAX(0, MIN(offset, image_buffer->size));
+            long read_size = MAX(0, MIN(size, image_buffer->size - read_offset));
+
+            memcpy(buf, ((uint8_t*)image_buffer->data) + read_offset, read_size);
+            free(mlv_filename);
+            free(path_in_mlv);
+            return (int)read_size;
+        }
+        else if (string_ends_with(path_in_mlv, ".log"))
+        {
+            char * log = mlv_read_debug_log(mlv_filename);
+            size_t read_bytes = 0;
+
+            if (log)
+            {
+                if (offset < strlen(log))
+                {
+                    read_bytes = MIN(size, strlen(log) - offset);
+                    memcpy(buf, log + offset, read_bytes);
+                }
+                free(log);
+            }
+            free(mlv_filename);
+            free(path_in_mlv);
+            return (int)read_bytes;
         }
         free(mlv_filename);
-        return (int)read_bytes;
-    }
-    else
-    {
-        if (fi->fh == UINT64_MAX)
-        {
-            return -ENOENT;
-        }
-        int res = (int)pread((int)fi->fh, buf, size, offset);
-        if (res == -1) res = -errno;
-        return res;
+        free(path_in_mlv);
     }
     
     return -ENOENT;
@@ -1362,66 +1578,64 @@ static int mlvfs_read(const char *path, char *buf, size_t size, FUSE_OFF_T offse
 
 static int mlvfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    int result = -ENOENT;
+    /* try to find the real file on disk */
+    char *resolved_filename = mlvfs_resolve_virtual(path);
 
-    fi->fh = UINT64_MAX;
-
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    /* it's a virtual file */
+    if (!resolved_filename)
     {
-        char * real_path = NULL;
-        if(get_real_path(&real_path, path))
-        {
-            check_mld_exists(real_path);
-            int fd = open(real_path, fi->flags, mode);
-            if (fd == -1)
-            {
-                result = -errno;
-            }
-            else
-            {
-                fi->fh = fd;
-                result = 0;
-            }
-        }
-        free(real_path);
+        return -EPERM;
     }
-    return result;
+
+    check_mld_exists(resolved_filename);
+
+#if _WIN32
+    /* on windows only these modes are allowed */
+    mode &= (_S_IREAD | _S_IWRITE);
+#endif
+
+    int fd = creat(resolved_filename, mode);
+    free(resolved_filename);
+
+    if (fd < 0)
+    {
+        return -errno;
+    }
+
+    /* always close file after read/write operations. else deleting etc will fail on windows */
+    close(fd);
+
+    return 0;
 }
 
 static int mlvfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
-    {
-#ifndef WIN32
-        int res = fsync((int)fi->fh);
-        if (res == -1) return -errno;
-#endif
-        return 0;
-    }
-    return -ENOENT;
+    /* we always close files on every read/write, no need to fsync */
+    return 0;
 }
 
 static int mlvfs_mkdir(const char *path, mode_t mode)
 {
     int result = -ENOENT;
-    char * real_path = NULL;
-    if(get_real_path(&real_path, path))
+    char * real_path = mlvfs_resolve_virtual(path);
+    if(real_path)
     {
         check_mld_exists(real_path);
+#ifdef _WIN32
+        mkdir(real_path);
+#else
         mkdir(real_path, mode);
+#endif
+        free(real_path);
         result = 0;
     }
-    free(real_path);
     return result;
 }
 
 static int mlvfs_release(const char *path, struct fuse_file_info *fi)
 {
-    if (fi->fh != UINT64_MAX)
-    {
-        close((int)fi->fh);
-        fi->fh = UINT64_MAX;
-    }
+    /* reset the cached image buffer pointer, if any */
+    fi->fh = 0;
 
     if (string_ends_with(path, ".dng") || string_ends_with(path, ".gif"))
     {
@@ -1433,108 +1647,180 @@ static int mlvfs_release(const char *path, struct fuse_file_info *fi)
 static int mlvfs_rename(const char *from, const char *to)
 {
     int result = -ENOENT;
-    char * real_from = NULL;
-    char * real_to = NULL;
-    if(get_real_path(&real_from, from) && get_real_path(&real_to, to))
+    char * real_from = mlvfs_resolve_virtual(from);
+    char * real_to = mlvfs_resolve_virtual(to);
+
+    if(real_from && real_to)
     {
+        dbg_printf("real_path '%s' -> '%s'\n", real_from, real_to);
         rename(real_from, real_to);
         result = 0;
     }
-    free(real_from);
-    free(real_to);
+    if (real_from)
+    {
+        free(real_from);
+    }
+    if (real_to)
+    {
+        free(real_to);
+    }
     return result;
 }
 
 static int mlvfs_rmdir(const char *path)
 {
     int result = -ENOENT;
-    char * real_path = NULL;
-    if(get_real_path(&real_path, path))
+    char * real_path = mlvfs_resolve_virtual(path);
+    if (real_path)
     {
+        dbg_printf("real_path '%s'\n", real_path);
         rmdir(real_path);
+        free(real_path);
         result = 0;
     }
-    free(real_path);
+    return result;
+}
+
+static int mlvfs_unlink(const char *path)
+{
+    int result = -EPERM;
+    char * real_path = mlvfs_resolve_virtual(path);
+    if (real_path)
+    {
+        dbg_printf("real_path '%s'\n", real_path);
+#ifdef _WIN32
+        _unlink(real_path);
+#else
+        unlink(real_path);
+#endif
+        free(real_path);
+        result = 0;
+    }
     return result;
 }
 
 static int mlvfs_truncate(const char *path, FUSE_OFF_T offset)
 {
-    int result = -ENOENT;
-    char * real_path = NULL;
-    if(get_real_path(&real_path, path))
+    int result = -EPERM;
+    char * real_path = mlvfs_resolve_virtual(path);
+    if(real_path)
     {
-#ifndef WIN32
+        dbg_printf("real_path '%s'\n", real_path);
         truncate(real_path, offset);
-#endif
+        free(real_path);
         result = 0;
     }
-    free(real_path);
     return result;
 }
 
 static int mlvfs_write(const char *path, const char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
-    if (!(string_ends_with(path, ".dng") || string_ends_with(path, ".wav")))
+    /* files are always opened/closed before/after any file operation */
+    char *resolved_filename = mlvfs_resolve_virtual(path);
+    int fd = -1;
+
+    if (resolved_filename)
     {
-        if (fi->fh == UINT64_MAX)
-        {
-            return -ENOENT;
-        }
-        int res = (int)pwrite((int)fi->fh, buf, size, offset);
-        if (res == -1) res = -errno;
-        return res;
+        fd = open(resolved_filename, O_RDWR | O_BINARY);
+        free(resolved_filename);
     }
-    return -ENOENT;
+
+    if (fd < 0)
+    {
+        return -errno;
+    }
+
+    int res = (int)pwrite(fd, buf, size, offset);
+    if (res < 0)
+    {
+        res = -errno;
+    }
+
+    /* always close file after read/write operations. else deleting etc will fail on windows */
+    close(fd);
+
+    return res;
+}
+
+static int mlvfs_statfs(const char *path, struct statvfs *stat)
+{
+    stat->f_bsize = 512;
+    stat->f_blocks = (1 * 1024 * 1024 * 1024) / stat->f_bsize;
+    stat->f_bfree = stat->f_blocks;
+    stat->f_bavail = stat->f_blocks;
+
+    return 0;
 }
 
 static int mlvfs_wrap_getattr(const char *path, struct FUSE_STAT *stbuf)
 {
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)stbuf);
     TRY_WRAP(return mlvfs_getattr(path, stbuf); )
 }
 static int mlvfs_wrap_open(const char *path, struct fuse_file_info *fi)
 {
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)fi);
     TRY_WRAP(return mlvfs_open(path, fi); )
 }
 static int mlvfs_wrap_readdir(const char *path, void *buf, fuse_fill_dir_t filler, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
+    dbg_printf("'%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)filler, (uint32_t)offset, (uint32_t)fi);
     TRY_WRAP(return mlvfs_readdir(path, buf, filler, offset, fi); )
 }
 static int mlvfs_wrap_read(const char *path, char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
+    dbg_printf("'%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)size, (uint32_t)offset, (uint32_t)fi);
     TRY_WRAP(return mlvfs_read(path, buf, size, offset, fi); )
 }
 static int mlvfs_wrap_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
+    dbg_printf("'%s' 0x%08X 0x%08X\n", path, (uint32_t)mode, (uint32_t)fi);
     TRY_WRAP(return mlvfs_create(path, mode, fi); )
 }
 static int mlvfs_wrap_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
+    dbg_printf("'%s' 0x%08X 0x%08X\n", path, (uint32_t)isdatasync, (uint32_t)fi);
     TRY_WRAP(return mlvfs_fsync(path, isdatasync, fi); )
 }
 static int mlvfs_wrap_mkdir(const char *path, mode_t mode)
 {
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)mode);
     TRY_WRAP(return mlvfs_mkdir(path, mode); )
 }
 static int mlvfs_wrap_release(const char *path, struct fuse_file_info *fi)
 {
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)fi);
     TRY_WRAP(return mlvfs_release(path, fi); )
 }
 static int mlvfs_wrap_rename(const char *from, const char *to)
 {
+    dbg_printf("'%s' '%s'\n", from, to);
     TRY_WRAP(return mlvfs_rename(from, to); )
 }
 static int mlvfs_wrap_rmdir(const char *path)
 {
+    dbg_printf("'%s'\n", path);
     TRY_WRAP(return mlvfs_rmdir(path); )
 }
 static int mlvfs_wrap_truncate(const char *path, FUSE_OFF_T offset)
 {
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)offset);
     TRY_WRAP(return mlvfs_truncate(path, offset); )
 }
 static int mlvfs_wrap_write(const char *path, const char *buf, size_t size, FUSE_OFF_T offset, struct fuse_file_info *fi)
 {
+    dbg_printf("'%s' 0x%08X 0x%08X 0x%08X 0x%08X\n", path, (uint32_t)buf, (uint32_t)size, (uint32_t)offset, (uint32_t)fi);
     TRY_WRAP(return mlvfs_write(path, buf, size, offset, fi); )
+}
+static int mlvfs_wrap_statfs(const char *path, struct statvfs *stat)
+{
+    dbg_printf("'%s' 0x%08X\n", path, (uint32_t)stat);
+    TRY_WRAP(return mlvfs_statfs(path, stat); )
+}
+static int mlvfs_wrap_unlink(const char *path)
+{
+    dbg_printf("'%s'\n", path);
+    TRY_WRAP(return mlvfs_unlink(path); )
 }
 
 static struct fuse_operations mlvfs_filesystem_operations =
@@ -1551,6 +1837,8 @@ static struct fuse_operations mlvfs_filesystem_operations =
     .rmdir       = mlvfs_wrap_rmdir,
     .truncate    = mlvfs_wrap_truncate,
     .write       = mlvfs_wrap_write,
+    .statfs      = mlvfs_wrap_statfs,
+    .unlink      = mlvfs_wrap_unlink
 };
 
 struct fuse_opt_ex
@@ -1612,7 +1900,7 @@ static void display_help()
 
     /* display FUSE options */
     char * help_opts[] = {"mlvfs", "-h"};
-#ifndef WIN32
+#ifndef _WIN32
     fuse_main(2, help_opts, NULL, NULL);
 #endif
 
@@ -1665,7 +1953,7 @@ int main(int argc, char **argv)
         // shell and wildcard expansion, taking just the first result
         char *expanded_path = NULL;
 
-#ifdef WIN32
+#ifdef _WIN32
         char expanded[MAX_PATH];
         ExpandEnvironmentStrings(mlvfs.mlv_path, expanded, sizeof(expanded));
         expanded_path = _strdup(expanded);
@@ -1691,7 +1979,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            fprintf(stderr, "MLVFS: mlv path is not a directory\n");
+            err_printf("MLVFS: mlv path is not a directory\n");
         }
 
         if(!res)
@@ -1705,7 +1993,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        fprintf(stderr, "MLVFS: no mlv path specified\n");
+        err_printf("MLVFS: no mlv path specified\n");
         display_help();
     }
 
@@ -1714,7 +2002,6 @@ int main(int argc, char **argv)
     stripes_free_corrections();
     free_all_image_buffers();
     close_all_chunks();
-    free_mlv_name_mappings();
     free_dng_attr_mappings();
     free_focus_pixel_maps();
     return res;
