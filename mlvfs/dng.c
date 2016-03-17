@@ -536,22 +536,39 @@ static inline uint8_t to_tc_byte(int value)
     return (((value / 10) << 4) | (value % 10));
 }
 
-static uint32_t add_timecode(double framerate, int drop_frame, uint64_t frame, uint8_t * buffer, uint32_t * data_offset)
+static uint32_t add_timecode(double framerate, int frame, uint8_t * buffer, uint32_t * data_offset)
 {
     uint32_t result = *data_offset;
     memset(buffer + *data_offset, 0, 8);
+    int hours, minutes, seconds, frames;
     
-    //from raw2cdng, credits: chmee
-    int hours = (int)floor((double)frame / framerate / 3600);
-    frame = frame - (hours * 60 * 60 * (int)framerate);
-    int minutes = (int)floor((double)frame / framerate / 60);
-    frame = frame - (minutes * 60 * (int)framerate);
-    int seconds = (int)floor((double)frame / framerate) % 60;
-    frame = frame - (seconds * (int)framerate);
-    int frames = frame % MAX(1,(int)round(framerate));
+    /*
+    //use drop frame if the framerate is close to 30 / 1.001
+    int drop_frame = round((1.0 - framerate / ceil(framerate)) * 1000) == 1 && ceil(framerate) == 30;
+    
+    if (drop_frame)
+    {
+        int d = frame / 17982;
+        int m = frame % 17982;
+        int f = frame + 18 * d + 2 * (MAX(0, m - 2) / 1798);
+        
+        hours = ((f / 30) / 60) / 60;
+        minutes = ((f / 30) / 60) % 60;
+        seconds = (f / 30) % 60;
+        frames = f % 30;
+    }
+    */
+    
+    //round the framerate to the next largest integral framerate
+    //tc will not match real world time if framerate is not an integer
+    double time = framerate == 0 ? 0 : frame / (framerate > 1 ? round(framerate) : framerate);
+    hours = (int)floor(time / 3600);
+    minutes = ((int)floor(time / 60)) % 60;
+    seconds = ((int)floor(time)) % 60;
+    frames = framerate > 1 ? (frame % ((int)round(framerate))) : 0;
     
     buffer[*data_offset] = to_tc_byte(frames) & 0x3F;
-    if(drop_frame) buffer[*data_offset] = buffer[*data_offset] | (1 << 7); //set the drop frame bit
+    //if(drop_frame) buffer[*data_offset] = buffer[*data_offset] | (1 << 7); //set the drop frame bit
     buffer[*data_offset + 1] = to_tc_byte(seconds) & 0x7F;
     buffer[*data_offset + 2] = to_tc_byte(minutes) & 0x7F;
     buffer[*data_offset + 3] = to_tc_byte(hours) & 0x3F;
@@ -679,9 +696,8 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             basline_exposure[1] = 1;
         }
         
-        int drop_frame = frame_rate[1] % 10 != 0;
         //number of frames since midnight
-        uint64_t tc_frame = (uint64_t)frame_headers->vidf_hdr.frameNumber;// + (uint64_t)((frame_headers->rtci_hdr.tm_hour * 3600 + frame_headers->rtci_hdr.tm_min * 60 + frame_headers->rtci_hdr.tm_sec) * frame_headers->file_hdr.sourceFpsNom) / (uint64_t)frame_headers->file_hdr.sourceFpsDenom;
+        int tc_frame = (int)frame_headers->vidf_hdr.frameNumber;// + (uint64_t)((frame_headers->rtci_hdr.tm_hour * 3600 + frame_headers->rtci_hdr.tm_min * 60 + frame_headers->rtci_hdr.tm_sec) * frame_headers->file_hdr.sourceFpsNom) / (uint64_t)frame_headers->file_hdr.sourceFpsDenom;
         
         struct cam_matrices matricies = cam_matrices[0];
         for(int i = 0; i < COUNT(cam_matrices); i++)
@@ -733,7 +749,7 @@ size_t dng_get_header_data(struct frame_headers * frame_headers, uint8_t * outpu
             {tcActiveArea,                  ttLong,     ARRAY_ENTRY(frame_headers->rawi_hdr.raw_info.dng_active_area, header, &data_offset, 4)},
             {tcForwardMatrix1,              ttSRational,RATIONAL_ENTRY(matricies.ForwardMatrix1, header, &data_offset, 18)},
             {tcForwardMatrix2,              ttSRational,RATIONAL_ENTRY(matricies.ForwardMatrix2, header, &data_offset, 18)},
-            {tcTimeCodes,                   ttByte,     8,      add_timecode(frame_rate_f, drop_frame, tc_frame, header, &data_offset)},
+            {tcTimeCodes,                   ttByte,     8,      add_timecode(frame_rate_f, tc_frame, header, &data_offset)},
             {tcFrameRate,                   ttSRational,RATIONAL_ENTRY(frame_rate, header, &data_offset, 2)},
             {tcReelName,                    ttAscii,    STRING_ENTRY(mlv_basename, header, &data_offset)},
             {tcBaselineExposureOffset,      ttSRational,RATIONAL_ENTRY2(0, 1, header, &data_offset)},
