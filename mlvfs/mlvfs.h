@@ -131,7 +131,7 @@ static void *find_first_separator(const char *path)
 #define find_first_separator(path) strchr((path), '/')
 #define FUSE_OFF_T off_t
 #define FUSE_STAT stat
-#define FORCE_INLINE __always_inline
+#define FORCE_INLINE inline
 #define ROR(v,a) ((v) >> (a) | (v) << (32-(a)))  /* is there an intrinsic for? */
 #define STAT64 stat /* this wraps the function and the struct name */
 
@@ -143,11 +143,6 @@ static void *find_first_separator(const char *path)
 #endif
 #define err_printf(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
 
-#endif
-
-#if __clang__
-#undef FORCE_INLINE
-#define FORCE_INLINE inline
 #endif
 
 #endif
