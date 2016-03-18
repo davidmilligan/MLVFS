@@ -12,6 +12,9 @@
 #define ELEM_SWAP_SHORT(a,b) { register short t=(a);(a)=(b);(b)=t; }
 #define ELEM_SWAP_USHORT(a,b) { register unsigned short t=(a);(a)=(b);(b)=t; }
 
+#ifndef err_printf
+#define err_printf printf
+#endif
 
 /*---------------------------------------------------------------------------
  Function :   kth_smallest()
@@ -36,7 +39,7 @@ static inline int kth_smallest_int(int a[], int n, int k)
     if (n <= 0 || k < 0)
     {
         /* safeguard for invalid calls */
-        printf("error: kth_smallest_int(n=%d, k=%d)\n", n, k);
+        err_printf("error: kth_smallest_int(n=%d, k=%d)\n", n, k);
         return 0;
     }
     
@@ -67,7 +70,7 @@ static inline int kth_smallest_short(short a[], int n, int k)
     if (n <= 0 || k < 0)
     {
         /* safeguard for invalid calls */
-        printf("error: kth_smallest_short(n=%d, k=%d)\n", n, k);
+        err_printf("error: kth_smallest_short(n=%d, k=%d)\n", n, k);
         return 0;
     }
     
@@ -98,7 +101,7 @@ static inline unsigned short kth_smallest_ushort(unsigned short a[], int n, int 
     if (n <= 0 || k < 0)
     {
         /* safeguard for invalid calls */
-        printf("error: kth_smallest_int(n=%d, k=%d)\n", n, k);
+        err_printf("error: kth_smallest_int(n=%d, k=%d)\n", n, k);
         return 0;
     }
     register int i,j,l,m ;

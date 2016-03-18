@@ -90,7 +90,7 @@ static int load_resource(char** resource, const char * filename)
             if(ferror(f))
             {
                 int err = errno;
-                fprintf(stderr, "load_resource: file error: %s\n", strerror(err));
+                err_printf("fseek error: %s\n", strerror(err));
                 return 0;
             }
             size_t length = ftell(f);
@@ -102,7 +102,7 @@ static int load_resource(char** resource, const char * filename)
                 if(ferror(f))
                 {
                     int err = errno;
-                    fprintf(stderr, "load_resource: file error: %s\n", strerror(err));
+                    err_printf("fread error: %s\n", strerror(err));
                     free(*resource);
                     *resource = NULL;
                     return 0;
@@ -110,14 +110,14 @@ static int load_resource(char** resource, const char * filename)
             }
             else
             {
-                fprintf(stderr, "load_resource: malloc error\n");
+                err_printf("malloc error\n");
             }
             fclose(f);
         }
         else
         {
-            static char buf[1000];
-            fprintf(stderr, "load_resource: fopen error: %s cwd=%s\n", filename, (char*)getcwd(buf,1000));
+            int err = errno;
+            err_printf("fopen error: '%s': %s\n", filename, strerror(err));
             return 0;
         }
     }
