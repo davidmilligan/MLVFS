@@ -943,11 +943,6 @@ static int process_frame(struct image_buffer * image_buffer)
             if(mlvfs.deflicker) deflicker(&frame_headers, mlvfs.deflicker, image_buffer->data, image_buffer->size);
             dng_get_header_data(&frame_headers, image_buffer->header, 0, image_buffer->header_size, mlvfs.fps, mlv_basename);
             
-            if(mlvfs.fix_bad_pixels)
-            {
-                fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2);
-            }
-            
             if(mlvfs.fix_pattern_noise)
             {
                 fix_pattern_noise((int16_t*)image_buffer->data, frame_headers.rawi_hdr.xRes, frame_headers.rawi_hdr.yRes, frame_headers.rawi_hdr.raw_info.white_level, 0);
@@ -960,7 +955,7 @@ static int process_frame(struct image_buffer * image_buffer)
             }
             else if(mlvfs.dual_iso == 2)
             {
-                is_dual_iso = cr2hdr20_convert_data(&frame_headers, image_buffer->data, mlvfs.hdr_interpolation_method, !mlvfs.hdr_no_fullres, !mlvfs.hdr_no_alias_map, mlvfs.chroma_smooth);
+                is_dual_iso = cr2hdr20_convert_data(&frame_headers, image_buffer->data, mlvfs.hdr_interpolation_method, !mlvfs.hdr_no_fullres, !mlvfs.hdr_no_alias_map, mlvfs.chroma_smooth, mlvfs.fix_bad_pixels);
             }
             
             if(is_dual_iso)
@@ -971,6 +966,10 @@ static int process_frame(struct image_buffer * image_buffer)
             else
             {
                 fix_focus_pixels(&frame_headers, image_buffer->data, 0);
+                if(mlvfs.fix_bad_pixels)
+                {
+                    fix_bad_pixels(&frame_headers, image_buffer->data, mlvfs.fix_bad_pixels == 2, is_dual_iso);
+                }
             }
             
             if(mlvfs.chroma_smooth && mlvfs.dual_iso != 2)

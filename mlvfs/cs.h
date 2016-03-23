@@ -25,7 +25,7 @@
 #include "dng.h"
 
 void chroma_smooth(struct frame_headers * frame_headers, uint16_t * image_data, int method);
-void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data, int aggressive);
+void fix_bad_pixels(struct frame_headers * frame_headers, uint16_t * image_data, int aggressive, int dual_iso);
 void fix_focus_pixels(struct frame_headers * frame_headers, uint16_t * image_data, int dual_iso);
 void free_focus_pixel_maps();
 

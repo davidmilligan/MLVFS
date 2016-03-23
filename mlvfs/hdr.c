@@ -1929,7 +1929,7 @@ static int hdr_interpolate(struct raw_info raw_info, uint16_t * image_data, int 
     return ret;
 }
 
-int cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int interp_method, int fullres, int use_alias_map, int chroma_smooth_method)
+int cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image_data, int interp_method, int fullres, int use_alias_map, int chroma_smooth_method, int fix_bad_pixels_mode)
 {
     struct raw_info raw_info = frame_headers->rawi_hdr.raw_info;
     raw_info.width = frame_headers->rawi_hdr.xRes;
@@ -1942,6 +1942,10 @@ int cr2hdr20_convert_data(struct frame_headers * frame_headers, uint16_t * image
     if (hdr_check(raw_info, image_data))
     {
         fix_focus_pixels(frame_headers, image_data, 1);
+        if(fix_bad_pixels_mode)
+        {
+            fix_bad_pixels(frame_headers, image_data, fix_bad_pixels_mode == 2, 1);
+        }
         if(hdr_interpolate(raw_info, image_data, interp_method, fullres, use_alias_map, chroma_smooth_method))
         {
             frame_headers->rawi_hdr.raw_info.black_level *= 4;
