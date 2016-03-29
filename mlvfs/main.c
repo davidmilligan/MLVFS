@@ -1958,8 +1958,15 @@ int main(int argc, char **argv)
         expanded_path = _strdup(expanded);
 #else
         wordexp_t p;
-        wordexp(mlvfs.mlv_path, &p, 0);
-        expanded_path = strdup(p.we_wordv[0]);
+        int status = wordexp(mlvfs.mlv_path, &p, 0);
+        if(status == 0 && p.we_wordc > 0 && p.we_wordv[0])
+        {
+            expanded_path = strdup(p.we_wordv[0]);
+        }
+        else
+        {
+            err_printf("Shell expansion failed: %x", status);
+        }
         wordfree(&p);
 #endif
 
