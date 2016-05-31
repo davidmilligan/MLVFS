@@ -1949,26 +1949,7 @@ int main(int argc, char **argv)
         get_raw2ev(0);
         get_ev2raw();
         
-        // shell and wildcard expansion, taking just the first result
         char *expanded_path = NULL;
-
-#ifdef _WIN32
-        char expanded[MAX_PATH];
-        ExpandEnvironmentStrings(mlvfs.mlv_path, expanded, sizeof(expanded));
-        expanded_path = _strdup(expanded);
-#else
-        wordexp_t p;
-        int status = wordexp(mlvfs.mlv_path, &p, 0);
-        if(status == 0 && p.we_wordc > 0 && p.we_wordv[0])
-        {
-            expanded_path = strdup(p.we_wordv[0]);
-        }
-        else
-        {
-            err_printf("Shell expansion failed: %x", status);
-        }
-        wordfree(&p);
-#endif
 
         // check if the directory actually exists
         struct stat file_stat;
@@ -1976,16 +1957,38 @@ int main(int argc, char **argv)
         {
             res = 0;
         }
-        else if ((stat(expanded_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
-        {
-            // assume that p.we_wordc > 0
-            free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
-            mlvfs.mlv_path = expanded_path;
-            res = 0;
-        }
         else
         {
-            err_printf("MLVFS: mlv path is not a directory\n");
+            // try shell and wildcard expansion, taking just the first result
+            
+#ifdef _WIN32
+            char expanded[MAX_PATH];
+            ExpandEnvironmentStrings(mlvfs.mlv_path, expanded, sizeof(expanded));
+            expanded_path = _strdup(expanded);
+#else
+            wordexp_t p;
+            int status = wordexp(mlvfs.mlv_path, &p, 0);
+            if(status == 0 && p.we_wordc > 0 && p.we_wordv[0])
+            {
+                expanded_path = strdup(p.we_wordv[0]);
+            }
+            else
+            {
+                err_printf("Shell expansion failed: %x", status);
+            }
+            wordfree(&p);
+#endif
+            if (expanded_path && (stat(expanded_path, &file_stat) == 0) && S_ISDIR(file_stat.st_mode))
+            {
+                // assume that p.we_wordc > 0
+                free(mlvfs.mlv_path); // needs to be freed due to below pointer re-assignment
+                mlvfs.mlv_path = expanded_path;
+                res = 0;
+            }
+            else
+            {
+                err_printf("MLVFS: mlv path is not a directory\n");
+            }
         }
 
         if(!res)
